@@ -68,12 +68,18 @@ Provider-agnostic backbone, fully testable without any cloud CLI.
       credentials, cross-provider collection (`env=prod` spanning both clouds),
       `platform in [aks,eks]` multi-cloud view, resync survival
 
-## Cross-cutting / release
+## Cross-cutting / release  ✅ done
 
-- [ ] `Makefile` + GoReleaser wiring in `.github/workflows/snapshot-release.yml`
-      (Windows amd64 primary, then Linux amd64)
-- [ ] Extend `README.md` usage docs with real command output
+- [x] `Makefile` (build/test/check/dist/snapshot) with ldflags version injection
+- [x] `internal/buildinfo` + `version` command / `--version`
+- [x] `.goreleaser.yaml` (windows/amd64 primary, linux/amd64) + `snapshot-release`
+      workflow publishing a mutable `development-snapshot` draft pre-release
+- [x] Extend `README.md` with real usage output + build docs
 - [x] `credential renew`, `target use`, `collection use` end-to-end
+- [x] gitignore build output (`/bin`, `/dist`)
+
+## Remaining polish (post-milestone-1)
+
 - [ ] Multi-region EKS scan (currently the profile's configured region only)
 - [ ] Managed-runtime resolution (step 2) — optional, deferred
 
