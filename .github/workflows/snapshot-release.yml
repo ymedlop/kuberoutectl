@@ -1,1 +1,58 @@
+name: snapshot-release
 
+# Publishes a mutable draft pre-release of the CLI from the development branch.
+# Each push rebuilds cross-platform binaries and replaces the previous snapshot
+# release, so testers on restricted environments always have the latest build
+# without promoting every integration build to a formal release.
+on:
+  push:
+    branches: [development]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: snapshot-release
+  cancel-in-progress: true
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Verify
+        run: |
+          go vet ./...
+          go test ./...
+
+      - name: Build snapshot artifacts
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --snapshot --clean
+
+      - name: Publish mutable draft snapshot
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="development-snapshot"
+          # Remove the previous snapshot so the release stays a single moving target.
+          gh release delete "$tag" --yes --cleanup-tag || true
+          gh release create "$tag" \
+            dist/*.tar.gz dist/*.zip dist/checksums.txt \
+            --draft \
+            --prerelease \
+            --target "${GITHUB_SHA}" \
+            --title "Development snapshot" \
+            --notes "Automated snapshot from development @ ${GITHUB_SHA} (built $(date -u +%Y-%m-%dT%H:%M:%SZ))."

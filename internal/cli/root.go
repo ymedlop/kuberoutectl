@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/ymedlop/kuberoutectl/internal/buildinfo"
 	"github.com/ymedlop/kuberoutectl/internal/cache"
 	"github.com/ymedlop/kuberoutectl/internal/cache/jsonstore"
 	"github.com/ymedlop/kuberoutectl/internal/config"
@@ -65,6 +66,7 @@ func (a *app) rootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "kuberoutectl",
 		Short:         "Discover, organize, and route Kubernetes access across providers",
+		Version:       buildinfo.Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
@@ -87,6 +89,7 @@ func (a *app) rootCmd() *cobra.Command {
 		a.collectionCmd(),
 		a.syncCmd(),
 		a.doctorCmd(),
+		a.versionCmd(),
 	)
 	return root
 }
