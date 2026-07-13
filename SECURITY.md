@@ -2,20 +2,21 @@
 
 ## Supported Versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
+This project is currently in early development (MVP stage). No stable versions have been released yet.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+| Version | Supported |
+| ------- | --------- |
+| 0.x     | :warning: |
+
+**Note:** This is a development-stage project. Security patches will be applied once we reach our first stable release.
 
 ## Reporting a Vulnerability
 
-Use this section to tell people how to report a vulnerability.
+We take security seriously, even during our development phase. If you discover a security vulnerability, please report it responsibly by emailing the maintainers directly instead of using the public issue tracker.
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+Please include:
+- Description of the vulnerability
+- Steps to reproduce
+- Potential impact
+
+We appreciate your help in keeping this project secure as we move toward our first stable release.
