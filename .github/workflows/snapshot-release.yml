@@ -1,9 +1,14 @@
 name: snapshot-release
 
-# Publishes a mutable draft pre-release of the CLI from the development branch.
-# Each push rebuilds cross-platform binaries and replaces the previous snapshot
+# Publishes a mutable pre-release of the CLI from the development branch. Each
+# push rebuilds cross-platform binaries and replaces the previous snapshot
 # release, so testers on restricted environments always have the latest build
 # without promoting every integration build to a formal release.
+#
+# The release is a published pre-release, not a draft: a draft release never
+# creates its underlying git tag, so it lands as an orphaned "untagged-*"
+# release that cannot be reliably found and replaced on the next run. A
+# pre-release keeps it clearly non-stable while giving it a real, movable tag.
 on:
   push:
     branches: [development]
@@ -42,16 +47,16 @@ jobs:
           version: "~> v2"
           args: release --snapshot --clean
 
-      - name: Publish mutable draft snapshot
+      - name: Publish rolling snapshot pre-release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="development-snapshot"
-          # Remove the previous snapshot so the release stays a single moving target.
+          # Remove the previous snapshot (release + tag) so this stays a single
+          # moving pre-release, then recreate it at the current commit.
           gh release delete "$tag" --yes --cleanup-tag || true
           gh release create "$tag" \
             dist/*.tar.gz dist/*.zip dist/checksums.txt \
-            --draft \
             --prerelease \
             --target "${GITHUB_SHA}" \
             --title "Development snapshot" \
