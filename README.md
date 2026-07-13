@@ -53,13 +53,13 @@ The initial goals of the project are:
 
 The CLI is built around a stable domain model:
 
-- **Provider**: source of access such as Azure, AWS, GCP, or kubeconfig.
+- **Provider**: source of access such as `azure`, `aws`, `gcp`, or `kubeconfig`.
 - **AccessSource**: concrete source of access data, such as an Azure CLI profile, AWS profile, or kubeconfig file.
 - **Credential**: usable identity inside a provider.
 - **Scope**: administrative or logical boundary, such as an Azure subscription or AWS account/profile scope.
 - **Target**: selectable Kubernetes destination, usually a managed cluster or future kubeconfig context.
 - **Labels**: key/value metadata used to organize targets.
-- **Collections**: saved logical views over targets, usually powered by label selectors.
+- **Collections**: saved logical views over targets.
 
 ## Design principles
 
@@ -75,8 +75,8 @@ The CLI is built around a stable domain model:
 Kubernetes labels are a strong inspiration for the organization layer of `kuberoutectl`.
 
 Targets can have:
-- **system labels**, discovered or derived by the tool, such as provider or region;
-- **user labels**, defined by the operator, such as `env=prod`, `project=homelab`, or `team=platform`.
+- **system labels**, discovered or derived by the tool,
+- **user labels**, defined by the operator.
 
 Collections are not just static folders. They are saved views over targets, primarily driven by labels and selectors, with optional static additions when needed.
 
