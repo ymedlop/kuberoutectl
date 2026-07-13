@@ -33,3 +33,6 @@ go.work.sum
 .claude/skills/.DS_Store
 .claude/.DS_Store
 .DS_Store
+
+# Spartan AI config (contains API keys)
+.spartan/ai.env
