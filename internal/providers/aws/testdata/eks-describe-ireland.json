@@ -1,0 +1,9 @@
+{
+  "cluster": {
+    "name": "eks-prod-ireland",
+    "arn": "arn:aws:eks:eu-central-1:111111111111:cluster/eks-prod-ireland",
+    "endpoint": "https://DEF456.gr7.eu-central-1.eks.amazonaws.com",
+    "version": "1.29",
+    "status": "ACTIVE"
+  }
+}

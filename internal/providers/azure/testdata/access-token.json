@@ -1,0 +1,8 @@
+{
+  "accessToken": "REDACTED",
+  "expiresOn": "2026-07-13 12:30:00.000000",
+  "expires_on": 1784982600,
+  "subscription": "aaaaaaaa-0000-0000-0000-000000000001",
+  "tenant": "11111111-1111-1111-1111-111111111111",
+  "tokenType": "Bearer"
+}

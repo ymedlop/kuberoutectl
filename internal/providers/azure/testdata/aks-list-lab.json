@@ -1,0 +1,12 @@
+[
+  {
+    "id": "/subscriptions/aaaaaaaa-0000-0000-0000-000000000002/resourcegroups/rg-lab/providers/Microsoft.ContainerService/managedClusters/aks-lab-weu",
+    "name": "aks-lab-weu",
+    "location": "westeurope",
+    "resourceGroup": "rg-lab",
+    "kubernetesVersion": "1.27.7",
+    "fqdn": "aks-lab-weu-dns-ghi789.hcp.westeurope.azmk8s.io",
+    "powerState": { "code": "Stopped" },
+    "provisioningState": "Succeeded"
+  }
+]

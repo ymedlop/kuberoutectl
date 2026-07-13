@@ -1,0 +1,54 @@
+# GoReleaser v2 configuration for kuberoutectl.
+#
+# Snapshot builds are produced from the `development` branch by the
+# snapshot-release workflow with `goreleaser release --snapshot`, which builds
+# and archives without publishing; the workflow then uploads the artifacts to a
+# mutable draft pre-release. Windows amd64 is the primary deliverable, Linux
+# amd64 follows.
+version: 2
+
+project_name: kuberoutectl
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: kuberoutectl
+    main: ./cmd/kuberoutectl
+    binary: kuberoutectl
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X github.com/ymedlop/kuberoutectl/internal/buildinfo.Version={{ .Version }}
+      - -X github.com/ymedlop/kuberoutectl/internal/buildinfo.Commit={{ .ShortCommit }}
+      - -X github.com/ymedlop/kuberoutectl/internal/buildinfo.Date={{ .Date }}
+    goos:
+      - windows
+      - linux
+    goarch:
+      - amd64
+
+archives:
+  - id: default
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot-{{ .ShortCommit }}"
+
+changelog:
+  disable: true
+
+# The workflow publishes the draft pre-release via the gh CLI, so GoReleaser's
+# own release step is not used for snapshots.
+release:
+  draft: true
+  prerelease: true
