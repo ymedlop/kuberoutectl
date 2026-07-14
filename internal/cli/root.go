@@ -88,6 +88,7 @@ func (a *app) rootCmd() *cobra.Command {
 		a.targetCmd(),
 		a.collectionCmd(),
 		a.syncCmd(),
+		a.awsCmd(),
 		a.doctorCmd(),
 		a.versionCmd(),
 	)
