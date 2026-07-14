@@ -1,0 +1,25 @@
+// kuberoutectl brand color scheme for Just-the-Docs.
+//
+// Selected via `color_scheme: kuberoute` in _config.yml. Only the variables
+// that differ from the theme's built-in "light" scheme are overridden here;
+// everything else inherits sensible defaults.
+//
+// Palette: a cyan/teal "routing" accent over a cool slate neutral, chosen to
+// read as an infrastructure / networking tool rather than a generic template.
+
+$link-color:            #0e7490; // cyan-700 — primary accent
+$btn-primary-color:     #0e7490;
+$body-heading-color:    #0f172a; // slate-900
+$body-text-color:       #1f2937; // slate-800
+$nav-child-link-color:  #475569; // slate-600
+$sidebar-color:         #f8fafc; // slate-50
+$border-color:          #e2e8f0; // slate-200
+
+$code-background-color:        #f1f5f9; // slate-100
+$search-result-preview-color:  #64748b; // slate-500
+$search-background-color:      #ffffff;
+$table-background-color:       #ffffff;
+$feedback-color:               #eef2f7; // sidebar tint (darken avoided; deprecated in Dart Sass)
+
+// Selected nav item gets a tinted rail instead of the default grey.
+$nav-list-link-active-color: $link-color;

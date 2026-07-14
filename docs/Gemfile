@@ -1,0 +1,20 @@
+# Dependencies for building the kuberoutectl docs site.
+#
+#   cd docs && bundle install && bundle exec jekyll serve
+#
+# CI (.github/workflows/pages.yml) installs from this same Gemfile so local
+# and deployed builds match.
+source "https://rubygems.org"
+
+gem "jekyll", "~> 4.3"
+gem "just-the-docs", "~> 0.10"
+
+group :jekyll_plugins do
+  gem "jekyll-relative-links"
+  gem "jekyll-seo-tag"
+  gem "jekyll-sitemap"
+end
+
+# Windows/JRuby timezone data and faster file watching (harmless elsewhere).
+gem "tzinfo-data", platforms: [:mingw, :x64_mingw, :mswin, :jruby]
+gem "wdm", "~> 0.1", platforms: [:mingw, :x64_mingw, :mswin]
