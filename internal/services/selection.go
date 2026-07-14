@@ -89,3 +89,55 @@ func (s *SelectionService) UseCollection(id domain.CollectionID) error {
 func (s *SelectionService) Current() (domain.Selection, error) {
 	return s.store.LoadSelection()
 }
+
+// SelectionStatus is the render-friendly answer to "what am I pointed at?".
+// Target/Collection are resolved from the current cache and nil when the
+// selection is empty — or stale, i.e. it references something a later resync
+// removed. Stale is deliberately not an error: the selection is still shown so
+// the operator can see what it *was* and pick again.
+type SelectionStatus struct {
+	Selection  domain.Selection   `json:"selection"`
+	Target     *domain.Target     `json:"target,omitempty"`
+	Collection *domain.Collection `json:"collection,omitempty"`
+	// SyncedAt is when the cache was last written, so the caller can show how
+	// fresh the health information is.
+	SyncedAt time.Time `json:"synced_at"`
+}
+
+// Status resolves the persisted selection against the current snapshot.
+func (s *SelectionService) Status() (SelectionStatus, error) {
+	sel, err := s.store.LoadSelection()
+	if err != nil {
+		return SelectionStatus{}, err
+	}
+	snap, err := s.store.LoadSnapshot()
+	if err != nil {
+		return SelectionStatus{}, err
+	}
+	st := SelectionStatus{Selection: sel, SyncedAt: snap.SyncedAt}
+
+	if sel.TargetID != "" {
+		AssignAliases(snap.Targets)
+		for i := range snap.Targets {
+			if snap.Targets[i].ID == sel.TargetID {
+				t := snap.Targets[i]
+				st.Target = &t
+				break
+			}
+		}
+	}
+	if sel.CollectionID != "" {
+		cols, err := s.store.LoadCollections()
+		if err != nil {
+			return SelectionStatus{}, err
+		}
+		for i := range cols {
+			if cols[i].ID == sel.CollectionID {
+				c := cols[i]
+				st.Collection = &c
+				break
+			}
+		}
+	}
+	return st, nil
+}

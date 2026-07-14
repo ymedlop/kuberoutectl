@@ -131,6 +131,11 @@ assert_contains "$creds" "static   none"     # AWS static keys not coerced into 
 assert_contains "$creds" "expired  renew"    # expired SSO session
 assert_contains "$creds" "valid    use"      # working identities
 
+echo; echo "==> credential list --provider filters"
+az_creds="$("$BIN" credential list --provider azure)"; echo "$az_creds"
+assert_contains "$az_creds" "azure"
+echo "$az_creds" | grep -qF "aws:" && fail "--provider azure must exclude AWS credentials"
+
 targets="$("$BIN" target list)"; echo; echo "$targets"
 assert_contains "$targets" "ALIAS"           # short-handle column, not the giant ID
 assert_contains "$targets" "aks-prod-weu"    # Azure AKS (alias == name here)
@@ -158,6 +163,11 @@ assert_contains "$use_out" "kubeconfig updated"
 assert_contains "$use_out" "aks-prod-weu"
 noku_out="$("$BIN" target use "$AKS_WEU" --no-kubeconfig 2>&1)"; echo "$noku_out"
 assert_contains "$noku_out" "kubeconfig unchanged"
+
+echo; echo "==> current answers 'what am I pointed at?'"
+cur="$("$BIN" current)"; echo "$cur"
+assert_contains "$cur" "aks-prod-weu"        # the target just used
+assert_contains "$cur" "Last sync"           # cache freshness shown
 
 echo; echo "==> resync both providers (user labels must survive)"
 "$BIN" sync azure >/dev/null

@@ -79,6 +79,51 @@ func TestUseTarget_NoKubeconfigSkipsActivation(t *testing.T) {
 	}
 }
 
+func TestStatus_ResolvesSelectedTarget(t *testing.T) {
+	store := storeWithSelTarget()
+	svc := NewSelectionService(store, nil, fixedNow)
+
+	// Nothing selected yet: empty status, no error.
+	st, err := svc.Status()
+	if err != nil {
+		t.Fatalf("Status (empty): %v", err)
+	}
+	if st.Target != nil || st.Collection != nil {
+		t.Errorf("empty selection should resolve nothing: %+v", st)
+	}
+
+	store.selection = domain.Selection{TargetID: "t1", UpdatedAt: fixedNow()}
+	st, err = svc.Status()
+	if err != nil {
+		t.Fatalf("Status: %v", err)
+	}
+	if st.Target == nil || st.Target.ID != "t1" {
+		t.Fatalf("expected target t1 resolved, got %+v", st.Target)
+	}
+	if st.Target.Alias == "" {
+		t.Error("resolved target should carry an alias")
+	}
+	if st.SyncedAt != store.snap.SyncedAt {
+		t.Errorf("SyncedAt not propagated: %v", st.SyncedAt)
+	}
+}
+
+func TestStatus_SelectedTargetGoneFromCache(t *testing.T) {
+	store := storeWithSelTarget()
+	store.selection = domain.Selection{TargetID: "vanished", UpdatedAt: fixedNow()}
+	svc := NewSelectionService(store, nil, fixedNow)
+
+	// A selection pointing at a target that no longer exists (removed by a
+	// resync) is stale, not an error: the selection is reported, Target is nil.
+	st, err := svc.Status()
+	if err != nil {
+		t.Fatalf("Status: %v", err)
+	}
+	if st.Selection.TargetID != "vanished" || st.Target != nil {
+		t.Errorf("stale selection should surface with nil target: %+v", st)
+	}
+}
+
 func TestUseTarget_ActivateUnsupportedErrors(t *testing.T) {
 	store := storeWithSelTarget()
 	prov := &activatableProvider{id: "azure", canSwitch: false} // cannot switch context
