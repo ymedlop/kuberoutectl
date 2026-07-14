@@ -6,6 +6,7 @@ route to) and **managing credentials** (check health, renew, re-authenticate).
 
 - [Azure (AKS)](azure.md)
 - [AWS (EKS)](aws.md)
+- [GCP (GKE)](gcp.md)
 - [kubeconfig](kubeconfig.md) — self-hosted / local / handed-to-you contexts
 
 ## How the CLI thinks (shared model)
@@ -13,14 +14,14 @@ route to) and **managing credentials** (check health, renew, re-authenticate).
 Every provider maps onto the same domain model, so the commands are identical
 across clouds — only the underlying CLI differs:
 
-| Concept        | Azure                       | AWS                          | kubeconfig             |
-|----------------|-----------------------------|------------------------------|------------------------|
-| **Provider**   | `azure`                     | `aws`                        | `kubeconfig`           |
-| **AccessSource** | Azure CLI login profile   | each `~/.aws` profile        | the kubeconfig file    |
-| **Credential** | login identity (per tenant) | one per profile              | each `users[]` entry   |
-| **Scope**      | subscription                | account                      | cluster                |
-| **Target**     | AKS cluster                 | EKS cluster                  | context                |
-| Underlying CLI | `az`                        | `aws`                        | `kubectl`              |
+| Concept        | Azure                       | AWS                          | GCP                    | kubeconfig             |
+|----------------|-----------------------------|------------------------------|------------------------|------------------------|
+| **Provider**   | `azure`                     | `aws`                        | `gcp`                  | `kubeconfig`           |
+| **AccessSource** | Azure CLI login profile   | each `~/.aws` profile        | active gcloud login    | the kubeconfig file    |
+| **Credential** | login identity (per tenant) | one per profile              | active gcloud account  | each `users[]` entry   |
+| **Scope**      | subscription                | account                      | project                | cluster                |
+| **Target**     | AKS cluster                 | EKS cluster                  | GKE cluster            | context                |
+| Underlying CLI | `az`                        | `aws`                        | `gcloud`               | `kubectl`              |
 
 `kuberoutectl` never stores your secrets. It shells out to the provider CLI you
 already use, caches the **inventory** it discovers (names, regions, health,
