@@ -1,11 +1,23 @@
 package cli
 
 import (
+	"fmt"
+	"io"
+
 	"github.com/spf13/cobra"
 
 	"github.com/ymedlop/kuberoutectl/internal/domain"
 	"github.com/ymedlop/kuberoutectl/internal/services"
 )
+
+// stderrProgress renders provider discovery steps as indented lines on stderr,
+// so the user sees a slow sync making progress without corrupting stdout.
+type stderrProgress struct{ w io.Writer }
+
+// Step implements providers.Progress.
+func (p stderrProgress) Step(format string, args ...any) {
+	fmt.Fprintf(p.w, "  → "+format+"\n", args...)
+}
 
 // syncSummary is the render-friendly result of a sync.
 type syncSummary struct {
@@ -35,8 +47,14 @@ func (a *app) syncProviderCmd(id domain.ProviderID) *cobra.Command {
 		Short: "Sync inventory from the " + string(id) + " provider",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			// Progress goes to stderr so it never pollutes --output json on stdout,
+			// and so the user sees activity during a slow discovery.
+			errW := cmd.ErrOrStderr()
+			fprintln(errW, "Syncing "+string(id)+" ...")
+			prog := stderrProgress{w: errW}
+
 			disco := services.NewDiscoveryService(a.registry, a.store, nil)
-			snap, err := disco.Sync(cmd.Context(), id)
+			snap, err := disco.Sync(cmd.Context(), id, prog)
 			if err != nil {
 				return err
 			}
