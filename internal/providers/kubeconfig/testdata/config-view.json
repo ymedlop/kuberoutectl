@@ -1,0 +1,53 @@
+{
+  "apiVersion": "v1",
+  "kind": "Config",
+  "current-context": "prod-eks",
+  "clusters": [
+    {
+      "name": "prod-eks-cluster",
+      "cluster": {
+        "server": "https://ABC123.gr7.eu-central-1.eks.amazonaws.com"
+      }
+    },
+    {
+      "name": "homelab",
+      "cluster": {
+        "server": "https://192.168.1.10:6443"
+      }
+    }
+  ],
+  "users": [
+    {
+      "name": "prod-eks-user",
+      "user": {
+        "exec": {
+          "command": "aws",
+          "apiVersion": "client.authentication.k8s.io/v1beta1"
+        }
+      }
+    },
+    {
+      "name": "homelab-admin",
+      "user": {
+        "client-certificate-data": "LS0tLS1CRUdJTi0tLS0t"
+      }
+    }
+  ],
+  "contexts": [
+    {
+      "name": "prod-eks",
+      "context": {
+        "cluster": "prod-eks-cluster",
+        "user": "prod-eks-user",
+        "namespace": "default"
+      }
+    },
+    {
+      "name": "homelab",
+      "context": {
+        "cluster": "homelab",
+        "user": "homelab-admin"
+      }
+    }
+  ]
+}

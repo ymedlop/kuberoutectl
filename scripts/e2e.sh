@@ -16,6 +16,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AZ_FIX="$ROOT/internal/providers/azure/testdata"
 AWS_FIX="$ROOT/internal/providers/aws/testdata"
+KC_FIX="$ROOT/internal/providers/kubeconfig/testdata"
 
 WORK="$(mktemp -d)"
 if [ "${KEEP:-0}" = "1" ]; then
@@ -78,13 +79,31 @@ case "\$*" in
   *) exit 1 ;;
 esac
 EOF
-chmod +x "$WORK/bin/az" "$WORK/bin/aws"
+cat > "$WORK/bin/kubectl" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+  "config view --raw -o json") cat "$KC_FIX/config-view.json" ;;
+  "config use-context "*) echo "Switched to context \"\${*##* }\"." ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$WORK/bin/az" "$WORK/bin/aws" "$WORK/bin/kubectl"
 
 run() { echo; echo "\$ kuberoutectl $*"; "$BIN" "$@"; }
 
 run doctor
 run sync azure
 run sync aws
+run sync kubeconfig
+
+echo; echo "==> kubeconfig contexts are inventoried, health is honest (static/unknown, never renew)"
+kc="$("$BIN" target list --provider kubeconfig)"; echo "$kc"
+assert_contains "$kc" "homelab"          # a self-hosted context
+assert_contains "$kc" "static"           # client-cert user
+assert_contains "$kc" "unknown"          # exec-based user (externally managed)
+echo "$kc" | grep -qF "renew" && fail "kubeconfig credentials must never suggest renew"
+use_kc="$("$BIN" target use homelab 2>&1)"; echo "$use_kc"
+assert_contains "$use_kc" "kubeconfig updated"   # kubectl config use-context ran
 
 creds="$("$BIN" credential list)"; echo; echo "$creds"
 assert_contains "$creds" "static   none"     # AWS static keys not coerced into renew

@@ -6,20 +6,21 @@ route to) and **managing credentials** (check health, renew, re-authenticate).
 
 - [Azure (AKS)](azure.md)
 - [AWS (EKS)](aws.md)
+- [kubeconfig](kubeconfig.md) — self-hosted / local / handed-to-you contexts
 
 ## How the CLI thinks (shared model)
 
 Every provider maps onto the same domain model, so the commands are identical
 across clouds — only the underlying CLI differs:
 
-| Concept        | Azure                       | AWS                          |
-|----------------|-----------------------------|------------------------------|
-| **Provider**   | `azure`                     | `aws`                        |
-| **AccessSource** | Azure CLI login profile   | each `~/.aws` profile        |
-| **Credential** | login identity (per tenant) | one per profile              |
-| **Scope**      | subscription                | account                      |
-| **Target**     | AKS cluster                 | EKS cluster                  |
-| Underlying CLI | `az`                        | `aws`                        |
+| Concept        | Azure                       | AWS                          | kubeconfig             |
+|----------------|-----------------------------|------------------------------|------------------------|
+| **Provider**   | `azure`                     | `aws`                        | `kubeconfig`           |
+| **AccessSource** | Azure CLI login profile   | each `~/.aws` profile        | the kubeconfig file    |
+| **Credential** | login identity (per tenant) | one per profile              | each `users[]` entry   |
+| **Scope**      | subscription                | account                      | cluster                |
+| **Target**     | AKS cluster                 | EKS cluster                  | context                |
+| Underlying CLI | `az`                        | `aws`                        | `kubectl`              |
 
 `kuberoutectl` never stores your secrets. It shells out to the provider CLI you
 already use, caches the **inventory** it discovers (names, regions, health,
