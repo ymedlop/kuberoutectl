@@ -51,10 +51,13 @@ clean: ## Remove build artifacts
 	rm -rf bin dist
 
 # Cross-compile the snapshot deliverables. Windows amd64 is the primary target
-# for restricted work environments; Linux amd64 follows.
-dist: ## Cross-compile windows/amd64 then linux/amd64
+# for restricted work environments; Linux amd64 and macOS (Apple Silicon)
+# arm64 follow. Mirrors the GoReleaser matrix.
+dist: ## Cross-compile windows/amd64, linux/amd64, darwin/amd64, darwin/arm64
 	GOOS=windows GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o dist/$(BINARY)_windows_amd64/$(BINARY).exe $(CMD)
 	GOOS=linux   GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o dist/$(BINARY)_linux_amd64/$(BINARY) $(CMD)
+	GOOS=darwin  GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o dist/$(BINARY)_darwin_amd64/$(BINARY) $(CMD)
+	GOOS=darwin  GOARCH=arm64 go build -ldflags '$(LDFLAGS)' -o dist/$(BINARY)_darwin_arm64/$(BINARY) $(CMD)
 
 snapshot: ## Build a local snapshot release with GoReleaser
 	goreleaser release --snapshot --clean

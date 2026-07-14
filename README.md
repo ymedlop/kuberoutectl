@@ -187,7 +187,7 @@ the `Makefile`:
 make build        # build ./bin/kuberoutectl with version info injected
 make test         # go test ./...
 make check        # format check + vet + test (pre-commit gate)
-make dist         # cross-compile windows/amd64 then linux/amd64 into ./dist
+make dist         # cross-compile windows+linux amd64 and macOS arm64 into ./dist
 make snapshot     # local GoReleaser snapshot build
 make help         # list all targets
 ```
@@ -211,11 +211,11 @@ The repository uses:
   pre-release for testing.
 
 The `snapshot-release` GitHub Actions workflow builds cross-platform binaries
-with GoReleaser on every push to `development` (Windows amd64 primary, Linux
-amd64 next) and replaces a single `development-snapshot` draft pre-release. This
-makes it easy to develop on a personal machine and validate builds on a more
-restricted work environment without promoting every test build to a formal
-release.
+with GoReleaser on every push to `development` (Windows amd64 primary, then
+Linux amd64 and macOS Apple Silicon arm64) and replaces a single
+`development-snapshot` pre-release. This makes it easy to develop on a personal
+machine and validate builds on a more restricted work environment without
+promoting every test build to a formal release.
 
 ## License
 
