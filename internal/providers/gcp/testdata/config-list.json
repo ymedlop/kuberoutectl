@@ -1,0 +1,7 @@
+{
+  "core": {
+    "account": "yeray@example.com",
+    "project": "platform-prod-123",
+    "disable_usage_reporting": "True"
+  }
+}

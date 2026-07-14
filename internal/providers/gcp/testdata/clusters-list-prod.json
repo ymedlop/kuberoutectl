@@ -1,0 +1,10 @@
+[
+  {
+    "name": "gke-prod-euw1",
+    "location": "europe-west1",
+    "endpoint": "34.10.20.30",
+    "currentMasterVersion": "1.29.5-gke.1091000",
+    "status": "RUNNING",
+    "selfLink": "https://container.googleapis.com/v1/projects/platform-prod-123/locations/europe-west1/clusters/gke-prod-euw1"
+  }
+]

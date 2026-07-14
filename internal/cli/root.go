@@ -16,6 +16,7 @@ import (
 	"github.com/ymedlop/kuberoutectl/internal/providers"
 	"github.com/ymedlop/kuberoutectl/internal/providers/aws"
 	"github.com/ymedlop/kuberoutectl/internal/providers/azure"
+	"github.com/ymedlop/kuberoutectl/internal/providers/gcp"
 	"github.com/ymedlop/kuberoutectl/internal/providers/kubeconfig"
 )
 
@@ -63,6 +64,11 @@ func Execute() error {
 		return err
 	}
 	a.requiredBinary[string(kubeconfig.ProviderID)] = kubeconfig.BinaryName
+
+	if err := a.registry.Register(gcp.New(a.resolver, runner)); err != nil {
+		return err
+	}
+	a.requiredBinary[string(gcp.ProviderID)] = gcp.BinaryName
 
 	return a.rootCmd().Execute()
 }
