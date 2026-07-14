@@ -62,7 +62,7 @@ func (p *Provider) Capabilities() domain.Capabilities {
 		CanDiscoverScopes: true,
 		CanRenew:          true,
 		CanReauth:         true,
-		CanSwitchContext:  false,
+		CanSwitchContext:  true,
 		StaticCredentials: false,
 	}
 }

@@ -106,7 +106,8 @@ kuberoutectl credential renew <id>               # if the provider/credential su
 
 kuberoutectl target list
 kuberoutectl target inspect <id>
-kuberoutectl target use <id>
+kuberoutectl target use <id>                # fetch credentials into ~/.kube/config + set context
+kuberoutectl target use <id> --no-kubeconfig  # record the selection only
 
 kuberoutectl target label add <target-id> env=prod
 kuberoutectl target label remove <target-id> env
