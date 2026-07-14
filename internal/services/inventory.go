@@ -95,16 +95,54 @@ type TargetService struct{ store cache.CacheStore }
 
 func NewTargetService(store cache.CacheStore) *TargetService { return &TargetService{store: store} }
 
-func (s *TargetService) List() ([]domain.Target, error) {
+// TargetFilter narrows a target listing. A zero value matches everything.
+type TargetFilter struct {
+	// Provider, when non-empty, keeps only targets from that provider.
+	Provider domain.ProviderID
+	// Selector, when non-nil, keeps only targets the selector matches
+	// (evaluated against SelectionLabels, like collections).
+	Selector *domain.LabelSelector
+}
+
+// all loads the snapshot's targets, as a fresh copy, with aliases assigned.
+// Every read path goes through here so aliases are consistent between list,
+// inspect, and use. It copies rather than returning the store's backing slice
+// so filtering/aliasing can never mutate the cached snapshot.
+func (s *TargetService) all() ([]domain.Target, error) {
 	snap, err := s.store.LoadSnapshot()
 	if err != nil {
 		return nil, err
 	}
-	return snap.Targets, nil
+	targets := make([]domain.Target, len(snap.Targets))
+	copy(targets, snap.Targets)
+	AssignAliases(targets)
+	return targets, nil
 }
 
+// List returns targets matching the filter, preserving snapshot order.
+func (s *TargetService) List(f TargetFilter) ([]domain.Target, error) {
+	targets, err := s.all()
+	if err != nil {
+		return nil, err
+	}
+	if f.Provider != "" {
+		kept := make([]domain.Target, 0, len(targets))
+		for _, t := range targets {
+			if t.ProviderID == f.Provider {
+				kept = append(kept, t)
+			}
+		}
+		targets = kept
+	}
+	if f.Selector != nil {
+		targets = NewSelectorEngine().Filter(*f.Selector, targets)
+	}
+	return targets, nil
+}
+
+// Get returns a single target by its exact ID.
 func (s *TargetService) Get(id domain.TargetID) (domain.Target, error) {
-	targets, err := s.List()
+	targets, err := s.all()
 	if err != nil {
 		return domain.Target{}, err
 	}
@@ -114,4 +152,15 @@ func (s *TargetService) Get(id domain.TargetID) (domain.Target, error) {
 		}
 	}
 	return domain.Target{}, fmt.Errorf("target %q not found", id)
+}
+
+// Resolve returns a single target by a flexible reference: full ID, alias, or
+// name (see ResolveTargetRef). This is what lets the CLI accept short handles
+// wherever a target ID is expected.
+func (s *TargetService) Resolve(ref string) (domain.Target, error) {
+	targets, err := s.all()
+	if err != nil {
+		return domain.Target{}, err
+	}
+	return ResolveTargetRef(targets, ref)
 }

@@ -74,13 +74,17 @@ Platform Lab   azure     aaaaaaaa-0000-0000-0000-000000000002
 Sandbox        azure     aaaaaaaa-0000-0000-0000-000000000003
 
 $ kuberoutectl target list
-NAME          PLATFORM  REGION      HEALTH  PROVIDER  ID
-aks-prod-weu  aks       westeurope  valid   azure     /subscriptions/aaaa.../aks-prod-weu
-aks-lab-weu   aks       westeurope  valid   azure     /subscriptions/bbbb.../aks-lab-weu
+ALIAS         PLATFORM  REGION      HEALTH  PROVIDER
+aks-prod-weu  aks       westeurope  valid   azure
+aks-lab-weu   aks       westeurope  valid   azure
 ```
 
-The Target ID is the full ARM resource ID — stable across resyncs, which is what
-labels and collections attach to.
+The **ALIAS** is a short, stable handle (derived from the cluster name) that you
+can use anywhere a target is expected — `target use`, `target inspect`,
+`target label` — instead of the long ARM resource ID. The full ID is still the
+underlying identity (stable across resyncs, what labels/collections attach to);
+show it with `--wide` or `-o json`. Filter the list with `--provider azure` or a
+selector, e.g. `-l env=prod` or `-l "region in [westeurope, northeurope]"`.
 
 ## 3. Check credential health
 
@@ -122,7 +126,7 @@ This is the point of the tool — make one AKS cluster your current `kubectl`
 context:
 
 ```console
-$ kuberoutectl target use /subscriptions/aaaa.../aks-prod-weu
+$ kuberoutectl target use aks-prod-weu       # the alias — or the full ID
 Fetching credentials into ~/.kube/config ...
 Now using target: aks-prod-weu (/subscriptions/aaaa.../aks-prod-weu)
 kubeconfig updated and set as the current context.
@@ -141,7 +145,7 @@ If you only want to record the selection without touching your kubeconfig
 (e.g. on a machine where you don't want to alter `~/.kube/config`):
 
 ```bash
-kuberoutectl target use <id> --no-kubeconfig
+kuberoutectl target use <alias|id|name> --no-kubeconfig
 ```
 
 If the target's credential needs renewal, `target use` warns you and points at
@@ -154,8 +158,8 @@ Add your own **user labels** — they live in the state store and survive every
 resync:
 
 ```bash
-kuberoutectl target label add /subscriptions/aaaa.../aks-prod-weu env=prod team=platform
-kuberoutectl target label list /subscriptions/aaaa.../aks-prod-weu
+kuberoutectl target label add aks-prod-weu env=prod team=platform
+kuberoutectl target label list aks-prod-weu
 ```
 
 Then save a **collection** — a live view driven by a selector, not a static
@@ -192,5 +196,5 @@ Azure and AWS (see the [AWS guide](aws.md)).
 - **`az` not found** — install the Azure CLI or set an explicit binary path in
   config; `kuberoutectl doctor` shows what it resolved.
 - **Wrong cluster after `target use`** — confirm with
-  `kubectl config current-context`; re-run `target use` on the intended ID
-  (the ID column in `target list` is unambiguous).
+  `kubectl config current-context`; re-run `target use` on the intended alias
+  (the ALIAS column in `target list` is unique and unambiguous).

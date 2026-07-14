@@ -76,10 +76,15 @@ Synced provider: aws
 > still succeeds for the profiles that work.
 
 ```console
-$ kuberoutectl target list
-NAME                PLATFORM  REGION        HEALTH  PROVIDER  ID
-eks-prod-frankfurt  eks       eu-central-1  valid   aws       arn:aws:eks:eu-central-1:111111111111:cluster/eks-prod-frankfurt
+$ kuberoutectl target list --provider aws
+ALIAS               PLATFORM  REGION        HEALTH  PROVIDER
+eks-prod-frankfurt  eks       eu-central-1  valid   aws
 ```
+
+The **ALIAS** is a short, stable handle you can pass to `target use`,
+`target inspect`, and `target label` instead of the full cluster ARN. Add
+`--wide` (or `-o json`) to see the ARN; filter with `--provider aws` or a
+selector such as `-l env=prod` or `-l "region in [eu-central-1, eu-west-1]"`.
 
 > **Region note:** discovery scans each profile's **default region** only.
 > If a profile has clusters in multiple regions, add a per-region profile (or
@@ -125,9 +130,9 @@ Re-run `kuberoutectl sync aws` afterward to refresh cached health.
 ## 5. Route kubectl at a cluster
 
 ```console
-$ kuberoutectl target use arn:aws:eks:eu-central-1:111111111111:cluster/eks-prod-frankfurt
+$ kuberoutectl target use eks-prod-frankfurt   # the alias — or the full ARN
 Fetching credentials into ~/.kube/config ...
-Now using target: eks-prod-frankfurt (arn:aws:eks:...:cluster/eks-prod-frankfurt)
+Now using target: eks-prod-frankfurt (eks-prod-frankfurt)
 kubeconfig updated and set as the current context.
 ```
 
@@ -180,7 +185,7 @@ not signed in to SSO — run `aws sso login --sso-session <session-name>`
 Same model as Azure — user labels survive resyncs, collections are live views:
 
 ```bash
-kuberoutectl target label add arn:aws:eks:eu-central-1:...:cluster/eks-prod-frankfurt env=prod
+kuberoutectl target label add eks-prod-frankfurt env=prod
 kuberoutectl collection create prod --selector env=prod
 kuberoutectl collection show prod
 ```

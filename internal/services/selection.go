@@ -31,37 +31,33 @@ func NewSelectionService(store cache.CacheStore, registry *providers.Registry, n
 	return &SelectionService{store: store, registry: registry, now: now}
 }
 
-// UseTarget records a target selection after verifying the target exists. When
-// activate is true it also fetches the target's credentials into the local
-// kubeconfig via the owning provider (setting the current context). The
-// selection is only recorded after a requested activation succeeds, so a failed
-// kubeconfig fetch doesn't silently change "what am I pointed at".
-func (s *SelectionService) UseTarget(ctx context.Context, id domain.TargetID, activate bool) (domain.Target, error) {
+// UseTarget records a target selection after resolving ref (a full ID, alias,
+// or name) to exactly one target. When activate is true it also fetches the
+// target's credentials into the local kubeconfig via the owning provider
+// (setting the current context). The selection is only recorded after a
+// requested activation succeeds, so a failed kubeconfig fetch doesn't silently
+// change "what am I pointed at".
+func (s *SelectionService) UseTarget(ctx context.Context, ref string, activate bool) (domain.Target, error) {
 	snap, err := s.store.LoadSnapshot()
 	if err != nil {
 		return domain.Target{}, err
 	}
-	var found *domain.Target
-	for i := range snap.Targets {
-		if snap.Targets[i].ID == id {
-			found = &snap.Targets[i]
-			break
-		}
-	}
-	if found == nil {
-		return domain.Target{}, fmt.Errorf("target %q not found", id)
+	AssignAliases(snap.Targets)
+	found, err := ResolveTargetRef(snap.Targets, ref)
+	if err != nil {
+		return domain.Target{}, err
 	}
 
 	if activate {
-		if err := s.activate(ctx, *found); err != nil {
+		if err := s.activate(ctx, found); err != nil {
 			return domain.Target{}, err
 		}
 	}
 
-	if err := s.store.SaveSelection(domain.Selection{TargetID: id, UpdatedAt: s.now()}); err != nil {
+	if err := s.store.SaveSelection(domain.Selection{TargetID: found.ID, UpdatedAt: s.now()}); err != nil {
 		return domain.Target{}, err
 	}
-	return *found, nil
+	return found, nil
 }
 
 // activate materializes a target into the kubeconfig via its provider, gated on

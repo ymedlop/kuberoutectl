@@ -92,8 +92,18 @@ assert_contains "$creds" "expired  renew"    # expired SSO session
 assert_contains "$creds" "valid    use"      # working identities
 
 targets="$("$BIN" target list)"; echo; echo "$targets"
-assert_contains "$targets" "aks-prod-weu"    # Azure AKS
+assert_contains "$targets" "ALIAS"           # short-handle column, not the giant ID
+assert_contains "$targets" "aks-prod-weu"    # Azure AKS (alias == name here)
 assert_contains "$targets" "eks-prod-frankfurt"  # AWS EKS
+echo "$targets" | grep -qF "$AKS_WEU" && fail "full ID should not appear in default list"
+
+echo; echo "==> filter by provider"
+aws_only="$("$BIN" target list --provider aws)"; echo "$aws_only"
+assert_contains "$aws_only" "eks-prod-frankfurt"
+echo "$aws_only" | grep -qF "aks-prod-weu" && fail "--provider aws must exclude Azure targets"
+
+echo; echo "==> --wide shows the full ID"
+assert_contains "$("$BIN" target list --wide)" "$AKS_WEU"
 
 echo; echo "==> label across providers and collect"
 run target label add "$AKS_WEU" env=prod
@@ -102,9 +112,10 @@ run collection create production --selector env=prod
 show="$("$BIN" collection show production)"; echo; echo "$show"
 assert_contains "$show" "Members: 2"
 
-echo; echo "==> target use fetches credentials into kubeconfig (default)"
-use_out="$("$BIN" target use "$AKS_WEU" 2>&1)"; echo "$use_out"
+echo; echo "==> target use by short alias fetches credentials into kubeconfig (default)"
+use_out="$("$BIN" target use aks-prod-weu 2>&1)"; echo "$use_out"
 assert_contains "$use_out" "kubeconfig updated"
+assert_contains "$use_out" "aks-prod-weu"
 noku_out="$("$BIN" target use "$AKS_WEU" --no-kubeconfig 2>&1)"; echo "$noku_out"
 assert_contains "$noku_out" "kubeconfig unchanged"
 

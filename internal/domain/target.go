@@ -23,12 +23,18 @@ type Target struct {
 	ScopeID      ScopeID      `json:"scope_id"`
 	Kind         string       `json:"kind"`
 	Name         string       `json:"name"`
-	Endpoint     string       `json:"endpoint,omitempty"`
-	Region       string       `json:"region,omitempty"`
-	Platform     string       `json:"platform,omitempty"`
-	Health       AccessHealth `json:"health"`
-	ActionHint   ActionHint   `json:"action_hint"`
-	LastSeenAt   time.Time    `json:"last_seen_at"`
+	// Alias is a short, stable, human-friendly handle for the target, usable
+	// anywhere the full ID is (use/inspect/label). It is derived from the name
+	// and made unique across the fleet, so it is a presentation/service concern
+	// rather than provider-owned identity — providers leave it empty and the
+	// service layer fills it in on read.
+	Alias      string       `json:"alias,omitempty"`
+	Endpoint   string       `json:"endpoint,omitempty"`
+	Region     string       `json:"region,omitempty"`
+	Platform   string       `json:"platform,omitempty"`
+	Health     AccessHealth `json:"health"`
+	ActionHint ActionHint   `json:"action_hint"`
+	LastSeenAt time.Time    `json:"last_seen_at"`
 
 	SystemLabels map[string]string `json:"system_labels,omitempty"`
 	UserLabels   map[string]string `json:"user_labels,omitempty"`

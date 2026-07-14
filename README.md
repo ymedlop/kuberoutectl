@@ -104,14 +104,17 @@ kuberoutectl credential list
 kuberoutectl credential show <id>
 kuberoutectl credential renew <id>               # if the provider/credential supports it
 
-kuberoutectl target list
-kuberoutectl target inspect <id>
-kuberoutectl target use <id>                # fetch credentials into ~/.kube/config + set context
-kuberoutectl target use <id> --no-kubeconfig  # record the selection only
+kuberoutectl target list                         # short ALIAS column, not the long ID
+kuberoutectl target list --provider aws          # filter by provider
+kuberoutectl target list -l env=prod             # filter by selector (repeatable)
+kuberoutectl target list --wide                  # also show the full ID
+kuberoutectl target inspect <alias|id|name>
+kuberoutectl target use <alias|id|name>              # fetch credentials into ~/.kube/config + set context
+kuberoutectl target use <alias|id|name> --no-kubeconfig  # record the selection only
 
-kuberoutectl target label add <target-id> env=prod
-kuberoutectl target label remove <target-id> env
-kuberoutectl target label list <target-id>
+kuberoutectl target label add <alias|id|name> env=prod
+kuberoutectl target label remove <alias|id|name> env
+kuberoutectl target label list <alias|id|name>
 
 kuberoutectl collection create production --selector env=prod
 kuberoutectl collection create eu --selector "region in [westeurope, eu-central-1]"
