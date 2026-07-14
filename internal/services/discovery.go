@@ -33,14 +33,15 @@ func NewDiscoveryService(reg *providers.Registry, store cache.CacheStore, now fu
 }
 
 // Sync discovers inventory for one provider, merges it into the snapshot, and
-// persists. It returns the merged snapshot.
-func (s *DiscoveryService) Sync(ctx context.Context, providerID domain.ProviderID) (domain.InventorySnapshot, error) {
+// persists. It returns the merged snapshot. progress may be nil; when supplied,
+// the provider reports step-by-step activity through it.
+func (s *DiscoveryService) Sync(ctx context.Context, providerID domain.ProviderID, progress providers.Progress) (domain.InventorySnapshot, error) {
 	p, ok := s.registry.Get(providerID)
 	if !ok {
 		return domain.InventorySnapshot{}, fmt.Errorf("provider %q is not registered", providerID)
 	}
 
-	res, err := p.Discover(ctx, providers.DiscoveryInput{})
+	res, err := p.Discover(ctx, providers.DiscoveryInput{Progress: progress})
 	if err != nil {
 		return domain.InventorySnapshot{}, fmt.Errorf("discover %q: %w", providerID, err)
 	}

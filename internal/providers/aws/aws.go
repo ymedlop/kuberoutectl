@@ -67,13 +67,16 @@ func (p *Provider) Capabilities() domain.Capabilities {
 // Resilience mirrors Azure: a profile whose STS check fails still yields a
 // credential (with the right health/action) so the operator sees what needs
 // attention; per-profile EKS reads that fail are skipped, not fatal.
-func (p *Provider) Discover(ctx context.Context, _ providers.DiscoveryInput) (providers.DiscoveryResult, error) {
+func (p *Provider) Discover(ctx context.Context, in providers.DiscoveryInput) (providers.DiscoveryResult, error) {
+	prog := providers.ProgressOr(in.Progress)
+
 	awsBin, err := p.resolver.Resolve(BinaryName)
 	if err != nil {
 		return providers.DiscoveryResult{}, err
 	}
 	now := p.now()
 
+	prog.Step("listing AWS profiles (aws configure list-profiles)")
 	profilesOut, _, err := p.runner.Run(ctx, awsBin, "configure", "list-profiles")
 	if err != nil {
 		// No configured profiles is not an error — there is simply nothing to show.
@@ -81,13 +84,15 @@ func (p *Provider) Discover(ctx context.Context, _ providers.DiscoveryInput) (pr
 	}
 	profiles := parseProfiles(profilesOut)
 	sort.Strings(profiles)
+	prog.Step("found %d profile(s)", len(profiles))
 
 	res := providers.DiscoveryResult{}
 	scopeSeen := map[domain.ScopeID]bool{}
 
-	for _, profile := range profiles {
+	for i, profile := range profiles {
 		res.Sources = append(res.Sources, buildSource(profile, now))
 
+		prog.Step("validating identity for profile %q (%d/%d)", profile, i+1, len(profiles))
 		identity, stsErr := p.callerIdentity(ctx, awsBin, profile)
 		ssoURL := p.configGet(ctx, awsBin, profile, "sso_start_url")
 		authType := classifyAuth(ssoURL, identity.Arn, stsErr == nil)
@@ -107,10 +112,12 @@ func (p *Provider) Discover(ctx context.Context, _ providers.DiscoveryInput) (pr
 		if region == "" {
 			continue // cannot list regional EKS without a region
 		}
+		prog.Step("listing EKS clusters for profile %q in %s", profile, region)
 		res.Targets = append(res.Targets, p.discoverClusters(ctx, awsBin, profile, region, identity, health, action, now)...)
 	}
 
 	sort.Slice(res.Targets, func(i, j int) bool { return res.Targets[i].ID < res.Targets[j].ID })
+	prog.Step("discovered %d cluster(s)", len(res.Targets))
 	return res, nil
 }
 

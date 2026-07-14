@@ -72,7 +72,7 @@ func TestSync_PreservesUserLabelsAcrossResync(t *testing.T) {
 	})
 
 	svc := NewDiscoveryService(reg, store, fixedNow)
-	snap, err := svc.Sync(context.Background(), "azure")
+	snap, err := svc.Sync(context.Background(), "azure", nil)
 	if err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestSync_ReplacesOnlyOwnProvider(t *testing.T) {
 	})
 
 	svc := NewDiscoveryService(reg, store, fixedNow)
-	snap, err := svc.Sync(context.Background(), "azure")
+	snap, err := svc.Sync(context.Background(), "azure", nil)
 	if err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestSync_ReplacesOnlyOwnProvider(t *testing.T) {
 
 func TestSync_UnknownProvider(t *testing.T) {
 	svc := NewDiscoveryService(providers.NewRegistry(), newMemStore(), fixedNow)
-	if _, err := svc.Sync(context.Background(), "nope"); err == nil {
+	if _, err := svc.Sync(context.Background(), "nope", nil); err == nil {
 		t.Fatal("expected error for unregistered provider")
 	}
 }

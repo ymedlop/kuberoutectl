@@ -18,7 +18,33 @@ var ErrUnsupported = errors.New("operation not supported by provider")
 // DiscoveryInput carries whatever a discovery run needs from the caller.
 // Kept minimal for the spine; providers extend behavior via their own config.
 type DiscoveryInput struct {
-	// Reserved for future filters (specific subscriptions/profiles/regions).
+	// Progress receives human-readable status updates as discovery proceeds, so
+	// the CLI can show the user that a slow sync (e.g. many subscriptions, or an
+	// az/aws call waiting on auth) is actually working. May be nil.
+	Progress Progress
+}
+
+// Progress receives step updates during discovery. Providers call Step at
+// meaningful points; the CLI renders them. It is deliberately tiny so any
+// caller can supply one.
+type Progress interface {
+	Step(format string, args ...any)
+}
+
+// NopProgress is a Progress that discards updates, for callers (and tests)
+// that don't want output.
+type NopProgress struct{}
+
+// Step implements Progress.
+func (NopProgress) Step(string, ...any) {}
+
+// ProgressOr returns p, or a NopProgress if p is nil, so provider code can call
+// Step unconditionally regardless of whether the caller supplied one.
+func ProgressOr(p Progress) Progress {
+	if p == nil {
+		return NopProgress{}
+	}
+	return p
 }
 
 // DiscoveryResult is what a provider returns from a discovery run. Targets

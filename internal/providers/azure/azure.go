@@ -74,15 +74,19 @@ func (p *Provider) Capabilities() domain.Capabilities {
 // rather than an error, because "you need to log in" is useful operator
 // information, not a tool failure. Per-subscription AKS reads that fail (e.g.
 // missing permissions) are skipped, not fatal.
-func (p *Provider) Discover(ctx context.Context, _ providers.DiscoveryInput) (providers.DiscoveryResult, error) {
+func (p *Provider) Discover(ctx context.Context, in providers.DiscoveryInput) (providers.DiscoveryResult, error) {
+	prog := providers.ProgressOr(in.Progress)
+
 	az, err := p.resolver.Resolve(BinaryName)
 	if err != nil {
 		return providers.DiscoveryResult{}, err
 	}
 	now := p.now()
 
+	prog.Step("querying Azure subscriptions (az account list)")
 	accountsOut, accountsErr, err := p.runner.Run(ctx, az, "account", "list", "--output", "json")
 	if err != nil {
+		prog.Step("not logged in — run `az login`")
 		return notLoggedInResult(now, string(accountsErr)), nil
 	}
 	accounts, err := parseAccounts(accountsOut)
@@ -94,10 +98,12 @@ func (p *Provider) Discover(ctx context.Context, _ providers.DiscoveryInput) (pr
 	}
 	// Deterministic subscription order drives both command order and output.
 	sort.Slice(accounts, func(i, j int) bool { return accounts[i].ID < accounts[j].ID })
+	prog.Step("found %d subscription(s)", len(accounts))
 
 	// Best-effort account-level health from the token cache. Azure keeps a
 	// single token cache, so one probe approximates login health; multi-tenant
 	// logins are an accepted MVP approximation (see build.go).
+	prog.Step("checking credential health (az account get-access-token)")
 	health, action := domain.HealthUnknown, domain.ActionRenew
 	if tokenOut, _, tErr := p.runner.Run(ctx, az, "account", "get-access-token", "--output", "json"); tErr == nil {
 		if tok, pErr := parseAccessToken(tokenOut); pErr == nil {
@@ -111,10 +117,11 @@ func (p *Provider) Discover(ctx context.Context, _ providers.DiscoveryInput) (pr
 		Scopes:      buildScopes(accounts),
 	}
 
-	for _, acc := range accounts {
+	for i, acc := range accounts {
 		if !strings.EqualFold(acc.State, "Enabled") {
 			continue
 		}
+		prog.Step("listing AKS clusters in %q (%d/%d)", acc.Name, i+1, len(accounts))
 		clustersOut, _, cErr := p.runner.Run(ctx, az, "aks", "list", "--subscription", acc.ID, "--output", "json")
 		if cErr != nil {
 			continue // unreadable subscription (permissions, disabled) — skip, not fatal
@@ -126,6 +133,7 @@ func (p *Provider) Discover(ctx context.Context, _ providers.DiscoveryInput) (pr
 		res.Targets = append(res.Targets, buildTargets(acc, clusters, health, action, now)...)
 	}
 	sort.Slice(res.Targets, func(i, j int) bool { return res.Targets[i].ID < res.Targets[j].ID })
+	prog.Step("discovered %d cluster(s)", len(res.Targets))
 
 	return res, nil
 }
