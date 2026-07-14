@@ -1,9 +1,15 @@
+---
+title: kubeconfig
+parent: Provider guides
+nav_order: 4
+---
+
 # kubeconfig guide
 
 How to use `kuberoutectl` to bring the clusters already in your **kubeconfig**
 — self-hosted, on-prem, homelab, kind/minikube, or clusters someone handed you a
 context for — into the same inventory as your cloud clusters, and switch between
-them by short alias. See the [shared model](README.md) for the concepts.
+them by short alias. See the [shared model](index.md) for the concepts.
 
 ## What makes kubeconfig different
 

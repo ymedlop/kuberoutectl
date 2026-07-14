@@ -1,8 +1,65 @@
-# kuberoutectl Documentation
+---
+title: Home
+layout: default
+nav_order: 1
+description: >-
+  Discover, organize, and route Kubernetes access across Azure, AWS, GCP,
+  and kubeconfig — from one provider-agnostic CLI.
+---
 
-Welcome to the documentation for **kuberoutectl**, an open source CLI to discover, organize, and use Kubernetes clusters across cloud providers and future self-hosted sources.
+<div class="hero" markdown="0">
+  <span class="hero__eyebrow">Open source · Go · Apache-2.0</span>
+  <h1 class="hero__title">kuberoutectl</h1>
+  <p class="hero__tagline">
+    Discover, organize, and route Kubernetes access across Azure, AWS, GCP,
+    and kubeconfig — from one provider-agnostic CLI that keeps a local
+    inventory of your clusters and credential health.
+  </p>
+  <div class="hero__actions">
+    <a class="hero__btn hero__btn--primary" href="#quick-start">Get started</a>
+    <a class="hero__btn hero__btn--ghost" href="{{ '/guides/' | relative_url }}">Provider guides</a>
+    <a class="hero__btn hero__btn--ghost" href="https://github.com/ymedlop/kuberoutectl">GitHub</a>
+  </div>
+</div>
 
-## About kuberoutectl
+<div class="feature-grid" markdown="0">
+  <div class="feature-card">
+    <div class="feature-card__icon">🔎</div>
+    <h3>Discover</h3>
+    <p>One <code>sync</code> per provider populates a local inventory of clusters, scopes, and credentials — no manual bookkeeping.</p>
+  </div>
+  <div class="feature-card">
+    <div class="feature-card__icon">🫀</div>
+    <h3>Health-aware</h3>
+    <p>Every credential carries a health state — valid, expiring, expired, static — and a suggested next action.</p>
+  </div>
+  <div class="feature-card">
+    <div class="feature-card__icon">🏷️</div>
+    <h3>Organize</h3>
+    <p>Label targets and save selector-driven collections that span clouds and survive every resync.</p>
+  </div>
+  <div class="feature-card">
+    <div class="feature-card__icon">🧭</div>
+    <h3>Route</h3>
+    <p><code>target use</code> writes kubeconfig and points <code>kubectl</code> at the right cluster in one step.</p>
+  </div>
+</div>
+
+<div class="terminal" markdown="0">
+  <div class="terminal__bar"><span></span><span></span><span></span></div>
+  <pre class="terminal__body"><code><span class="term-prompt">$</span> kuberoutectl sync azure &amp;&amp; kuberoutectl sync aws
+<span class="term-ok">Synced provider: azure</span>  targets: 3
+<span class="term-ok">Synced provider: aws</span>    targets: 2
+
+<span class="term-prompt">$</span> kuberoutectl target list -l env=prod
+ALIAS               KIND  REGION        HEALTH
+aks-prod-weu        aks   westeurope    <span class="term-ok">valid</span>
+eks-prod-frankfurt  eks   eu-central-1  <span class="term-ok">valid</span>
+
+<span class="term-prompt">$</span> kuberoutectl target use aks-prod-weu   <span class="term-comment"># kubectl now points here</span></code></pre>
+</div>
+
+## Why kuberoutectl
 
 `kuberoutectl` is built to solve a real operational problem: **managing Kubernetes access across multiple cloud providers is fragmented**.
 
@@ -53,7 +110,7 @@ The CLI is built around a stable domain model that works identically across all 
 
 ## Documentation Structure
 
-### [Provider Guides](guides/)
+### [Provider Guides](guides/index.md)
 
 Step-by-step manuals for using `kuberoutectl` with each supported cloud:
 
@@ -70,7 +127,7 @@ Each guide covers:
 5. **Organizing with labels** — tagging clusters for easy filtering
 6. **Creating collections** — saving views with selectors
 
-### [Shared Model](guides/README.md)
+### [Shared Model](guides/index.md)
 
 The guides reference a shared domain model that lets the same commands work identically across all providers. This section explains:
 - How each cloud provider maps to the universal model
@@ -129,7 +186,7 @@ kuberoutectl version                          # show version info
 - **No secret vault**: the cache stores inventory, not credentials
 - **Operator-focused UX**: answers practical questions quickly
 
-For deeper architectural details, see the main [README.md](../README.md) or [ARCHITECTURE.md](../ARCHITECTURE.md).
+For deeper architectural details, see the main [README.md](https://github.com/ymedlop/kuberoutectl/blob/main/README.md) or [ARCHITECTURE.md](https://github.com/ymedlop/kuberoutectl/blob/main/ARCHITECTURE.md).
 
 ## Example Workflow
 
@@ -180,13 +237,13 @@ eks-prod-frankfurt  eks  eu-central-1  valid
 
 - **New to kuberoutectl?** Start with the [Quick Start](#quick-start) and a provider guide for your cloud.
 - **Setting up a specific cloud?** Jump to [Azure](guides/azure.md), [AWS](guides/aws.md), [GCP](guides/gcp.md), or [kubeconfig](guides/kubeconfig.md).
-- **Understanding credential health?** See [Credential Health, Once](guides/README.md#credential-health-once).
-- **Advanced workflows?** Check the [Common Commands](#common-commands) section or the main [README](../README.md).
+- **Understanding credential health?** See [Credential Health, Once](guides/index.md#credential-health-once).
+- **Advanced workflows?** Check the [Common Commands](#common-commands) section or the main [README](https://github.com/ymedlop/kuberoutectl/blob/main/README.md).
 
 ## Contributing
 
-`kuberoutectl` is open source. For source code, building, and development workflow, see the main [README.md](../README.md) and [ARCHITECTURE.md](../ARCHITECTURE.md).
+`kuberoutectl` is open source. For source code, building, and development workflow, see the main [README.md](https://github.com/ymedlop/kuberoutectl/blob/main/README.md) and [ARCHITECTURE.md](https://github.com/ymedlop/kuberoutectl/blob/main/ARCHITECTURE.md).
 
 ## License
 
-Apache License 2.0. See [LICENSE](../LICENSE) for details.
+Apache License 2.0. See [LICENSE](https://github.com/ymedlop/kuberoutectl/blob/main/LICENSE) for details.
