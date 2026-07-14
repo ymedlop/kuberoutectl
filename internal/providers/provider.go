@@ -57,6 +57,18 @@ type DiscoveryResult struct {
 	Targets     []domain.Target
 }
 
+// ContextActivator is an optional capability: providers that can materialize a
+// target into the local kubeconfig implement it (and report CanSwitchContext).
+// It is separate from Provider so adding it never forces every provider (or
+// test stub) to implement kubeconfig handling. Services reach it with a type
+// assertion, gated on the CanSwitchContext capability.
+type ContextActivator interface {
+	// Activate fetches the target's credentials into the user's kubeconfig and
+	// makes it the current context (e.g. `az aks get-credentials`,
+	// `aws eks update-kubeconfig`).
+	Activate(ctx context.Context, target domain.Target) error
+}
+
 // Provider is the full contract a backend implements. It is small on purpose:
 // discover state, and optionally renew a credential. Everything else
 // (organization, persistence, selection) is core concern, not provider concern.

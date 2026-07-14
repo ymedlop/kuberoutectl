@@ -53,6 +53,7 @@ case "\$*" in
   "account get-access-token --output json") cat "$AZ_FIX/access-token.json" ;;
   "aks list --subscription aaaaaaaa-0000-0000-0000-000000000001 --output json") cat "$AZ_FIX/aks-list-prod.json" ;;
   "aks list --subscription aaaaaaaa-0000-0000-0000-000000000002 --output json") cat "$AZ_FIX/aks-list-lab.json" ;;
+  "aks get-credentials"*) echo "Merged cluster as current context." ;;
   *) echo "[]" ;;
 esac
 EOF
@@ -100,6 +101,12 @@ run target label add "$EKS_FRA" env=prod
 run collection create production --selector env=prod
 show="$("$BIN" collection show production)"; echo; echo "$show"
 assert_contains "$show" "Members: 2"
+
+echo; echo "==> target use fetches credentials into kubeconfig (default)"
+use_out="$("$BIN" target use "$AKS_WEU" 2>&1)"; echo "$use_out"
+assert_contains "$use_out" "kubeconfig updated"
+noku_out="$("$BIN" target use "$AKS_WEU" --no-kubeconfig 2>&1)"; echo "$noku_out"
+assert_contains "$noku_out" "kubeconfig unchanged"
 
 echo; echo "==> resync both providers (user labels must survive)"
 "$BIN" sync azure >/dev/null

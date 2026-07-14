@@ -152,12 +152,22 @@ func (a *app) targetLabelListCmd() *cobra.Command {
 }
 
 func (a *app) targetUseCmd() *cobra.Command {
-	return &cobra.Command{
+	var noKubeconfig bool
+	cmd := &cobra.Command{
 		Use:   "use <id>",
-		Short: "Select a target as the current one",
-		Args:  cobra.ExactArgs(1),
+		Short: "Select a target and fetch its credentials into ~/.kube/config",
+		Long: "Select a target as current. By default this also fetches the cluster's\n" +
+			"credentials into ~/.kube/config and sets it as the current kubectl context\n" +
+			"(via the provider's native flow, e.g. az aks get-credentials /\n" +
+			"aws eks update-kubeconfig). Use --no-kubeconfig to only record the selection.",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			target, err := services.NewSelectionService(a.store, nil).UseTarget(domain.TargetID(args[0]))
+			activate := !noKubeconfig
+			if activate {
+				fprintln(cmd.ErrOrStderr(), "Fetching credentials into ~/.kube/config ...")
+			}
+			target, err := services.NewSelectionService(a.store, a.registry, nil).
+				UseTarget(cmd.Context(), domain.TargetID(args[0]), activate)
 			if err != nil {
 				return err
 			}
@@ -165,11 +175,18 @@ func (a *app) targetUseCmd() *cobra.Command {
 			if a.output == formatJSON {
 				return renderJSON(out, target)
 			}
-			fprintln(out, "Now using target:", target.Name, "("+string(target.ID)+")")
+			if activate {
+				fprintln(out, "Now using target:", target.Name, "("+string(target.ID)+")")
+				fprintln(out, "kubeconfig updated and set as the current context.")
+			} else {
+				fprintln(out, "Recorded selection:", target.Name, "("+string(target.ID)+") — kubeconfig unchanged.")
+			}
 			if target.ActionHint == domain.ActionRenew {
 				fprintln(out, "Note: this target's credential needs renewal — run `kuberoutectl credential renew`.")
 			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&noKubeconfig, "no-kubeconfig", false, "record the selection only; do not modify ~/.kube/config")
+	return cmd
 }

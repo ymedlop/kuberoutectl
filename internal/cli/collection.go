@@ -147,7 +147,7 @@ func (a *app) collectionUseCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := services.NewSelectionService(a.store, nil).UseCollection(col.ID); err != nil {
+			if err := services.NewSelectionService(a.store, a.registry, nil).UseCollection(col.ID); err != nil {
 				return err
 			}
 			out := cmd.OutOrStdout()
