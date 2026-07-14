@@ -1,9 +1,15 @@
+---
+title: AWS (EKS)
+parent: Provider guides
+nav_order: 2
+---
+
 # AWS (EKS) guide
 
 How to use `kuberoutectl` to discover, inspect, and route to **EKS** clusters
 across multiple accounts and profiles, and to keep those profiles healthy —
 including the corporate **IAM Identity Center / Entra (myapplications.microsoft.com)**
-sign-in flow. See the [shared model](README.md) for the concepts and the
+sign-in flow. See the [shared model](index.md) for the concepts and the
 credential-health spectrum referenced below.
 
 ## Prerequisites

@@ -195,8 +195,11 @@ Step-by-step manuals for managing clusters and credentials on each cloud:
 - [GCP (GKE)](docs/guides/gcp.md)
 - [kubeconfig](docs/guides/kubeconfig.md) — self-hosted / local / handed-to-you contexts
 
-See [docs/guides/](docs/guides/README.md) for the shared model and the
+See [docs/guides/](docs/guides/index.md) for the shared model and the
 credential-health spectrum.
+
+The same guides, with search and navigation, are published at
+**[ymedlop.github.io/kuberoutectl](https://ymedlop.github.io/kuberoutectl/)**.
 
 ## Building from source
 

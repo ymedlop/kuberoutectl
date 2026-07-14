@@ -1,7 +1,13 @@
+---
+title: Azure (AKS)
+parent: Provider guides
+nav_order: 1
+---
+
 # Azure (AKS) guide
 
 How to use `kuberoutectl` to discover, inspect, and route to **AKS** clusters,
-and to keep your Azure login healthy. See the [shared model](README.md) for the
+and to keep your Azure login healthy. See the [shared model](index.md) for the
 concepts and the credential-health spectrum referenced below.
 
 ## Prerequisites

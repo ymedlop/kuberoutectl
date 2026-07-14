@@ -1,3 +1,9 @@
+---
+title: Provider guides
+nav_order: 2
+has_children: true
+---
+
 # Provider guides
 
 Hands-on manuals for using `kuberoutectl` with each supported cloud, focused on

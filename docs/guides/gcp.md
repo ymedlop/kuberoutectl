@@ -1,8 +1,14 @@
+---
+title: GCP (GKE)
+parent: Provider guides
+nav_order: 3
+---
+
 # GCP (GKE) guide
 
 How to use `kuberoutectl` to discover, inspect, and route to **GKE** clusters
 across your GCP projects, and keep your gcloud login healthy. See the
-[shared model](README.md) for the concepts and the credential-health spectrum.
+[shared model](index.md) for the concepts and the credential-health spectrum.
 
 ## How GCP maps in
 
