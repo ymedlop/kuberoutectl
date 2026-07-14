@@ -32,17 +32,21 @@ builds:
 
 archives:
   - id: default
-    format: tar.gz
+    formats: [tar.gz]
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
 checksum:
   name_template: checksums.txt
 
+# The rolling snapshot tag (development-snapshot) is intentionally NOT semver, so
+# the version template must not try to parse it as one. `incpatch .Version`
+# requires a semver input and fails once that tag exists, so use a fixed
+# semver-valid prefix plus the commit instead.
 snapshot:
-  version_template: "{{ incpatch .Version }}-snapshot-{{ .ShortCommit }}"
+  version_template: "0.0.0-snapshot-{{ .ShortCommit }}"
 
 changelog:
   disable: true
