@@ -78,13 +78,30 @@ Provider-agnostic backbone, fully testable without any cloud CLI.
 - [x] `credential renew`, `target use`, `collection use` end-to-end
 - [x] gitignore build output (`/bin`, `/dist`)
 
+## Slice 5 — kubeconfig provider  ✅ done
+
+- [x] `internal/providers/kubeconfig` driver + capabilities (CanDiscoverScopes,
+      CanSwitchContext, StaticCredentials; CanRenew=false — nothing renewable)
+- [x] Discovery via `kubectl config view --raw -o json`: clusters → Scopes,
+      users → Credentials, contexts → Targets (Scope kept distinct from Target)
+- [x] Pure `parse.go`/`build.go` over a captured fixture (`testdata/config-view.json`)
+- [x] Auth classification (exec/auth-provider/client-cert/token/basic/unknown) →
+      health (static for material we can't renew, unknown for externally-managed);
+      never maps to renew
+- [x] `Activate` via `kubectl config use-context` (context already exists, no fetch)
+- [x] `Renew` returns `ErrUnsupported`
+- [x] CLI: `sync kubeconfig` (auto-registered); doctor checks `kubectl`
+- [x] Tests: classify, health mapping, full discovery, empty-config, activate,
+      capabilities + renew refusal
+- [x] Docs: `docs/guides/kubeconfig.md`
+
 ## Remaining polish (post-milestone-1)
 
 - [ ] Multi-region EKS scan (currently the profile's configured region only)
 - [ ] Managed-runtime resolution (step 2) — optional, deferred
+- [ ] kubeconfig: parse client-cert `notAfter` for real valid/expiring/expired health
 
 ## Future providers (post-MVP)
 
-- [ ] kubeconfig provider — static credentials, context switching, no renewal
 - [ ] GCP provider — gcloud, projects → Scopes, GKE → Targets
 - [ ] Richer selector semantics beyond exact-match / in-list

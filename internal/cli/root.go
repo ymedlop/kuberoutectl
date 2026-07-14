@@ -16,6 +16,7 @@ import (
 	"github.com/ymedlop/kuberoutectl/internal/providers"
 	"github.com/ymedlop/kuberoutectl/internal/providers/aws"
 	"github.com/ymedlop/kuberoutectl/internal/providers/azure"
+	"github.com/ymedlop/kuberoutectl/internal/providers/kubeconfig"
 )
 
 // app bundles the wired-up dependencies shared across commands. It is built
@@ -57,6 +58,11 @@ func Execute() error {
 		return err
 	}
 	a.requiredBinary[string(aws.ProviderID)] = aws.BinaryName
+
+	if err := a.registry.Register(kubeconfig.New(a.resolver, runner)); err != nil {
+		return err
+	}
+	a.requiredBinary[string(kubeconfig.ProviderID)] = kubeconfig.BinaryName
 
 	return a.rootCmd().Execute()
 }
