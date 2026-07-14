@@ -168,10 +168,6 @@ aws sso list-account-roles --account-id <id> ...       # roles per account
 > kuberoutectl aws sso populate --sso-session <session-name>
 > kuberoutectl sync aws          # now discovers clusters in every populated account
 > ```
->
-> _This command ships with the SSO-populate feature (PR #7). If
-> `kuberoutectl aws sso populate` isn't available in your build yet, use the
-> manual `aws sso …` steps above; the resulting profiles work identically._
 
 If there's no valid SSO token, the command tells you to sign in first:
 
