@@ -179,6 +179,16 @@ Selectors accept exact matches (`env=prod`, comma-joined or repeated
 Beyond your own labels you can select on a target's structured attributes by
 bare key: `region`, `platform`, `provider`, `health`, `kind`.
 
+### Provider guides
+
+Step-by-step manuals for managing clusters and credentials on each cloud:
+
+- [Azure (AKS)](docs/guides/azure.md)
+- [AWS (EKS)](docs/guides/aws.md) — including corporate IAM Identity Center / Entra sign-in
+
+See [docs/guides/](docs/guides/README.md) for the shared model and the
+credential-health spectrum.
+
 ## Building from source
 
 Requires Go (see the `go` directive in `go.mod`). Common tasks are wrapped in
