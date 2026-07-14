@@ -17,6 +17,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AZ_FIX="$ROOT/internal/providers/azure/testdata"
 AWS_FIX="$ROOT/internal/providers/aws/testdata"
 KC_FIX="$ROOT/internal/providers/kubeconfig/testdata"
+GCP_FIX="$ROOT/internal/providers/gcp/testdata"
 
 WORK="$(mktemp -d)"
 if [ "${KEEP:-0}" = "1" ]; then
@@ -87,7 +88,19 @@ case "\$*" in
   *) exit 1 ;;
 esac
 EOF
-chmod +x "$WORK/bin/az" "$WORK/bin/aws" "$WORK/bin/kubectl"
+cat > "$WORK/bin/gcloud" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+  "config list --format=json") cat "$GCP_FIX/config-list.json" ;;
+  "auth list --format=json") cat "$GCP_FIX/auth-list.json" ;;
+  "projects list --format=json") cat "$GCP_FIX/projects-list.json" ;;
+  "container clusters list --project platform-prod-123 --format=json") cat "$GCP_FIX/clusters-list-prod.json" ;;
+  "container clusters list --project platform-lab-456 --format=json") cat "$GCP_FIX/clusters-list-lab.json" ;;
+  "container clusters get-credentials"*) echo "Fetching cluster endpoint and auth data." ;;
+  *) exit 1 ;;
+esac
+EOF
+chmod +x "$WORK/bin/az" "$WORK/bin/aws" "$WORK/bin/kubectl" "$WORK/bin/gcloud"
 
 run() { echo; echo "\$ kuberoutectl $*"; "$BIN" "$@"; }
 
@@ -95,6 +108,7 @@ run doctor
 run sync azure
 run sync aws
 run sync kubeconfig
+run sync gcp
 
 echo; echo "==> kubeconfig contexts are inventoried, health is honest (static/unknown, never renew)"
 kc="$("$BIN" target list --provider kubeconfig)"; echo "$kc"
@@ -104,6 +118,13 @@ assert_contains "$kc" "unknown"          # exec-based user (externally managed)
 echo "$kc" | grep -qF "renew" && fail "kubeconfig credentials must never suggest renew"
 use_kc="$("$BIN" target use homelab 2>&1)"; echo "$use_kc"
 assert_contains "$use_kc" "kubeconfig updated"   # kubectl config use-context ran
+
+echo; echo "==> GCP: projects become scopes, GKE clusters become targets"
+gcp="$("$BIN" target list --provider gcp)"; echo "$gcp"
+assert_contains "$gcp" "gke-prod-euw1"          # regional GKE cluster
+assert_contains "$gcp" "europe-west4-a"         # zonal location surfaces as region
+use_gcp="$("$BIN" target use gke-lab-euw4 2>&1)"; echo "$use_gcp"
+assert_contains "$use_gcp" "kubeconfig updated" # gcloud container clusters get-credentials ran
 
 creds="$("$BIN" credential list)"; echo; echo "$creds"
 assert_contains "$creds" "static   none"     # AWS static keys not coerced into renew

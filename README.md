@@ -44,7 +44,7 @@ The initial goals of the project are:
 ### Later milestones
 
 - kubeconfig provider for self-hosted and local clusters ✅ done
-- GCP provider
+- GCP provider ✅ done
 - richer health checks
 - improved selector support for collections
 - optional managed runtime support for third-party CLIs
@@ -97,6 +97,7 @@ kuberoutectl doctor                              # check required provider CLIs 
 
 kuberoutectl sync azure                          # discover Azure inventory into the cache
 kuberoutectl sync aws                            # discover AWS inventory into the cache
+kuberoutectl sync gcp                            # discover GCP (GKE) inventory into the cache
 kuberoutectl sync kubeconfig                     # discover kubeconfig contexts into the cache
 
 kuberoutectl source list
@@ -189,6 +190,7 @@ Step-by-step manuals for managing clusters and credentials on each cloud:
 
 - [Azure (AKS)](docs/guides/azure.md)
 - [AWS (EKS)](docs/guides/aws.md) — including corporate IAM Identity Center / Entra sign-in
+- [GCP (GKE)](docs/guides/gcp.md)
 - [kubeconfig](docs/guides/kubeconfig.md) — self-hosted / local / handed-to-you contexts
 
 See [docs/guides/](docs/guides/README.md) for the shared model and the
@@ -239,11 +241,11 @@ The project is intended to be open source and is a good fit for **Apache License
 
 ## Status
 
-Milestone 1 is implemented: the Azure, AWS, and kubeconfig providers, JSON local
-cache, user labels, and collections all work end to end, with a provider-agnostic
-core and cross-platform snapshot builds. See `TODO.md` for what is done and what
-remains (multi-region EKS scan, richer selectors, real client-cert expiry health,
-and the future GCP provider).
+Milestone 1 is implemented: the Azure, AWS, GCP, and kubeconfig providers, JSON
+local cache, user labels, and collections all work end to end, with a
+provider-agnostic core and cross-platform snapshot builds. See `TODO.md` for
+what is done and what remains (multi-region EKS scan, richer selectors, and real
+client-cert expiry health for kubeconfig).
 
 The architecture is shaped around real operator workflows first, not around
 generic abstractions for their own sake.

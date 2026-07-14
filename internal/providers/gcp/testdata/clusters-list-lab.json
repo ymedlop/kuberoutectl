@@ -1,0 +1,10 @@
+[
+  {
+    "name": "gke-lab-euw4",
+    "location": "europe-west4-a",
+    "endpoint": "35.40.50.60",
+    "currentMasterVersion": "1.28.9-gke.1000000",
+    "status": "RUNNING",
+    "selfLink": "https://container.googleapis.com/v1/projects/platform-lab-456/locations/europe-west4-a/clusters/gke-lab-euw4"
+  }
+]

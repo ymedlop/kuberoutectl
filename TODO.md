@@ -95,13 +95,29 @@ Provider-agnostic backbone, fully testable without any cloud CLI.
       capabilities + renew refusal
 - [x] Docs: `docs/guides/kubeconfig.md`
 
+## Slice 6 — GCP provider  ✅ done
+
+- [x] `internal/providers/gcp` driver + capabilities (Azure-style single login:
+      CanDiscoverScopes, CanRenew, CanReauth, CanSwitchContext; StaticCredentials=false)
+- [x] Discovery via `gcloud`: config/auth → single Source+Credential,
+      `projects list` → Scopes, `container clusters list` per project → GKE Targets
+- [x] Pure `parse.go`/`build.go` over captured `gcloud` fixtures (config, auth,
+      projects, clusters)
+- [x] Health mapping (active account → valid/use, logged out → expired/renew)
+- [x] `Activate` via `gcloud container clusters get-credentials --location`
+- [x] Renew orchestration (`gcloud auth login [account]`)
+- [x] CLI: `sync gcp` (auto-registered); doctor checks `gcloud`
+- [x] Tests: parse, active-account resolution, health, full discovery, logged-out,
+      GKE-API-disabled project skipped, activate, renew, capabilities
+- [x] Docs: `docs/guides/gcp.md`
+
 ## Remaining polish (post-milestone-1)
 
 - [ ] Multi-region EKS scan (currently the profile's configured region only)
 - [ ] Managed-runtime resolution (step 2) — optional, deferred
 - [ ] kubeconfig: parse client-cert `notAfter` for real valid/expiring/expired health
+- [ ] GCP: fine-grained token-expiry health; service-account key credentials
 
 ## Future providers (post-MVP)
 
-- [ ] GCP provider — gcloud, projects → Scopes, GKE → Targets
 - [ ] Richer selector semantics beyond exact-match / in-list
