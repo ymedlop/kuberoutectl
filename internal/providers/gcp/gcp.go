@@ -11,6 +11,7 @@ package gcp
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"time"
 
@@ -74,13 +75,22 @@ func (p *Provider) Discover(ctx context.Context, in providers.DiscoveryInput) (p
 	now := p.now()
 
 	prog.Step("reading gcloud config and account")
+	// A command *failure* (gcloud missing config, exit non-zero) is treated as
+	// "we couldn't read it" and falls through to the logged-out path. A parse
+	// failure on a *successful* command is a real bug (malformed JSON, or gcloud
+	// changed its output shape) and must surface as an error, not masquerade as
+	// "not logged in".
 	var cfg gcpConfig
 	if out, _, cErr := p.runner.Run(ctx, gcloud, "config", "list", "--format=json"); cErr == nil {
-		cfg, _ = parseConfig(out)
+		if cfg, err = parseConfig(out); err != nil {
+			return providers.DiscoveryResult{}, fmt.Errorf("gcp: parse gcloud config: %w", err)
+		}
 	}
 	var authAccounts []gcpAuthAccount
 	if out, _, aErr := p.runner.Run(ctx, gcloud, "auth", "list", "--format=json"); aErr == nil {
-		authAccounts, _ = parseAuthList(out)
+		if authAccounts, err = parseAuthList(out); err != nil {
+			return providers.DiscoveryResult{}, fmt.Errorf("gcp: parse gcloud auth list: %w", err)
+		}
 	}
 
 	account, authed := activeAccount(cfg.Core.Account, authAccounts)
@@ -98,12 +108,16 @@ func (p *Provider) Discover(ctx context.Context, in providers.DiscoveryInput) (p
 	prog.Step("listing GCP projects (gcloud projects list)")
 	projectsOut, _, err := p.runner.Run(ctx, gcloud, "projects", "list", "--format=json")
 	if err != nil {
-		// Authenticated but cannot list projects: surface the credential, no scopes.
+		// Authenticated but the command failed — rarer and more actionable than a
+		// disabled-per-project case (e.g. missing resourcemanager.projects.list
+		// permission). Surface the credential, and say why there are no scopes.
+		prog.Step("could not list GCP projects (gcloud projects list failed): %v", err)
 		return res, nil
 	}
 	projects, err := parseProjects(projectsOut)
 	if err != nil {
-		return res, nil
+		// Successful command, bad output: a real error, not a silent empty result.
+		return providers.DiscoveryResult{}, fmt.Errorf("gcp: parse gcloud projects list: %w", err)
 	}
 	prog.Step("found %d project(s)", len(projects))
 
@@ -118,9 +132,11 @@ func (p *Provider) Discover(ctx context.Context, in providers.DiscoveryInput) (p
 	return res, nil
 }
 
-// discoverClusters lists GKE clusters for one project. A failed or unparseable
-// listing (commonly a project without the GKE API enabled) yields no targets
-// rather than an error.
+// discoverClusters lists GKE clusters for one project. A failed listing
+// (commonly a project without the GKE API enabled) yields no targets rather
+// than an error, since that is an expected, common condition across a project
+// set. A parse failure on a successful listing is skipped for the same reason —
+// one malformed project must not sink the whole sync.
 func (p *Provider) discoverClusters(ctx context.Context, gcloud, account string, proj gcpProject, health domain.AccessHealth, action domain.ActionHint, now time.Time) []domain.Target {
 	out, _, err := p.runner.Run(ctx, gcloud, "container", "clusters", "list", "--project", proj.ProjectID, "--format=json")
 	if err != nil {
@@ -135,9 +151,4 @@ func (p *Provider) discoverClusters(ctx context.Context, gcloud, account string,
 		targets = append(targets, buildTarget(account, proj, c, health, action, now))
 	}
 	return targets
-}
-
-// Renew re-authenticates the active gcloud login via `gcloud auth login`.
-func (p *Provider) Renew(ctx context.Context, cred domain.Credential) error {
-	return p.renew(ctx, cred)
 }

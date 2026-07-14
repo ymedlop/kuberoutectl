@@ -40,13 +40,16 @@ Do **not** collapse `Scope` and `Target` into one type, even if a provider seems
 
 ## Provider priorities
 
-Current implementation order:
-1. Azure
-2. AWS
-3. kubeconfig
-4. GCP
+Original planned order was Azure → AWS → kubeconfig → GCP. Actual shipping
+order diverged; current status:
+1. Azure — implemented
+2. AWS — implemented
+3. GCP — implemented
+4. kubeconfig — implemented (separate PR)
 
-When implementing Azure or AWS, keep the abstractions suitable for later kubeconfig support, where some credentials may be static and not renewable.
+Keep the abstractions suitable for providers whose credentials are static and
+not renewable (kubeconfig client certs, and later GCP service-account keys):
+capability flags gate the action menu, per-credential health decides the item.
 
 ## Labels and collections
 

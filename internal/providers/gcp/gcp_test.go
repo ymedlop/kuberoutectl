@@ -127,6 +127,22 @@ func TestActivate_RunsGetCredentials(t *testing.T) {
 	}
 }
 
+func TestActivate_MissingLocationErrors(t *testing.T) {
+	p := New(fakeResolver{path: "gcloud"}, execx.NewFakeRunner())
+	// No Region and no metadata location: get-credentials cannot be constructed.
+	target := domain.Target{Name: "gke-orphan", Metadata: map[string]string{"project": "p"}}
+	if err := p.Activate(context.Background(), target); err == nil {
+		t.Fatal("expected an error when the target has no location")
+	}
+}
+
+func TestBuildScope_NameFallsBackToProjectID(t *testing.T) {
+	s := buildScope(gcpProject{ProjectID: "platform-prod-123", Name: ""})
+	if s.Name != "platform-prod-123" {
+		t.Errorf("scope name = %q, want fallback to projectId", s.Name)
+	}
+}
+
 func TestRenew_RunsAuthLogin(t *testing.T) {
 	r := execx.NewFakeRunner()
 	r.Responses["gcloud auth login yeray@example.com"] = execx.FakeResponse{Stdout: []byte("You are now logged in.")}
