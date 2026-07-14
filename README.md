@@ -103,6 +103,7 @@ kuberoutectl sync kubeconfig                     # discover kubeconfig contexts 
 kuberoutectl source list
 kuberoutectl scope list
 kuberoutectl credential list
+kuberoutectl credential list --provider aws      # filter by provider
 kuberoutectl credential show <id>
 kuberoutectl credential renew <id>               # if the provider/credential supports it
 
@@ -125,6 +126,7 @@ kuberoutectl collection show production
 kuberoutectl collection use production
 kuberoutectl collection delete production
 
+kuberoutectl current                             # what am I pointed at, and how fresh is it?
 kuberoutectl version
 ```
 

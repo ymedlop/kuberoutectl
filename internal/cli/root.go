@@ -99,6 +99,7 @@ func (a *app) rootCmd() *cobra.Command {
 		a.credentialCmd(),
 		a.targetCmd(),
 		a.collectionCmd(),
+		a.currentCmd(),
 		a.syncCmd(),
 		a.awsCmd(),
 		a.doctorCmd(),

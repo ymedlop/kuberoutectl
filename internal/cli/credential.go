@@ -14,12 +14,13 @@ func (a *app) credentialCmd() *cobra.Command {
 }
 
 func (a *app) credentialListCmd() *cobra.Command {
-	return &cobra.Command{
+	var provider string
+	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List credentials and their health",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			creds, err := services.NewCredentialService(a.store, a.registry).List()
+			creds, err := services.NewCredentialService(a.store, a.registry).List(domain.ProviderID(provider))
 			if err != nil {
 				return err
 			}
@@ -39,6 +40,8 @@ func (a *app) credentialListCmd() *cobra.Command {
 			return tw.Flush()
 		},
 	}
+	cmd.Flags().StringVarP(&provider, "provider", "p", "", "filter by provider (azure|aws|gcp|kubeconfig)")
+	return cmd
 }
 
 func (a *app) credentialShowCmd() *cobra.Command {

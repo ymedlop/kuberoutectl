@@ -41,6 +41,30 @@ func TestCredential_ListAndGet(t *testing.T) {
 	}
 }
 
+func TestCredential_ListFiltersByProvider(t *testing.T) {
+	store := newMemStore()
+	store.snap = domain.InventorySnapshot{Credentials: []domain.Credential{
+		{ID: "c1", ProviderID: "azure"},
+		{ID: "c2", ProviderID: "aws"},
+		{ID: "c3", ProviderID: "aws"},
+	}}
+	svc := NewCredentialService(store, providers.NewRegistry())
+
+	all, err := svc.List("")
+	if err != nil || len(all) != 3 {
+		t.Fatalf("no filter: got %d (%v), want 3", len(all), err)
+	}
+	awsOnly, err := svc.List("aws")
+	if err != nil || len(awsOnly) != 2 {
+		t.Fatalf("provider filter: got %d (%v), want 2", len(awsOnly), err)
+	}
+	for _, c := range awsOnly {
+		if c.ProviderID != "aws" {
+			t.Errorf("filter leaked %q", c.ProviderID)
+		}
+	}
+}
+
 func TestCredential_RenewGatedOnCapability(t *testing.T) {
 	store := newMemStore()
 	store.snap = domain.InventorySnapshot{Credentials: []domain.Credential{

@@ -51,16 +51,27 @@ func NewCredentialService(store cache.CacheStore, reg *providers.Registry) *Cred
 	return &CredentialService{store: store, registry: reg}
 }
 
-func (s *CredentialService) List() ([]domain.Credential, error) {
+// List returns credentials, optionally narrowed to one provider. An empty
+// provider matches everything, mirroring TargetFilter.Provider.
+func (s *CredentialService) List(provider domain.ProviderID) ([]domain.Credential, error) {
 	snap, err := s.store.LoadSnapshot()
 	if err != nil {
 		return nil, err
 	}
-	return snap.Credentials, nil
+	if provider == "" {
+		return snap.Credentials, nil
+	}
+	kept := make([]domain.Credential, 0, len(snap.Credentials))
+	for _, c := range snap.Credentials {
+		if c.ProviderID == provider {
+			kept = append(kept, c)
+		}
+	}
+	return kept, nil
 }
 
 func (s *CredentialService) Get(id domain.CredentialID) (domain.Credential, error) {
-	creds, err := s.List()
+	creds, err := s.List("")
 	if err != nil {
 		return domain.Credential{}, err
 	}
