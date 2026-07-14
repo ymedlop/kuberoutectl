@@ -179,26 +179,15 @@ Selectors accept exact matches (`env=prod`, comma-joined or repeated
 Beyond your own labels you can select on a target's structured attributes by
 bare key: `region`, `platform`, `provider`, `health`, `kind`.
 
-### AWS IAM Identity Center (SSO / Entra)
+### Provider guides
 
-`sync aws` discovers from the profiles in `~/.aws/config`. If you reach many AWS
-accounts through AWS IAM Identity Center (e.g. federated via Microsoft Entra /
-myapplications.microsoft.com), you can generate a profile for every account in
-one step instead of writing them by hand:
+Step-by-step manuals for managing clusters and credentials on each cloud:
 
-```bash
-aws sso login --sso-session mycompany            # sign in (opens the browser)
-kuberoutectl aws sso populate --sso-session mycompany
-kuberoutectl sync aws                            # now discovers across all accounts
-```
+- [Azure (AKS)](docs/guides/azure.md)
+- [AWS (EKS)](docs/guides/aws.md) — including corporate IAM Identity Center / Entra sign-in
 
-`populate` enumerates every account you can access and appends a
-`kr-<account>-<role>` profile per account to `~/.aws/config` (existing entries
-are never modified). It selects one role per account — `AdministratorAccess` if
-present, otherwise the first — overridable with `--role`. Use `--region` to set
-the region written on the profiles for EKS discovery (defaults to the session's
-`sso_region`). It never logs you in itself: if the SSO token is missing or
-expired it tells you to run `aws sso login`.
+See [docs/guides/](docs/guides/README.md) for the shared model and the
+credential-health spectrum.
 
 ## Building from source
 
