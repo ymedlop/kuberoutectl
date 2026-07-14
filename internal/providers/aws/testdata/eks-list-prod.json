@@ -1,0 +1,3 @@
+{
+  "clusters": ["eks-prod-frankfurt", "eks-prod-ireland"]
+}

@@ -1,0 +1,4 @@
+[
+  { "account": "yeray@example.com", "status": "ACTIVE" },
+  { "account": "old@example.com", "status": "" }
+]

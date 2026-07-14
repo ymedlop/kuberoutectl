@@ -1,0 +1,4 @@
+[
+  { "projectId": "platform-prod-123", "name": "Platform Prod", "projectNumber": "111111111111", "lifecycleState": "ACTIVE" },
+  { "projectId": "platform-lab-456", "name": "Platform Lab", "projectNumber": "222222222222", "lifecycleState": "ACTIVE" }
+]

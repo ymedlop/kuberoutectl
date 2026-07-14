@@ -1,0 +1,66 @@
+# GoReleaser v2 configuration for kuberoutectl.
+#
+# Snapshot builds are produced from the `development` branch by the
+# snapshot-release workflow with `goreleaser release --snapshot`, which builds
+# and archives without publishing; the workflow then uploads the artifacts to a
+# mutable draft pre-release. Windows amd64 is the primary deliverable, followed
+# by Linux amd64 and macOS (Apple Silicon) arm64.
+version: 2
+
+project_name: kuberoutectl
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: kuberoutectl
+    main: ./cmd/kuberoutectl
+    binary: kuberoutectl
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X github.com/ymedlop/kuberoutectl/internal/buildinfo.Version={{ .Version }}
+      - -X github.com/ymedlop/kuberoutectl/internal/buildinfo.Commit={{ .ShortCommit }}
+      - -X github.com/ymedlop/kuberoutectl/internal/buildinfo.Date={{ .Date }}
+    goos:
+      - windows
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      # macOS ships arm64 (Apple Silicon); keep Windows/Linux amd64-only for now.
+      - goos: windows
+        goarch: arm64
+      - goos: linux
+        goarch: arm64
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+# The rolling snapshot tag (development-snapshot) is intentionally NOT semver, so
+# the version template must not try to parse it as one. `incpatch .Version`
+# requires a semver input and fails once that tag exists, so use a fixed
+# semver-valid prefix plus the commit instead.
+snapshot:
+  version_template: "0.0.0-snapshot-{{ .ShortCommit }}"
+
+changelog:
+  disable: true
+
+# The workflow publishes the draft pre-release via the gh CLI, so GoReleaser's
+# own release step is not used for snapshots.
+release:
+  draft: true
+  prerelease: true

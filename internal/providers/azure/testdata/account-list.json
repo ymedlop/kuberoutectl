@@ -1,0 +1,42 @@
+[
+  {
+    "cloudName": "AzureCloud",
+    "homeTenantId": "11111111-1111-1111-1111-111111111111",
+    "id": "aaaaaaaa-0000-0000-0000-000000000001",
+    "isDefault": true,
+    "managedByTenants": [],
+    "name": "Platform Production",
+    "state": "Enabled",
+    "tenantId": "11111111-1111-1111-1111-111111111111",
+    "user": {
+      "name": "yeray@example.com",
+      "type": "user"
+    }
+  },
+  {
+    "cloudName": "AzureCloud",
+    "homeTenantId": "11111111-1111-1111-1111-111111111111",
+    "id": "aaaaaaaa-0000-0000-0000-000000000002",
+    "isDefault": false,
+    "managedByTenants": [],
+    "name": "Platform Lab",
+    "state": "Enabled",
+    "tenantId": "11111111-1111-1111-1111-111111111111",
+    "user": {
+      "name": "yeray@example.com",
+      "type": "user"
+    }
+  },
+  {
+    "cloudName": "AzureCloud",
+    "id": "aaaaaaaa-0000-0000-0000-000000000003",
+    "isDefault": false,
+    "name": "Disabled Subscription",
+    "state": "Disabled",
+    "tenantId": "11111111-1111-1111-1111-111111111111",
+    "user": {
+      "name": "yeray@example.com",
+      "type": "user"
+    }
+  }
+]

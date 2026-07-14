@@ -43,8 +43,8 @@ The initial goals of the project are:
 
 ### Later milestones
 
-- kubeconfig provider for self-hosted and local clusters
-- GCP provider
+- kubeconfig provider for self-hosted and local clusters ✅ done
+- GCP provider ✅ done
 - richer health checks
 - improved selector support for collections
 - optional managed runtime support for third-party CLIs
@@ -85,42 +85,157 @@ Examples:
 - `lab` → `env=lab`
 - `platform-eu` → `team=platform` and `region in [westeurope, eu-west-1]`
 
-## Planned command shape
+## Usage
 
-The exact UX may evolve, but the current direction looks like this:
+Every inventory command supports `--output json` (`-o json`) for scripting.
+
+### Commands
 
 ```bash
-kuberoutectl provider list
-kuberoutectl source list
-kuberoutectl credential list
-kuberoutectl scope list
-kuberoutectl target list
-kuberoutectl target inspect <id>
-kuberoutectl target use <id>
+kuberoutectl provider list                       # registered providers + capabilities
+kuberoutectl doctor                              # check required provider CLIs resolve
 
-kuberoutectl target label add <target-id> env=prod
-kuberoutectl target label remove <target-id> env
-kuberoutectl target label list <target-id>
+kuberoutectl sync azure                          # discover Azure inventory into the cache
+kuberoutectl sync aws                            # discover AWS inventory into the cache
+kuberoutectl sync gcp                            # discover GCP (GKE) inventory into the cache
+kuberoutectl sync kubeconfig                     # discover kubeconfig contexts into the cache
+
+kuberoutectl source list
+kuberoutectl scope list
+kuberoutectl credential list
+kuberoutectl credential list --provider aws      # filter by provider
+kuberoutectl credential show <id>
+kuberoutectl credential renew <id>               # if the provider/credential supports it
+
+kuberoutectl target list                         # short ALIAS column, not the long ID
+kuberoutectl target list --provider aws          # filter by provider
+kuberoutectl target list -l env=prod             # filter by selector (repeatable)
+kuberoutectl target list --wide                  # also show the full ID
+kuberoutectl target inspect <alias|id|name>
+kuberoutectl target use <alias|id|name>              # fetch credentials into ~/.kube/config + set context
+kuberoutectl target use <alias|id|name> --no-kubeconfig  # record the selection only
+
+kuberoutectl target label add <alias|id|name> env=prod
+kuberoutectl target label remove <alias|id|name> env
+kuberoutectl target label list <alias|id|name>
 
 kuberoutectl collection create production --selector env=prod
+kuberoutectl collection create eu --selector "region in [westeurope, eu-central-1]"
 kuberoutectl collection list
 kuberoutectl collection show production
 kuberoutectl collection use production
+kuberoutectl collection delete production
 
-kuberoutectl sync azure
-kuberoutectl sync aws
-kuberoutectl doctor
+kuberoutectl current                             # what am I pointed at, and how fresh is it?
+kuberoutectl version
 ```
+
+### Example session
+
+Discover both clouds into the local cache:
+
+```console
+$ kuberoutectl sync azure && kuberoutectl sync aws
+Synced provider: azure
+  sources:     1
+  credentials: 1
+  scopes:      3
+  targets:     3
+Synced provider: aws
+  sources:     3
+  credentials: 3
+  scopes:      2
+  targets:     2
+```
+
+Credential health is a spectrum, not a boolean — note the static AWS key
+(`static`/`none`, nothing to renew) versus the expired SSO session
+(`expired`/`renew`):
+
+```console
+$ kuberoutectl credential list
+ID                                                            PROVIDER  IDENTITY                               HEALTH   ACTION
+azure:11111111-1111-1111-1111-111111111111:yeray@example.com  azure     yeray@example.com                      valid    use
+aws:default                                                   aws                                              expired  renew
+aws:legacy-static                                             aws       arn:aws:iam::222222222222:user/ci-bot  static   none
+aws:prod-sso                                                  aws       arn:aws:sts::111111111111:assumed-role/AWSReservedSSO_Platform/yeray  valid  use
+```
+
+Organize across providers with labels, then collect. Because a collection is a
+saved view over labels, one selector can span clouds:
+
+```console
+$ kuberoutectl target label add <aks-cluster-id> env=prod
+$ kuberoutectl target label add <eks-cluster-id> env=prod
+
+$ kuberoutectl collection create production --selector env=prod
+Created collection: production
+
+$ kuberoutectl collection show production
+Collection: production
+Members: 2
+aks-prod-weu        aks  westeurope    valid
+eks-prod-frankfurt  eks  eu-central-1  valid
+```
+
+User labels are stored separately from discovered inventory, so they survive
+`sync` — re-running discovery never erases your organization.
+
+Selectors accept exact matches (`env=prod`, comma-joined or repeated
+`--selector`) and simple in-lists (`region in [westeurope, eu-central-1]`).
+Beyond your own labels you can select on a target's structured attributes by
+bare key: `region`, `platform`, `provider`, `health`, `kind`.
+
+### Provider guides
+
+Step-by-step manuals for managing clusters and credentials on each cloud:
+
+- [Azure (AKS)](docs/guides/azure.md)
+- [AWS (EKS)](docs/guides/aws.md) — including corporate IAM Identity Center / Entra sign-in
+- [GCP (GKE)](docs/guides/gcp.md)
+- [kubeconfig](docs/guides/kubeconfig.md) — self-hosted / local / handed-to-you contexts
+
+See [docs/guides/](docs/guides/README.md) for the shared model and the
+credential-health spectrum.
+
+## Building from source
+
+Requires Go (see the `go` directive in `go.mod`). Common tasks are wrapped in
+the `Makefile`:
+
+```bash
+make build        # build ./bin/kuberoutectl with version info injected
+make test         # go test ./...
+make check        # format check + vet + test (pre-commit gate)
+make dist         # cross-compile windows+linux amd64 and macOS arm64 into ./dist
+make snapshot     # local GoReleaser snapshot build
+make help         # list all targets
+```
+
+Or directly:
+
+```bash
+go build ./cmd/kuberoutectl
+go test ./...
+```
+
+`kuberoutectl version` reports the injected build metadata (version, commit, date).
 
 ## Development workflow
 
-The repository is expected to use:
+The repository uses:
 
 - `main` for stable code,
 - `development` for active integration,
-- snapshot CLI builds published from `development` as a mutable GitHub draft release for testing.
+- snapshot CLI builds published from `development` as a mutable GitHub draft
+  pre-release for testing.
 
-This makes it easier to develop on a personal machine and validate builds on a more restricted work environment without promoting every test build to a formal release.
+The `snapshot-release` GitHub Actions workflow builds cross-platform binaries
+with GoReleaser on every push to `development` (Windows amd64 primary, then
+Linux amd64 and macOS Apple Silicon arm64) and replaces a single
+`development-snapshot` pre-release. This makes it easy to develop on a personal
+machine and validate builds on a more restricted work environment without
+promoting every test build to a formal release.
 
 ## License
 
@@ -128,6 +243,11 @@ The project is intended to be open source and is a good fit for **Apache License
 
 ## Status
 
-This repository is in early design and MVP implementation stage.
+Milestone 1 is implemented: the Azure, AWS, GCP, and kubeconfig providers, JSON
+local cache, user labels, and collections all work end to end, with a
+provider-agnostic core and cross-platform snapshot builds. See `TODO.md` for
+what is done and what remains (multi-region EKS scan, richer selectors, and real
+client-cert expiry health for kubeconfig).
 
-The architecture is being shaped around real operator workflows first, not around generic abstractions for their own sake.
+The architecture is shaped around real operator workflows first, not around
+generic abstractions for their own sake.

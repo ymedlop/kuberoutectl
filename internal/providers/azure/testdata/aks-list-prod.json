@@ -1,0 +1,22 @@
+[
+  {
+    "id": "/subscriptions/aaaaaaaa-0000-0000-0000-000000000001/resourcegroups/rg-platform/providers/Microsoft.ContainerService/managedClusters/aks-prod-weu",
+    "name": "aks-prod-weu",
+    "location": "westeurope",
+    "resourceGroup": "rg-platform",
+    "kubernetesVersion": "1.28.3",
+    "fqdn": "aks-prod-weu-dns-abc123.hcp.westeurope.azmk8s.io",
+    "powerState": { "code": "Running" },
+    "provisioningState": "Succeeded"
+  },
+  {
+    "id": "/subscriptions/aaaaaaaa-0000-0000-0000-000000000001/resourcegroups/rg-platform/providers/Microsoft.ContainerService/managedClusters/aks-prod-neu",
+    "name": "aks-prod-neu",
+    "location": "northeurope",
+    "resourceGroup": "rg-platform",
+    "kubernetesVersion": "1.28.3",
+    "fqdn": "aks-prod-neu-dns-def456.hcp.northeurope.azmk8s.io",
+    "powerState": { "code": "Running" },
+    "provisioningState": "Succeeded"
+  }
+]
