@@ -1,0 +1,45 @@
+# Spartan build config for kuberoutectl (Go CLI).
+#
+# The Spartan defaults assume Kotlin/Micronaut or Next.js; this file teaches
+# /spartan:build this repo's actual stack and workflow so runs don't need
+# ad-hoc overrides.
+
+branch-prefix: "feat"
+agent-teams: off
+max-review-rounds: 3
+
+prompts:
+  spec: |
+    This is kuberoutectl: a provider-agnostic Go CLI (Cobra) for Kubernetes
+    access routing. Read AGENTS.md and CLAUDE.md first. For provider work,
+    load the cloud-adapters skill; for inventory/labels/collections work,
+    load kubernetes-inventory. Preserve the domain model: never collapse
+    Scope and Target.
+
+  plan: |
+    Stack is Go — ignore gradle/npm detection. Task ordering for this repo:
+    domain types -> services -> providers (parse.go fixtures-first) -> CLI
+    wiring -> docs (README + docs/guides) + scripts/e2e.sh assertions.
+    Base branch is `development` (branch-protected); `main` is stable.
+    Branches are created directly off origin/development — this sandbox is
+    already an isolated worktree, do not nest another one.
+
+  implement: |
+    TDD with Go tooling: `go test ./...` per task, `gofmt -w` before every
+    commit. Business logic lives in internal/services or the provider
+    package, never in Cobra RunE handlers. Provider Discover error rule:
+    command failure is resilient (fall through / prog.Step), parse failure
+    on a successful command is a wrapped hard error.
+
+  review: |
+    Review against AGENTS.md (domain + architecture rules) and the loaded
+    skills' Gotchas sections — not Kotlin/React rule packs (not installed).
+    Verify: core stays provider-agnostic, Scope != Target, user labels
+    survive resync, deterministic output, honest health mapping (static
+    credentials never coerced to renew).
+
+  ship: |
+    Pre-PR gate: `make check` && `bash scripts/e2e.sh` must both pass.
+    Rebase onto origin/development, PR targets `development`. State what
+    fixtures cannot prove (real az/aws/gcloud/kubectl behavior) as an
+    explicit caveat in the PR body.

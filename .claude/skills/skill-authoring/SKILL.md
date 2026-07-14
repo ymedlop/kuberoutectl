@@ -1,6 +1,20 @@
+---
+name: skill-authoring
+description: "Rules for creating and modifying skills. Use when writing a new SKILL.md, restructuring an existing skill, or reviewing skills for compliance — not needed for ordinary coding tasks."
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+---
+
 # Skill Authoring Rules
 
 Rules for creating and modifying skills in the Spartan AI Toolkit. Follow these when writing new skills or improving existing ones.
+
+> Formerly auto-loaded from `.claude/rules/core/`; moved to an on-demand skill
+> because it only matters when authoring skills, not on every session.
 
 ## Frontmatter (REQUIRED)
 
@@ -161,6 +175,22 @@ Read config at skill start. Skip setup questions for configured fields.
 | Supporting files | `kebab-case.md` | `code-patterns.md` |
 
 ---
+
+## Gotchas
+
+- **The most common violation is a missing Gotchas section.** This repo's own
+  three skills shipped without one (and without `allowed_tools`) and stayed
+  that way for the whole first milestone — run the checklist below against
+  *existing* skills too, not just new ones.
+- **Skills go stale silently.** A skill written before the code exists ends up
+  restating generic principles; the codebase becomes the better reference and
+  nobody notices. After a review or debugging session surfaces a non-obvious
+  failure pattern, add it to the relevant skill's Gotchas *then*, while it's
+  concrete — "build this section over time" doesn't happen by itself.
+- **Auto-loaded vs on-demand is a cost decision.** Content in `.claude/rules/`
+  or CLAUDE.md is paid for on every session; skill folders are paid for only
+  when loaded. Meta-content (like this file) and deep per-domain references
+  belong on demand; only rules that apply to *every* task belong in auto-load.
 
 ## Checklist: Before Shipping a Skill
 
