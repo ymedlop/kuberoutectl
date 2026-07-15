@@ -92,6 +92,11 @@ func (a *app) rootCmd() *cobra.Command {
 	}
 	root.PersistentFlags().StringVarP(&output, "output", "o", "text", "output format: text|json")
 
+	// Hide Cobra's auto-generated `completion` command from the help/command
+	// list without disabling it — `kuberoutectl completion <shell>` and the
+	// shell's dynamic tab-completion still work, they just don't clutter help.
+	root.CompletionOptions.HiddenDefaultCmd = true
+
 	root.AddCommand(
 		a.syncCmd(),
 		a.targetCmd(),
