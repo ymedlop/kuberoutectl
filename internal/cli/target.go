@@ -11,7 +11,11 @@ import (
 )
 
 func (a *app) targetCmd() *cobra.Command {
-	cmd := &cobra.Command{Use: "target", Short: "Inspect, label, and use Kubernetes targets"}
+	cmd := &cobra.Command{
+		Use:     "target",
+		Aliases: []string{"clusters", "cluster"},
+		Short:   "Inspect, label, and use Kubernetes targets",
+	}
 	cmd.AddCommand(
 		a.targetListCmd(),
 		a.targetInspectCmd(),

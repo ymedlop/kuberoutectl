@@ -10,23 +10,24 @@ import (
 	"github.com/ymedlop/kuberoutectl/internal/providers/aws"
 )
 
-func (a *app) awsCmd() *cobra.Command {
-	cmd := &cobra.Command{Use: "aws", Short: "AWS-specific helpers"}
-	cmd.AddCommand(a.awsSSOCmd())
+// setupCmd groups machine-preparation helpers that write local provider config
+// — the write-side counterpart to `doctor`'s read-only checks. Provider-specific
+// setup lives here rather than under a per-provider root command, so no single
+// provider is special at the top level.
+func (a *app) setupCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "setup",
+		Short: "Prepare local provider configuration",
+	}
+	cmd.AddCommand(a.setupAWSSSOCmd())
 	return cmd
 }
 
-func (a *app) awsSSOCmd() *cobra.Command {
-	cmd := &cobra.Command{Use: "sso", Short: "AWS IAM Identity Center (SSO) helpers"}
-	cmd.AddCommand(a.awsSSOPopulateCmd())
-	return cmd
-}
-
-func (a *app) awsSSOPopulateCmd() *cobra.Command {
+func (a *app) setupAWSSSOCmd() *cobra.Command {
 	var session, role, region string
 	cmd := &cobra.Command{
-		Use:   "populate --sso-session <name>",
-		Short: "Generate ~/.aws/config profiles for every account in an SSO session",
+		Use:   "aws-sso --sso-session <name>",
+		Short: "Generate ~/.aws/config profiles for every account in an AWS SSO session",
 		Long: "Enumerate every account you can reach through an AWS IAM Identity Center\n" +
 			"(SSO) session and write a `kr-<account>-<role>` profile for each into\n" +
 			"~/.aws/config, so `kuberoutectl sync aws` (and plain aws/kubectl) can use\n" +
