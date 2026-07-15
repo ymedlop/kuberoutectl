@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -101,5 +103,21 @@ func TestCompletionHidden(t *testing.T) {
 	}
 	if !comp.Hidden {
 		t.Error("completion command should be hidden from the help/command list")
+	}
+}
+
+// TestVersionFlagRich confirms `--version` prints the full build string
+// (version + commit + date), matching the `version` subcommand rather than
+// Cobra's bare default.
+func TestVersionFlagRich(t *testing.T) {
+	root := testRoot()
+	var buf bytes.Buffer
+	root.SetOut(&buf)
+	root.SetArgs([]string{"--version"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("--version failed: %v", err)
+	}
+	if !strings.Contains(buf.String(), "commit") {
+		t.Errorf("--version should include commit/date, got %q", buf.String())
 	}
 }
