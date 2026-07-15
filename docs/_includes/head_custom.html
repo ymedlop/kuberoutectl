@@ -1,0 +1,21 @@
+<script>
+  // Pick the color scheme from the browser's prefers-color-scheme setting, and
+  // keep it in sync if the visitor changes their OS/browser theme while the page
+  // is open. This runs in <head> right after the default (light) stylesheet
+  // link, so the correct sheet is set before first paint — no flash for
+  // dark-mode visitors. No-JS visitors get the light default.
+  (function () {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    function apply() {
+      var link = document.querySelector('link[rel="stylesheet"]');
+      if (!link) return;
+      var href = link.getAttribute('href');
+      var want = mq.matches ? 'just-the-docs-dark.css' : 'just-the-docs-default.css';
+      var next = href.replace(/just-the-docs-(default|dark)\.css/, want);
+      if (next !== href) link.setAttribute('href', next);
+    }
+    apply();
+    if (mq.addEventListener) { mq.addEventListener('change', apply); }
+    else if (mq.addListener) { mq.addListener(apply); }
+  })();
+</script>
