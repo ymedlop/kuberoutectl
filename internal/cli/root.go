@@ -90,7 +90,18 @@ func (a *app) rootCmd() *cobra.Command {
 			return nil
 		},
 	}
+
+	// Make `--version` print the same rich build string as the `version`
+	// subcommand (version + commit + date), instead of Cobra's bare default of
+	// just the version. The subcommand additionally supports `-o json`.
+	root.SetVersionTemplate("kuberoutectl " + buildinfo.String() + "\n")
+
 	root.PersistentFlags().StringVarP(&output, "output", "o", "text", "output format: text|json")
+
+	// Hide Cobra's auto-generated `completion` command from the help/command
+	// list without disabling it — `kuberoutectl completion <shell>` and the
+	// shell's dynamic tab-completion still work, they just don't clutter help.
+	root.CompletionOptions.HiddenDefaultCmd = true
 
 	root.AddCommand(
 		a.syncCmd(),

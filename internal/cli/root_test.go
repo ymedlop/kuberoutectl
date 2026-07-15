@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -85,5 +87,37 @@ func TestTargetAliases(t *testing.T) {
 	}
 	if c, _, err := root.Find([]string{"clusters", "list"}); err != nil || c.Name() != "list" {
 		t.Errorf("`clusters list` did not resolve to target list (got %v, err %v)", c, err)
+	}
+}
+
+// TestCompletionHidden confirms the auto-generated `completion` command is
+// hidden from help but still present and usable (not disabled), so shell
+// tab-completion keeps working.
+func TestCompletionHidden(t *testing.T) {
+	root := testRoot()
+	root.InitDefaultCompletionCmd() // Cobra adds it lazily during Execute
+
+	comp, ok := byName(root.Commands())["completion"]
+	if !ok {
+		t.Fatal("completion command should still exist (hidden, not disabled)")
+	}
+	if !comp.Hidden {
+		t.Error("completion command should be hidden from the help/command list")
+	}
+}
+
+// TestVersionFlagRich confirms `--version` prints the full build string
+// (version + commit + date), matching the `version` subcommand rather than
+// Cobra's bare default.
+func TestVersionFlagRich(t *testing.T) {
+	root := testRoot()
+	var buf bytes.Buffer
+	root.SetOut(&buf)
+	root.SetArgs([]string{"--version"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("--version failed: %v", err)
+	}
+	if !strings.Contains(buf.String(), "commit") {
+		t.Errorf("--version should include commit/date, got %q", buf.String())
 	}
 }
