@@ -45,7 +45,7 @@ kuberoutectl target list         # 4. what can I reach?
 kuberoutectl target use <id>     # 5. route kubectl at one cluster
 ```
 
-Everything else — `scope list`, `target inspect`, labels, and collections — is
+Everything else — `inventory scopes`, `target inspect`, labels, and collections — is
 about slicing that inventory once it's in the cache. Add `-o json` to any
 inventory command for scripting.
 

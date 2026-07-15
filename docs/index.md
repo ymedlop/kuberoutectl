@@ -139,15 +139,18 @@ The guides reference a shared domain model that lets the same commands work iden
 Every inventory command supports `--output json` (`-o json`) for scripting.
 
 ```bash
-# Providers and setup
-kuberoutectl provider list                    # registered providers + capabilities
+# Setup and discovery
 kuberoutectl doctor                           # check required provider CLIs resolve
-
-# Discovery
 kuberoutectl sync azure                       # discover Azure inventory
 kuberoutectl sync aws                         # discover AWS inventory
 kuberoutectl sync gcp                         # discover GCP inventory
 kuberoutectl sync kubeconfig                  # discover kubeconfig contexts
+kuberoutectl setup aws-sso --sso-session <name>   # write ~/.aws profiles for every SSO account
+
+# Inventory (read-only views of discovered state)
+kuberoutectl inventory providers              # registered providers + capabilities
+kuberoutectl inventory sources                # discovered access sources
+kuberoutectl inventory scopes                 # discovered subscriptions/accounts/projects
 
 # Credentials
 kuberoutectl credential list                  # list all credentials with health status
@@ -155,8 +158,9 @@ kuberoutectl credential list --provider aws  # filter by provider
 kuberoutectl credential show <id>             # show credential details
 kuberoutectl credential renew <id>            # renew a credential if supported
 
-# Targets (Clusters)
+# Targets (aliases: clusters, cluster)
 kuberoutectl target list                      # list clusters with health
+kuberoutectl clusters list                    # same thing via the `clusters` alias
 kuberoutectl target list --provider aws       # filter by provider
 kuberoutectl target list -l env=prod          # filter by label selector
 kuberoutectl target inspect <alias|id|name>  # detailed cluster info
