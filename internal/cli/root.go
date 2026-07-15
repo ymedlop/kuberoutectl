@@ -93,15 +93,13 @@ func (a *app) rootCmd() *cobra.Command {
 	root.PersistentFlags().StringVarP(&output, "output", "o", "text", "output format: text|json")
 
 	root.AddCommand(
-		a.providerCmd(),
-		a.sourceCmd(),
-		a.scopeCmd(),
-		a.credentialCmd(),
+		a.syncCmd(),
 		a.targetCmd(),
+		a.credentialCmd(),
 		a.collectionCmd(),
 		a.currentCmd(),
-		a.syncCmd(),
-		a.awsCmd(),
+		a.inventoryCmd(),
+		a.setupCmd(),
 		a.doctorCmd(),
 		a.versionCmd(),
 	)

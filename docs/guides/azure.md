@@ -73,7 +73,7 @@ so piping stays clean.
 Each subscription becomes a **Scope**; each AKS cluster becomes a **Target**:
 
 ```console
-$ kuberoutectl scope list
+$ kuberoutectl inventory scopes
 NAME           PROVIDER  ID
 Platform Prod  azure     aaaaaaaa-0000-0000-0000-000000000001
 Platform Lab   azure     aaaaaaaa-0000-0000-0000-000000000002

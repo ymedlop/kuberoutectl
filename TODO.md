@@ -114,6 +114,14 @@ Provider-agnostic backbone, fully testable without any cloud CLI.
 ## Remaining polish (post-milestone-1)
 
 - [ ] Multi-region EKS scan (currently the profile's configured region only)
+- [ ] AWS Organizations discovery — enumerate an Org's accounts via the
+      Organizations API and assume-role into each, so `sync aws` fans out
+      across accounts without pre-materialized profiles. This is the AWS
+      analog to Azure's `az account list` and GCP's `gcloud projects list`
+      (both already auto-enumerate all scopes during `sync`). Complements
+      `aws sso populate`, which covers the IAM Identity Center case; Orgs
+      covers the non-SSO, role-assumption case. Net-new provider work —
+      design against the existing parse/build split before coding.
 - [ ] Managed-runtime resolution (step 2) — optional, deferred
 - [ ] kubeconfig: parse client-cert `notAfter` for real valid/expiring/expired health
 - [ ] GCP: fine-grained token-expiry health; service-account key credentials

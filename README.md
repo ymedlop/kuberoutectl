@@ -147,7 +147,6 @@ Every inventory command supports `--output json` (`-o json`) for scripting.
 ### Commands
 
 ```bash
-kuberoutectl provider list                       # registered providers + capabilities
 kuberoutectl doctor                              # check required provider CLIs resolve
 
 kuberoutectl sync azure                          # discover Azure inventory into the cache
@@ -155,14 +154,17 @@ kuberoutectl sync aws                            # discover AWS inventory into t
 kuberoutectl sync gcp                            # discover GCP (GKE) inventory into the cache
 kuberoutectl sync kubeconfig                     # discover kubeconfig contexts into the cache
 
-kuberoutectl source list
-kuberoutectl scope list
+kuberoutectl inventory providers                 # registered providers + capabilities
+kuberoutectl inventory sources                   # discovered access sources
+kuberoutectl inventory scopes                    # discovered scopes (subscriptions/accounts/projects)
+
 kuberoutectl credential list
 kuberoutectl credential list --provider aws      # filter by provider
 kuberoutectl credential show <id>
 kuberoutectl credential renew <id>               # if the provider/credential supports it
 
 kuberoutectl target list                         # short ALIAS column, not the long ID
+kuberoutectl clusters list                       # `clusters`/`cluster` are aliases of `target`
 kuberoutectl target list --provider aws          # filter by provider
 kuberoutectl target list -l env=prod             # filter by selector (repeatable)
 kuberoutectl target list --wide                  # also show the full ID
@@ -182,6 +184,8 @@ kuberoutectl collection use production
 kuberoutectl collection delete production
 
 kuberoutectl current                             # what am I pointed at, and how fresh is it?
+
+kuberoutectl setup aws-sso --sso-session <name>  # write ~/.aws/config profiles for every SSO account
 kuberoutectl version
 ```
 
