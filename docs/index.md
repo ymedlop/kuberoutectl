@@ -110,6 +110,11 @@ The CLI is built around a stable domain model that works identically across all 
 
 ## Documentation Structure
 
+### [Organizing: labels & collections](organizing.md)
+
+How to tag clusters with labels and group them into live, selector-driven
+collections that span clouds — including the create-first, label-later workflow.
+
 ### [Provider Guides](guides/index.md)
 
 Step-by-step manuals for using `kuberoutectl` with each supported cloud:

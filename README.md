@@ -85,6 +85,49 @@ Examples:
 - `lab` → `env=lab`
 - `platform-eu` → `team=platform` and `region in [westeurope, eu-west-1]`
 
+### Working with labels and collections
+
+Because a collection is a **live query over labels**, not a static folder, you
+can create it first and tag clusters into it later — order does not matter.
+
+```bash
+# 1. Create the collection with a selector (0 members is fine — nothing matches yet)
+kuberoutectl collection create production --selector env=prod
+
+# 2. Label clusters whenever you like — they join automatically
+kuberoutectl target list                          # find the ALIAS to reference
+kuberoutectl target label add aks-prod-weu       env=prod
+kuberoutectl target label add eks-prod-frankfurt env=prod
+
+# 3. Membership re-resolves live — no resync needed
+kuberoutectl collection show production           # Members: 2
+
+# 4. Point kubectl at the whole set
+kuberoutectl collection use production
+```
+
+Key properties:
+
+- **Order-independent** — label a new cluster tomorrow and it appears in
+  `production` with no extra step; the collection re-resolves from current
+  labels every time.
+- **Survives discovery** — user labels are never wiped by `sync`, so
+  collections keep matching across resyncs.
+- **Cross-cloud** — one selector (`env=prod`) spans Azure, AWS, GCP, and
+  kubeconfig at once.
+- **Selectors** accept exact matches (`env=prod`), comma-joined or repeated
+  `--selector`, and `in` lists (`"region in [westeurope, eu-central-1]"`). You
+  can also select on a target's structured attributes by bare key: `region`,
+  `platform`, `provider`, `health`, `kind`.
+- **Static members** — add one-offs that don't fit a selector at creation with
+  `--static <target-id>` (unioned with the selector matches).
+- **Manage labels** — `target label list <ref>` to see them,
+  `target label remove <ref> <key>` to drop one. `kuberoutectl.io/` is a
+  reserved system namespace; your labels are plain `key=value`.
+
+A fuller walkthrough lives in the docs site under
+[Organizing: labels & collections](docs/organizing.md).
+
 ## Installation
 
 Pre-built binaries are published as a rolling **`development-snapshot`**
