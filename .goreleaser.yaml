@@ -3,8 +3,9 @@
 # Snapshot builds are produced from the `development` branch by the
 # snapshot-release workflow with `goreleaser release --snapshot`, which builds
 # and archives without publishing; the workflow then uploads the artifacts to a
-# mutable draft pre-release. Windows amd64 is the primary deliverable, followed
-# by Linux amd64 and macOS (Apple Silicon) arm64.
+# mutable draft pre-release. Every OS/arch pair is shipped: Windows, Linux, and
+# macOS, each in amd64 and arm64. The build is pure Go (CGO disabled), so arm64
+# cross-compilation needs no extra toolchain.
 version: 2
 
 project_name: kuberoutectl
@@ -31,12 +32,6 @@ builds:
     goarch:
       - amd64
       - arm64
-    ignore:
-      # macOS ships arm64 (Apple Silicon); keep Windows/Linux amd64-only for now.
-      - goos: windows
-        goarch: arm64
-      - goos: linux
-        goarch: arm64
 
 archives:
   - id: default

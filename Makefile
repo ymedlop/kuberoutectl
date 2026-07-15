@@ -50,12 +50,13 @@ check: fmt-check vet test ## Pre-commit gate: format, vet, test
 clean: ## Remove build artifacts
 	rm -rf bin dist
 
-# Cross-compile the snapshot deliverables. Windows amd64 is the primary target
-# for restricted work environments; Linux amd64 and macOS (Apple Silicon)
-# arm64 follow. Mirrors the GoReleaser matrix.
-dist: ## Cross-compile windows/amd64, linux/amd64, darwin/amd64, darwin/arm64
+# Cross-compile the snapshot deliverables for every shipped OS/arch pair.
+# Mirrors the GoReleaser matrix (windows/linux/darwin × amd64/arm64).
+dist: ## Cross-compile {windows,linux,darwin} × {amd64,arm64} into ./dist
 	GOOS=windows GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o dist/$(BINARY)_windows_amd64/$(BINARY).exe $(CMD)
+	GOOS=windows GOARCH=arm64 go build -ldflags '$(LDFLAGS)' -o dist/$(BINARY)_windows_arm64/$(BINARY).exe $(CMD)
 	GOOS=linux   GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o dist/$(BINARY)_linux_amd64/$(BINARY) $(CMD)
+	GOOS=linux   GOARCH=arm64 go build -ldflags '$(LDFLAGS)' -o dist/$(BINARY)_linux_arm64/$(BINARY) $(CMD)
 	GOOS=darwin  GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o dist/$(BINARY)_darwin_amd64/$(BINARY) $(CMD)
 	GOOS=darwin  GOARCH=arm64 go build -ldflags '$(LDFLAGS)' -o dist/$(BINARY)_darwin_arm64/$(BINARY) $(CMD)
 
