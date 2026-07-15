@@ -85,6 +85,61 @@ Examples:
 - `lab` → `env=lab`
 - `platform-eu` → `team=platform` and `region in [westeurope, eu-west-1]`
 
+## Installation
+
+Pre-built binaries are published as a rolling **`development-snapshot`**
+pre-release, rebuilt on every push to `development`:
+
+**→ [github.com/ymedlop/kuberoutectl/releases/tag/development-snapshot](https://github.com/ymedlop/kuberoutectl/releases/tag/development-snapshot)**
+
+Each build ships **Windows, Linux, and macOS in both `amd64` and `arm64`**.
+Assets are named `kuberoutectl_<version>_<os>_<arch>.<ext>` (`.tar.gz` for Linux
+and macOS, `.zip` for Windows). Not sure which architecture you need? Run
+`uname -m` — `x86_64` → `amd64`, `aarch64`/`arm64` → `arm64`.
+
+### Linux and macOS
+
+```bash
+# Download the asset for your OS (linux|darwin) and arch (amd64|arm64) from the
+# releases page, then — from the folder where it landed:
+tar -xzf kuberoutectl_*_linux_amd64.tar.gz      # adjust os/arch to match
+chmod +x kuberoutectl
+sudo mv kuberoutectl /usr/local/bin/             # or any dir on your PATH
+kuberoutectl version
+```
+
+On **macOS** the binary is unsigned, so Gatekeeper quarantines it on first run.
+Clear the quarantine flag once after extracting:
+
+```bash
+xattr -d com.apple.quarantine ./kuberoutectl     # or: right-click → Open
+```
+
+### Windows
+
+Download the `..._windows_<arch>.zip` asset, extract it, and run from PowerShell:
+
+```powershell
+Expand-Archive kuberoutectl_*_windows_amd64.zip -DestinationPath kuberoutectl
+.\kuberoutectl\kuberoutectl.exe version
+```
+
+Move `kuberoutectl.exe` somewhere on your `PATH` to call it from anywhere.
+SmartScreen may warn about the unsigned binary — choose **More info → Run
+anyway**.
+
+### Verify the download (optional)
+
+Each release includes `checksums.txt`:
+
+```bash
+sha256sum -c checksums.txt          # Linux
+shasum -a 256 -c checksums.txt      # macOS
+# Windows (PowerShell): Get-FileHash .\kuberoutectl_*.zip -Algorithm SHA256
+```
+
+Prefer to build it yourself? See [Building from source](#building-from-source).
+
 ## Usage
 
 Every inventory command supports `--output json` (`-o json`) for scripting.
@@ -210,7 +265,7 @@ the `Makefile`:
 make build        # build ./bin/kuberoutectl with version info injected
 make test         # go test ./...
 make check        # format check + vet + test (pre-commit gate)
-make dist         # cross-compile windows+linux amd64 and macOS arm64 into ./dist
+make dist         # cross-compile {windows,linux,darwin} × {amd64,arm64} into ./dist
 make snapshot     # local GoReleaser snapshot build
 make help         # list all targets
 ```
@@ -230,15 +285,15 @@ The repository uses:
 
 - `main` for stable code,
 - `development` for active integration,
-- snapshot CLI builds published from `development` as a mutable GitHub draft
+- snapshot CLI builds published from `development` as a mutable GitHub
   pre-release for testing.
 
 The `snapshot-release` GitHub Actions workflow builds cross-platform binaries
-with GoReleaser on every push to `development` (Windows amd64 primary, then
-Linux amd64 and macOS Apple Silicon arm64) and replaces a single
-`development-snapshot` pre-release. This makes it easy to develop on a personal
-machine and validate builds on a more restricted work environment without
-promoting every test build to a formal release.
+with GoReleaser on every push to `development` — Windows, Linux, and macOS, each
+in `amd64` and `arm64` — and replaces a single `development-snapshot`
+pre-release. This makes it easy to develop on a personal machine and validate
+builds on a more restricted work environment without promoting every test build
+to a formal release.
 
 ## License
 
