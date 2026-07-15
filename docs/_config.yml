@@ -83,6 +83,15 @@ callouts:
 
 # --- Build --------------------------------------------------------------------
 
+# Every page uses the theme layout unless it opts out. Without this, pages that
+# omit `layout:` in front matter (the provider guides) render as bare, unstyled
+# HTML with no theme wrapper.
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+
 plugins:
   - jekyll-relative-links   # keep in-repo .md links working on the site too
   - jekyll-seo-tag
