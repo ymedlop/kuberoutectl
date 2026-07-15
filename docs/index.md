@@ -16,9 +16,9 @@ description: >-
     inventory of your clusters and credential health.
   </p>
   <div class="hero__actions">
-    <a class="hero__btn hero__btn--primary" href="#quick-start">Get started</a>
+    <a class="hero__btn hero__btn--primary" href="{{ '/installation/' | relative_url }}">Install</a>
+    <a class="hero__btn hero__btn--ghost" href="#quick-start">Quick start</a>
     <a class="hero__btn hero__btn--ghost" href="{{ '/guides/' | relative_url }}">Provider guides</a>
-    <a class="hero__btn hero__btn--ghost" href="https://github.com/ymedlop/kuberoutectl">GitHub</a>
   </div>
 </div>
 
