@@ -31,6 +31,39 @@ Each entry should include:
 
 ***
 
+## 2026-07-15
+
+### `kuberoutectl-v4-consolidated-cli.md`
+
+#### Summary of changes
+- Reframed the prompt from a greenfield milestone-1 build to maintaining a
+  shipped, multi-provider CLI (Azure, AWS, GCP, kubeconfig all implemented).
+- Replaced v3's flat per-entity commands with the **consolidated command
+  surface**: `inventory sources|scopes|providers`, `setup aws-sso`, and the
+  `target` → `clusters`/`cluster` aliases; removed the top-level
+  `provider`/`source`/`scope`/`aws` commands.
+- Documented that no provider is special at root — providers are a dimension
+  (`sync <provider>`, `--provider`) so the cross-cloud view is preserved.
+- Updated delivery to the full OS/arch matrix (incl. arm64), install docs, and
+  the GitHub Pages site.
+- Recorded the AWS Organizations account-discovery backlog item.
+- Kept the domain model, health/action spectrum, labels, and collections
+  unchanged (Scope and Target stay distinct).
+
+#### Reason for the change
+- v3's "Required CLI commands" and provider-status sections no longer matched
+  the shipped tool after the CLI consolidation and the GCP/kubeconfig providers.
+- The command surface is a design decision worth recording as the new source of
+  truth, with the rationale for each grouping.
+
+#### Expected implementation impact
+- Future work should target the consolidated command tree and the four-provider
+  package template.
+- Provider-specific setup goes under `setup`, not a per-provider root command.
+- `v3` is retained as the historical milestone-1 record.
+
+***
+
 ## 2026-07-13
 
 ### `kuberoutectl-mvp-v3-azure-aws.md`

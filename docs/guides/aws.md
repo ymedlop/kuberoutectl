@@ -167,7 +167,7 @@ aws sso list-accounts --access-token <token>          # accounts you can reach
 aws sso list-account-roles --account-id <id> ...       # roles per account
 ```
 
-> **`kuberoutectl aws sso populate`** — a helper that automates exactly this:
+> **`kuberoutectl setup aws-sso`** — a helper that automates exactly this:
 > after `aws sso login`, it reads your `[sso-session]`, calls
 > `aws sso list-accounts` / `list-account-roles`, and appends one
 > `kr-<account>-<role>` profile per account into `~/.aws/config` (idempotently —
@@ -176,7 +176,7 @@ aws sso list-account-roles --account-id <id> ...       # roles per account
 > `--region`.
 >
 > ```bash
-> kuberoutectl aws sso populate --sso-session <session-name>
+> kuberoutectl setup aws-sso --sso-session <session-name>
 > kuberoutectl sync aws          # now discovers clusters in every populated account
 > ```
 

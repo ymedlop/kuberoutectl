@@ -176,5 +176,15 @@ show2="$("$BIN" collection show production)"
 assert_contains "$show2" "Members: 2"
 assert_contains "$("$BIN" target inspect "$EKS_FRA")" "user-label    env=prod"
 
+echo; echo "==> consolidated command surface: inventory group, setup, and the clusters alias"
+assert_contains "$("$BIN" inventory sources)"    "PROVIDER"     # was: source list
+assert_contains "$("$BIN" inventory scopes)"     "KIND"         # was: scope list
+assert_contains "$("$BIN" inventory providers)"  "azure"        # was: provider list
+assert_contains "$("$BIN" clusters list)"        "aks-prod-weu" # `clusters` is an alias of `target`
+assert_contains "$("$BIN" setup aws-sso --help)" "sso-session"  # was: aws sso populate
+for gone in "provider list" "source list" "scope list" "aws sso populate"; do
+  if "$BIN" $gone >/dev/null 2>&1; then fail "removed command still works: kuberoutectl $gone"; fi
+done
+
 echo
 echo "E2E OK: cross-provider discovery, health spectrum, and label survival verified."
