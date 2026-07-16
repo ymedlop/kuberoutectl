@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"strconv"
+	"time"
+)
 
 // Target is a selectable Kubernetes destination: an AKS cluster, an EKS
 // cluster, later a GKE cluster or a kubeconfig context. Targets are where
@@ -35,6 +38,12 @@ type Target struct {
 	Health     AccessHealth `json:"health"`
 	ActionHint ActionHint   `json:"action_hint"`
 	LastSeenAt time.Time    `json:"last_seen_at"`
+
+	// Hidden is a computed-on-read flag (like Alias) — never stored in the
+	// snapshot. It is the read-time join between a target and the user-owned
+	// hidden-ID set, so hiding survives a resync. Populated wherever the selector
+	// engine runs or a target is surfaced; providers leave it false.
+	Hidden bool `json:"hidden,omitempty"`
 
 	SystemLabels map[string]string `json:"system_labels,omitempty"`
 	UserLabels   map[string]string `json:"user_labels,omitempty"`
@@ -79,5 +88,11 @@ func (t Target) SelectionLabels() map[string]string {
 	for k, v := range t.UserLabels {
 		out[k] = v
 	}
+	// Visibility is authoritative and always exposed (both keys, both states),
+	// written last so no stray user/system label can shadow the computed value —
+	// the default-hide rule and `-l hidden=true` depend on it being ground truth.
+	// (ValidateUserLabelKey also reserves these keys at write time.)
+	out["visible"] = strconv.FormatBool(!t.Hidden)
+	out["hidden"] = strconv.FormatBool(t.Hidden)
 	return out
 }

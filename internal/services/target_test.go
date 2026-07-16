@@ -95,6 +95,105 @@ func TestTargetService_Delete_PreservesOrder(t *testing.T) {
 	}
 }
 
+func TestApplyVisibility(t *testing.T) {
+	targets := []domain.Target{{ID: "a"}, {ID: "b"}}
+	ApplyVisibility(targets, map[domain.TargetID]bool{"b": true})
+	if targets[0].Hidden {
+		t.Error("a should be visible")
+	}
+	if !targets[1].Hidden {
+		t.Error("b should be hidden")
+	}
+}
+
+func TestTargetService_List_HidesHiddenByDefault(t *testing.T) {
+	store := seededTargetStore()
+	store.hidden = []domain.TargetID{"aws:eks-1"}
+	svc := NewTargetService(store)
+
+	def, err := svc.List(TargetFilter{})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if contains(targetIDs(def), "aws:eks-1") {
+		t.Errorf("hidden target shown by default: %v", targetIDs(def))
+	}
+	if !contains(targetIDs(def), "aws:eks-2") {
+		t.Errorf("visible target missing: %v", targetIDs(def))
+	}
+
+	all, err := svc.List(TargetFilter{IncludeHidden: true})
+	if err != nil {
+		t.Fatalf("List all: %v", err)
+	}
+	if !contains(targetIDs(all), "aws:eks-1") {
+		t.Errorf("IncludeHidden must show hidden: %v", targetIDs(all))
+	}
+
+	// Resolve/Get still see a hidden target by ref (so use/inspect/unhide work).
+	if _, err := svc.Resolve("aws:eks-1"); err != nil {
+		t.Errorf("Resolve must see hidden target: %v", err)
+	}
+}
+
+// Tripwire for the "Hidden is computed-on-read, never persisted" invariant:
+// reading marks targets hidden in the returned copy, but the stored snapshot
+// must never carry a computed Hidden=true (all() operates on a copy).
+func TestTargetService_HiddenNotPersistedToSnapshot(t *testing.T) {
+	store := seededTargetStore()
+	store.hidden = []domain.TargetID{"aws:eks-1"}
+
+	got, err := NewTargetService(store).List(TargetFilter{IncludeHidden: true})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	var markedOnRead bool
+	for _, tg := range got {
+		if tg.ID == "aws:eks-1" && tg.Hidden {
+			markedOnRead = true
+		}
+	}
+	if !markedOnRead {
+		t.Fatal("expected the hidden target to be marked Hidden in the read result")
+	}
+
+	snap, _ := store.LoadSnapshot()
+	for _, tg := range snap.Targets {
+		if tg.Hidden {
+			t.Errorf("computed Hidden must not be persisted into the snapshot: %s", tg.ID)
+		}
+	}
+}
+
+func TestTargetService_List_HiddenSelectorIsolatesHidden(t *testing.T) {
+	store := seededTargetStore()
+	store.hidden = []domain.TargetID{"aws:eks-1"}
+	sel := domain.LabelSelector{MatchLabels: map[string]string{"hidden": "true"}}
+	got, err := NewTargetService(store).List(TargetFilter{Selector: &sel})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "aws:eks-1" {
+		t.Fatalf("expected only the hidden target, got %v", targetIDs(got))
+	}
+}
+
+func TestTargetService_List_NonVisibilitySelectorStillDropsHidden(t *testing.T) {
+	store := seededTargetStore()
+	store.hidden = []domain.TargetID{"aws:eks-1"}
+	sel := domain.LabelSelector{MatchLabels: map[string]string{"provider": "aws"}}
+	got, err := NewTargetService(store).List(TargetFilter{Selector: &sel})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if contains(targetIDs(got), "aws:eks-1") {
+		t.Errorf("a non-visibility selector must still drop hidden: %v", targetIDs(got))
+	}
+	if !contains(targetIDs(got), "aws:eks-2") {
+		t.Errorf("visible aws target missing: %v", targetIDs(got))
+	}
+}
+
 func TestTargetService_Clear(t *testing.T) {
 	store := seededTargetStore()
 	n, err := NewTargetService(store).Clear()

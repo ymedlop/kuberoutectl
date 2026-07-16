@@ -33,7 +33,19 @@ func ValidateUserLabelKey(key string) error {
 	if strings.HasPrefix(key, SystemLabelPrefix) {
 		return fmt.Errorf("label key %q uses reserved namespace %q", key, SystemLabelPrefix)
 	}
+	if _, reserved := reservedBareKeys[key]; reserved {
+		return fmt.Errorf("label key %q is reserved and cannot be used as a user label", key)
+	}
 	return validateLabelKey(key)
+}
+
+// reservedBareKeys are bare (unprefixed) keys the selector engine computes from a
+// target's state. Reserving them stops a user label from shadowing the computed
+// value — critical for visibility, where a stray `hidden=false` label would
+// otherwise hide a genuinely-hidden target from `-l hidden=true`.
+var reservedBareKeys = map[string]struct{}{
+	"visible": {},
+	"hidden":  {},
 }
 
 // validateLabelKey validates key format only (no namespace policy).

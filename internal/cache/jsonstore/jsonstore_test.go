@@ -111,6 +111,43 @@ func TestStore_SnapshotSaveDoesNotTouchUserState(t *testing.T) {
 	}
 }
 
+func TestStore_HiddenTargetsRoundTrip(t *testing.T) {
+	s := newTestStore(t)
+	// Missing file reads as empty, not an error.
+	if got, err := s.LoadHiddenTargets(); err != nil || len(got) != 0 {
+		t.Fatalf("missing hidden file: got %v err %v", got, err)
+	}
+	want := []domain.TargetID{"aws:eks-1", "kubeconfig:context:homelab"}
+	if err := s.SaveHiddenTargets(want); err != nil {
+		t.Fatalf("SaveHiddenTargets: %v", err)
+	}
+	got, err := s.LoadHiddenTargets()
+	if err != nil {
+		t.Fatalf("LoadHiddenTargets: %v", err)
+	}
+	if len(got) != 2 || got[0] != "aws:eks-1" || got[1] != "kubeconfig:context:homelab" {
+		t.Fatalf("round-trip mismatch: %v", got)
+	}
+}
+
+// Hidden targets are user-owned: a resync (SaveSnapshot) must never touch them.
+func TestStore_SnapshotSaveDoesNotTouchHiddenTargets(t *testing.T) {
+	s := newTestStore(t)
+	if err := s.SaveHiddenTargets([]domain.TargetID{"aws:eks-1"}); err != nil {
+		t.Fatalf("SaveHiddenTargets: %v", err)
+	}
+	if err := s.SaveSnapshot(domain.InventorySnapshot{Targets: []domain.Target{{ID: "aws:eks-1"}}}); err != nil {
+		t.Fatalf("SaveSnapshot: %v", err)
+	}
+	got, err := s.LoadHiddenTargets()
+	if err != nil {
+		t.Fatalf("LoadHiddenTargets: %v", err)
+	}
+	if len(got) != 1 || got[0] != "aws:eks-1" {
+		t.Fatalf("hidden set clobbered by snapshot save: %v", got)
+	}
+}
+
 func TestStore_SelectionRoundTrip(t *testing.T) {
 	s := newTestStore(t)
 	in := domain.Selection{TargetID: "t1", UpdatedAt: time.Now().UTC().Truncate(time.Second)}

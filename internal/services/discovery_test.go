@@ -33,6 +33,7 @@ type memStore struct {
 	userLabels  map[domain.TargetID]map[string]string
 	collections []domain.Collection
 	selection   domain.Selection
+	hidden      []domain.TargetID
 }
 
 func newMemStore() *memStore {
@@ -52,6 +53,8 @@ func (m *memStore) LoadCollections() ([]domain.Collection, error) { return m.col
 func (m *memStore) SaveCollections(c []domain.Collection) error   { m.collections = c; return nil }
 func (m *memStore) LoadSelection() (domain.Selection, error)      { return m.selection, nil }
 func (m *memStore) SaveSelection(s domain.Selection) error        { m.selection = s; return nil }
+func (m *memStore) LoadHiddenTargets() ([]domain.TargetID, error) { return m.hidden, nil }
+func (m *memStore) SaveHiddenTargets(ids []domain.TargetID) error { m.hidden = ids; return nil }
 
 // fakeProvider returns a fixed discovery result. caps is configurable so tests
 // can exercise capability-gated behavior (e.g. OverlayProvider dedup).
@@ -106,6 +109,35 @@ func TestSync_PreservesUserLabelsAcrossResync(t *testing.T) {
 	// System labels remain provider-owned.
 	if snap.Targets[0].SystemLabels[domain.LabelProvider] != "azure" {
 		t.Errorf("system label lost")
+	}
+}
+
+// A hidden target must stay hidden after a resync rediscovers it — the hidden
+// set is user-owned state, like labels.
+func TestSync_PreservesHiddenAcrossResync(t *testing.T) {
+	store := newMemStore()
+	store.hidden = []domain.TargetID{"t1"}
+
+	reg := providers.NewRegistry()
+	_ = reg.Register(fakeProvider{
+		id: "azure",
+		res: providers.DiscoveryResult{Targets: []domain.Target{
+			{ID: "t1", ProviderID: "azure", Name: "aks-prod"},
+		}},
+	})
+
+	if _, err := NewDiscoveryService(reg, store, fixedNow).Sync(context.Background(), "azure", nil); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	// Rediscovered, but still hidden from the default list.
+	def, _ := NewTargetService(store).List(TargetFilter{})
+	if contains(targetIDs(def), "t1") {
+		t.Errorf("hidden target resurfaced in default list after resync")
+	}
+	// Still present when hidden are included.
+	all, _ := NewTargetService(store).List(TargetFilter{IncludeHidden: true})
+	if !contains(targetIDs(all), "t1") {
+		t.Errorf("target should still exist, just hidden: %v", targetIDs(all))
 	}
 }
 

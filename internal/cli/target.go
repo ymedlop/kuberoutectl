@@ -23,6 +23,8 @@ func (a *app) targetCmd() *cobra.Command {
 		a.targetUseCmd(),
 		a.targetDeleteCmd(),
 		a.targetClearCmd(),
+		a.targetHideCmd(),
+		a.targetUnhideCmd(),
 	)
 	return cmd
 }
@@ -32,6 +34,7 @@ func (a *app) targetListCmd() *cobra.Command {
 		provider  string
 		selectors []string
 		wide      bool
+		all       bool
 	)
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -39,11 +42,13 @@ func (a *app) targetListCmd() *cobra.Command {
 		Long: "List discovered Kubernetes targets.\n\n" +
 			"Filter with --provider (azure|aws) and/or --selector (repeatable),\n" +
 			"e.g. `--selector env=prod` or `--selector \"region in [westeurope]\"`.\n" +
+			"Hidden targets are omitted by default; pass --all to include them, or\n" +
+			"`--selector hidden=true` to list only hidden ones.\n" +
 			"The ALIAS column is a short handle you can pass to `target use`,\n" +
 			"`target inspect`, and `target label` instead of the full ID.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			filter := services.TargetFilter{Provider: domain.ProviderID(provider)}
+			filter := services.TargetFilter{Provider: domain.ProviderID(provider), IncludeHidden: all}
 			if len(selectors) > 0 {
 				sel, err := services.ParseSelector(selectors)
 				if err != nil {
@@ -63,14 +68,33 @@ func (a *app) targetListCmd() *cobra.Command {
 				fprintln(out, "No targets. Run `kuberoutectl sync <provider>` first.")
 				return nil
 			}
+			// Show the HIDDEN column only when hidden targets are actually in view
+			// (via --all or a visibility selector), so the default listing stays clean.
+			anyHidden := false
+			for _, t := range targets {
+				if t.Hidden {
+					anyHidden = true
+					break
+				}
+			}
 			tw := newTabWriter(out)
 			header := "ALIAS\tPLATFORM\tREGION\tHEALTH\tPROVIDER"
+			if anyHidden {
+				header += "\tHIDDEN"
+			}
 			if wide {
 				header += "\tID"
 			}
 			fprintln(tw, header)
 			for _, t := range targets {
 				row := t.Alias + "\t" + t.Platform + "\t" + t.Region + "\t" + string(t.Health) + "\t" + string(t.ProviderID)
+				if anyHidden {
+					mark := ""
+					if t.Hidden {
+						mark = "yes"
+					}
+					row += "\t" + mark
+				}
 				if wide {
 					row += "\t" + string(t.ID)
 				}
@@ -82,6 +106,7 @@ func (a *app) targetListCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&provider, "provider", "p", "", "filter by provider (azure|aws)")
 	cmd.Flags().StringArrayVarP(&selectors, "selector", "l", nil, "filter by label selector (repeatable)")
 	cmd.Flags().BoolVarP(&wide, "wide", "w", false, "also show the full target ID")
+	cmd.Flags().BoolVarP(&all, "all", "a", false, "include hidden targets")
 	return cmd
 }
 
@@ -254,6 +279,90 @@ func (a *app) targetClearCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "skip the confirmation prompt")
 	return cmd
+}
+
+func (a *app) targetHideCmd() *cobra.Command {
+	var selectors []string
+	cmd := &cobra.Command{
+		Use:   "hide [<alias|id|name>]",
+		Short: "Hide targets from the default list (persists across resyncs)",
+		Long: "Hide one target by ref, or many with --selector. Hidden targets are\n" +
+			"remembered in user state and stay hidden across resyncs. They still\n" +
+			"appear under `target list --all` (and `--selector hidden=true`), and can\n" +
+			"be revealed again with `target unhide`.",
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.toggleVisibility(cmd, args, selectors, true)
+		},
+	}
+	cmd.Flags().StringArrayVarP(&selectors, "selector", "l", nil, "hide all targets matching this selector (repeatable)")
+	return cmd
+}
+
+func (a *app) targetUnhideCmd() *cobra.Command {
+	var selectors []string
+	cmd := &cobra.Command{
+		Use:   "unhide [<alias|id|name>]",
+		Short: "Reveal previously hidden targets",
+		Long: "Reveal one target by ref, or many with --selector (e.g.\n" +
+			"`--selector hidden=true` to reveal everything currently hidden).",
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return a.toggleVisibility(cmd, args, selectors, false)
+		},
+	}
+	cmd.Flags().StringArrayVarP(&selectors, "selector", "l", nil, "reveal all targets matching this selector (repeatable)")
+	return cmd
+}
+
+// toggleVisibility hides or reveals targets, given exactly one of a ref arg or a
+// --selector. It keeps the two commands' handlers thin.
+func (a *app) toggleVisibility(cmd *cobra.Command, args, selectors []string, hide bool) error {
+	vis := services.NewVisibilityService(a.store)
+	out := cmd.OutOrStdout()
+	verb := "Hid"
+	if !hide {
+		verb = "Revealed"
+	}
+
+	if len(selectors) > 0 {
+		if len(args) > 0 {
+			return fmt.Errorf("provide either a target ref or --selector, not both")
+		}
+		sel, err := services.ParseSelector(selectors)
+		if err != nil {
+			return err
+		}
+		var matched []domain.Target
+		if hide {
+			matched, err = vis.HideSelector(sel)
+		} else {
+			matched, err = vis.UnhideSelector(sel)
+		}
+		if err != nil {
+			return err
+		}
+		fprintln(out, verb, len(matched), "target(s).")
+		return nil
+	}
+
+	if len(args) == 0 {
+		return fmt.Errorf("provide a target ref or --selector")
+	}
+	var (
+		tgt domain.Target
+		err error
+	)
+	if hide {
+		tgt, err = vis.HideRef(args[0])
+	} else {
+		tgt, err = vis.UnhideRef(args[0])
+	}
+	if err != nil {
+		return err
+	}
+	fprintln(out, verb+" target:", tgt.Alias, "("+tgt.Name+")")
+	return nil
 }
 
 func (a *app) targetUseCmd() *cobra.Command {
