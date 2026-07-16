@@ -145,3 +145,95 @@ func TestTargetClear_EmptyNoPrompt(t *testing.T) {
 		t.Errorf("empty must not prompt: %q", out)
 	}
 }
+
+func TestTargetHide_ByRefExcludesFromDefaultList(t *testing.T) {
+	a := testApp(t,
+		domain.Target{ID: "aws:eks-1", ProviderID: "aws", Name: "eks-prod", Platform: "eks"},
+		domain.Target{ID: "aws:eks-2", ProviderID: "aws", Name: "eks-staging", Platform: "eks"},
+	)
+	out, err := runCmd(a.targetHideCmd(), "", "eks-prod")
+	if err != nil {
+		t.Fatalf("hide: %v", err)
+	}
+	if !strings.Contains(out, "Hid target:") || !strings.Contains(out, "eks-prod") {
+		t.Errorf("unexpected hide output: %q", out)
+	}
+
+	list, err := runCmd(a.targetListCmd(), "")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if strings.Contains(list, "eks-prod") {
+		t.Errorf("hidden target in default list: %q", list)
+	}
+	if !strings.Contains(list, "eks-staging") {
+		t.Errorf("visible target missing: %q", list)
+	}
+
+	all, err := runCmd(a.targetListCmd(), "", "--all")
+	if err != nil {
+		t.Fatalf("list --all: %v", err)
+	}
+	if !strings.Contains(all, "eks-prod") || !strings.Contains(all, "HIDDEN") {
+		t.Errorf("--all must show the hidden target with a HIDDEN marker: %q", all)
+	}
+}
+
+func TestTargetHide_BySelectorIsBulk(t *testing.T) {
+	a := testApp(t,
+		domain.Target{ID: "aws:eks-1", ProviderID: "aws", Name: "eks-prod"},
+		domain.Target{ID: "aws:eks-2", ProviderID: "aws", Name: "eks-staging"},
+	)
+	out, err := runCmd(a.targetHideCmd(), "", "-l", "provider=aws")
+	if err != nil {
+		t.Fatalf("hide -l: %v", err)
+	}
+	if !strings.Contains(out, "Hid 2 target(s).") {
+		t.Errorf("unexpected bulk hide output: %q", out)
+	}
+}
+
+func TestTargetHide_RefAndSelectorConflict(t *testing.T) {
+	a := testApp(t, domain.Target{ID: "aws:eks-1", ProviderID: "aws", Name: "eks-prod"})
+	if _, err := runCmd(a.targetHideCmd(), "", "eks-prod", "-l", "provider=aws"); err == nil {
+		t.Fatal("expected error when both a ref and --selector are given")
+	}
+}
+
+func TestTargetUnhide_RevealsAgain(t *testing.T) {
+	a := testApp(t, domain.Target{ID: "aws:eks-1", ProviderID: "aws", Name: "eks-prod"})
+	if _, err := runCmd(a.targetHideCmd(), "", "eks-prod"); err != nil {
+		t.Fatalf("hide: %v", err)
+	}
+	out, err := runCmd(a.targetUnhideCmd(), "", "eks-prod")
+	if err != nil {
+		t.Fatalf("unhide: %v", err)
+	}
+	if !strings.Contains(out, "Revealed target:") {
+		t.Errorf("unexpected unhide output: %q", out)
+	}
+	list, _ := runCmd(a.targetListCmd(), "")
+	if !strings.Contains(list, "eks-prod") {
+		t.Errorf("unhidden target should be back in the default list: %q", list)
+	}
+}
+
+func TestTargetList_HiddenSelectorIsolates(t *testing.T) {
+	a := testApp(t,
+		domain.Target{ID: "aws:eks-1", ProviderID: "aws", Name: "eks-prod"},
+		domain.Target{ID: "aws:eks-2", ProviderID: "aws", Name: "eks-staging"},
+	)
+	if _, err := runCmd(a.targetHideCmd(), "", "eks-prod"); err != nil {
+		t.Fatalf("hide: %v", err)
+	}
+	out, err := runCmd(a.targetListCmd(), "", "-l", "hidden=true")
+	if err != nil {
+		t.Fatalf("list -l hidden=true: %v", err)
+	}
+	if !strings.Contains(out, "eks-prod") {
+		t.Errorf("hidden selector should list the hidden target: %q", out)
+	}
+	if strings.Contains(out, "eks-staging") {
+		t.Errorf("hidden selector should exclude visible targets: %q", out)
+	}
+}
