@@ -215,6 +215,9 @@ kuberoutectl target inspect <alias|id|name>
 kuberoutectl target use <alias|id|name>              # fetch credentials into ~/.kube/config + set context
 kuberoutectl target use <alias|id|name> --no-kubeconfig  # record the selection only
 
+kuberoutectl target delete <alias|id|name>           # drop one target from the cache (a resync re-adds it)
+kuberoutectl target clear                            # drop all targets (prompts; --yes to skip); a resync repopulates
+
 kuberoutectl target label add <alias|id|name> env=prod
 kuberoutectl target label remove <alias|id|name> env
 kuberoutectl target label list <alias|id|name>
