@@ -82,16 +82,17 @@ func (t Target) SelectionLabels() map[string]string {
 	setNonEmpty("provider", string(t.ProviderID))
 	setNonEmpty("kind", t.Kind)
 	setNonEmpty("health", string(t.Health))
-	// Visibility is always exposed (both keys, both states) so selectors can
-	// filter on it and the default-hide rule can detect a visibility constraint.
-	// User labels can't shadow these — ValidateUserLabelKey reserves the keys.
-	out["visible"] = strconv.FormatBool(!t.Hidden)
-	out["hidden"] = strconv.FormatBool(t.Hidden)
 	for k, v := range t.SystemLabels {
 		out[k] = v
 	}
 	for k, v := range t.UserLabels {
 		out[k] = v
 	}
+	// Visibility is authoritative and always exposed (both keys, both states),
+	// written last so no stray user/system label can shadow the computed value —
+	// the default-hide rule and `-l hidden=true` depend on it being ground truth.
+	// (ValidateUserLabelKey also reserves these keys at write time.)
+	out["visible"] = strconv.FormatBool(!t.Hidden)
+	out["hidden"] = strconv.FormatBool(t.Hidden)
 	return out
 }

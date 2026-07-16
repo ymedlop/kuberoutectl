@@ -21,6 +21,20 @@ func TestSelectionLabels_VisibleHidden(t *testing.T) {
 	}
 }
 
+// A stray user label named "hidden"/"visible" (from a hand-edited state file or
+// a pre-reservation install) must not shadow the computed visibility.
+func TestSelectionLabels_ComputedVisibilityIsAuthoritative(t *testing.T) {
+	tg := Target{
+		ProviderID: "aws",
+		Hidden:     true,
+		UserLabels: map[string]string{"hidden": "false", "visible": "true"},
+	}
+	sl := tg.SelectionLabels()
+	if sl["hidden"] != "true" || sl["visible"] != "false" {
+		t.Errorf("computed visibility must win over a shadowing user label: got hidden=%q visible=%q", sl["hidden"], sl["visible"])
+	}
+}
+
 func TestLabelSelector_HasKey(t *testing.T) {
 	sel := LabelSelector{MatchLabels: map[string]string{"hidden": "true"}}
 	if !sel.HasKey("hidden") {

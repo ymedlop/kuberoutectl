@@ -136,6 +136,35 @@ func TestTargetService_List_HidesHiddenByDefault(t *testing.T) {
 	}
 }
 
+// Tripwire for the "Hidden is computed-on-read, never persisted" invariant:
+// reading marks targets hidden in the returned copy, but the stored snapshot
+// must never carry a computed Hidden=true (all() operates on a copy).
+func TestTargetService_HiddenNotPersistedToSnapshot(t *testing.T) {
+	store := seededTargetStore()
+	store.hidden = []domain.TargetID{"aws:eks-1"}
+
+	got, err := NewTargetService(store).List(TargetFilter{IncludeHidden: true})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	var markedOnRead bool
+	for _, tg := range got {
+		if tg.ID == "aws:eks-1" && tg.Hidden {
+			markedOnRead = true
+		}
+	}
+	if !markedOnRead {
+		t.Fatal("expected the hidden target to be marked Hidden in the read result")
+	}
+
+	snap, _ := store.LoadSnapshot()
+	for _, tg := range snap.Targets {
+		if tg.Hidden {
+			t.Errorf("computed Hidden must not be persisted into the snapshot: %s", tg.ID)
+		}
+	}
+}
+
 func TestTargetService_List_HiddenSelectorIsolatesHidden(t *testing.T) {
 	store := seededTargetStore()
 	store.hidden = []domain.TargetID{"aws:eks-1"}
