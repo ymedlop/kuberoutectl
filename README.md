@@ -195,7 +195,7 @@ kuberoutectl doctor                              # check required provider CLIs 
 kuberoutectl sync azure                          # discover Azure inventory into the cache
 kuberoutectl sync aws                            # discover AWS inventory into the cache
 kuberoutectl sync gcp                            # discover GCP (GKE) inventory into the cache
-kuberoutectl sync kubeconfig                     # discover kubeconfig contexts into the cache
+kuberoutectl sync kubeconfig                     # discover kubeconfig contexts (contexts duplicating a natively-synced cluster, by endpoint, are suppressed)
 
 kuberoutectl inventory providers                 # registered providers + capabilities
 kuberoutectl inventory sources                   # discovered access sources

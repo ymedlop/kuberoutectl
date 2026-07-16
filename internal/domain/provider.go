@@ -14,4 +14,12 @@ type Capabilities struct {
 	CanReauth         bool `json:"can_reauth"`
 	CanSwitchContext  bool `json:"can_switch_context"`
 	StaticCredentials bool `json:"static_credentials"`
+
+	// OverlayProvider marks a provider whose targets are an overlay view of
+	// clusters that another provider may own natively (e.g. kubeconfig contexts
+	// written by `aws eks update-kubeconfig`). During a sync, an overlay
+	// target is suppressed when a non-overlay target shares its endpoint, so the
+	// richer native target wins. Cross-provider concern; the core reads this
+	// flag rather than special-casing a provider by name.
+	OverlayProvider bool `json:"overlay_provider"`
 }

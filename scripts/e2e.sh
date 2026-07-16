@@ -110,12 +110,20 @@ run sync aws
 run sync kubeconfig
 run sync gcp
 
-echo; echo "==> kubeconfig contexts are inventoried, health is honest (static/unknown, never renew)"
+echo; echo "==> kubeconfig: unique contexts inventoried; a context duplicating a native EKS cluster (same endpoint) is suppressed"
 kc="$("$BIN" target list --provider kubeconfig)"; echo "$kc"
-assert_contains "$kc" "homelab"          # a self-hosted context
-assert_contains "$kc" "static"           # client-cert user
-assert_contains "$kc" "unknown"          # exec-based user (externally managed)
-echo "$kc" | grep -qF "renew" && fail "kubeconfig credentials must never suggest renew"
+assert_contains "$kc" "homelab"          # a self-hosted context, unique endpoint — survives
+assert_contains "$kc" "static"           # homelab client-cert user
+# The prod-eks context shares the Frankfurt EKS endpoint with the natively-synced
+# aws target (sync aws ran first), so the richer native target wins and the
+# kubeconfig duplicate is dropped from inventory.
+echo "$kc" | grep -qF "prod-eks" && fail "kubeconfig context duplicating a native EKS cluster must be suppressed"
+assert_contains "$("$BIN" target list --provider aws)" "eks-prod-frankfurt"  # native target is the single survivor
+# The exec-based user's credential is not suppressed (only its duplicate target
+# is) and stays honest: unknown health, never renew.
+kc_creds="$("$BIN" credential list --provider kubeconfig)"; echo "$kc_creds"
+assert_contains "$kc_creds" "unknown"    # exec-based user (externally managed)
+echo "$kc_creds" | grep -qF "renew" && fail "kubeconfig credentials must never suggest renew"
 use_kc="$("$BIN" target use homelab 2>&1)"; echo "$use_kc"
 assert_contains "$use_kc" "kubeconfig updated"   # kubectl config use-context ran
 

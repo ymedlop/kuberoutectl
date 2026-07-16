@@ -53,6 +53,21 @@ func (s *DiscoveryService) Sync(ctx context.Context, providerID domain.ProviderI
 
 	merged := mergeProviderResult(prior, providerID, res, s.now())
 
+	// Suppress overlay-provider targets (e.g. kubeconfig contexts) that shadow a
+	// cluster a native provider already owns by endpoint. Running over the whole
+	// merged snapshot makes this independent of the order providers were synced.
+	// An unregistered provider resolves to non-overlay, so its targets are never
+	// suppressed.
+	isOverlay := func(id domain.ProviderID) bool {
+		p, ok := s.registry.Get(id)
+		return ok && p.Capabilities().OverlayProvider
+	}
+	before := len(merged.Targets)
+	merged.Targets = suppressOverlayDuplicates(merged.Targets, isOverlay)
+	if n := before - len(merged.Targets); n > 0 {
+		providers.ProgressOr(progress).Step("suppressed %d overlay context(s) already discovered natively", n)
+	}
+
 	userLabels, err := s.store.LoadUserLabels()
 	if err != nil {
 		return domain.InventorySnapshot{}, fmt.Errorf("load user labels: %w", err)
