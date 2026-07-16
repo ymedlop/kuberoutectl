@@ -68,6 +68,7 @@ func (p *Provider) Capabilities() domain.Capabilities {
 		CanReauth:         false,
 		CanSwitchContext:  true,
 		StaticCredentials: true,
+		OverlayProvider:   true,
 	}
 }
 

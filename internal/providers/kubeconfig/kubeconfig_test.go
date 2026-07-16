@@ -164,6 +164,11 @@ func TestCapabilitiesAndRenew(t *testing.T) {
 	if !caps.CanSwitchContext || !caps.StaticCredentials || !caps.CanDiscoverScopes {
 		t.Errorf("unexpected capabilities: %+v", caps)
 	}
+	// kubeconfig is an overlay: its contexts may duplicate clusters a cloud
+	// provider owns natively, so it defers to them during cross-provider dedup.
+	if !caps.OverlayProvider {
+		t.Error("kubeconfig must report OverlayProvider")
+	}
 	if err := p.Renew(context.Background(), domain.Credential{}); !errors.Is(err, providers.ErrUnsupported) {
 		t.Errorf("Renew should return ErrUnsupported, got %v", err)
 	}
