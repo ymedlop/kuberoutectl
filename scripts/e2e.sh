@@ -194,6 +194,16 @@ for gone in "provider list" "source list" "scope list" "aws sso populate"; do
   if "$BIN" $gone >/dev/null 2>&1; then fail "removed command still works: kuberoutectl $gone"; fi
 done
 
+echo; echo "==> target hide is persistent: dropped from the default list, kept across a resync, revealed by --all"
+"$BIN" target hide eks-prod-frankfurt >/dev/null
+echo "$("$BIN" target list --provider aws)" | grep -qF "eks-prod-frankfurt" && fail "hidden target must be absent from the default list"
+assert_contains "$("$BIN" target list --provider aws --all)" "eks-prod-frankfurt"   # --all reveals it
+assert_contains "$("$BIN" target list -l hidden=true)" "eks-prod-frankfurt"          # isolate hidden ones
+"$BIN" sync aws >/dev/null                                                            # a resync rediscovers the cluster
+echo "$("$BIN" target list --provider aws)" | grep -qF "eks-prod-frankfurt" && fail "hide must survive a resync (user-owned state)"
+"$BIN" target unhide eks-prod-frankfurt >/dev/null
+assert_contains "$("$BIN" target list --provider aws)" "eks-prod-frankfurt"           # unhide restores it
+
 echo; echo "==> target delete is ephemeral: removed from the cache, restored by a resync"
 assert_contains "$("$BIN" target list --provider aws)" "eks-prod-frankfurt"
 del="$("$BIN" target delete eks-prod-frankfurt 2>&1)"; echo "$del"

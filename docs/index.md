@@ -172,6 +172,10 @@ kuberoutectl target inspect <alias|id|name>  # detailed cluster info
 kuberoutectl target use <alias|id|name>      # activate a cluster (update kubeconfig)
 kuberoutectl target delete <alias|id|name>   # drop one target from the cache (a resync re-adds it)
 kuberoutectl target clear                     # drop all targets (prompts; --yes to skip); a resync repopulates
+kuberoutectl target hide <alias|id|name>      # hide from the default list; persists across resyncs
+kuberoutectl target hide -l env=staging       # bulk-hide by selector
+kuberoutectl target unhide <alias|id|name>    # reveal a hidden target
+kuberoutectl target list --all                # include hidden (adds a HIDDEN column); -l hidden=true lists only hidden
 
 # Labels
 kuberoutectl target label add <id> env=prod           # add labels

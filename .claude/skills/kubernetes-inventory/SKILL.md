@@ -56,7 +56,14 @@ Use this skill when working on the inventory and organization model in
   cache" note — erroring would hide what the operator was pointed at.
 - **The reserved namespace is `kuberoutectl.io/`.** User label writes must go
   through `ValidateUserLabel`, which rejects it; system labels are tool-owned
-  and rewritten every sync.
+  and rewritten every sync. Bare computed keys (`visible`/`hidden`) are reserved
+  there too, so a user label can't shadow them.
+- **A computed key added to `SelectionLabels()` must be populated everywhere the
+  selector engine runs** — `TargetService.List`, `CollectionService.Resolve`, and
+  `SelectionService` — not just one read path. The engine is shared, so a key
+  that's only sometimes correct (e.g. `hidden` populated only in `List`) silently
+  breaks `collection --selector hidden=true`. `ApplyVisibility` is the join step,
+  the visibility analog of `AssignAliases`.
 
 ## References
 
