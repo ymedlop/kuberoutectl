@@ -21,6 +21,8 @@ func (a *app) targetCmd() *cobra.Command {
 		a.targetInspectCmd(),
 		a.targetLabelCmd(),
 		a.targetUseCmd(),
+		a.targetDeleteCmd(),
+		a.targetClearCmd(),
 	)
 	return cmd
 }
@@ -196,6 +198,68 @@ func (a *app) targetLabelListCmd() *cobra.Command {
 			return tw.Flush()
 		},
 	}
+}
+
+func (a *app) targetDeleteCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "delete <alias|id|name>",
+		Short: "Delete a target from the local cache",
+		Long: "Delete a target from the local cache.\n\n" +
+			"This is a cache cleanup, not a permanent exclusion: a later\n" +
+			"`kuberoutectl sync <provider>` re-adds the target if the cluster still\n" +
+			"exists. Scopes, credentials, and sources are left untouched.",
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			removed, err := services.NewTargetService(a.store).Delete(args[0])
+			if err != nil {
+				return err
+			}
+			fprintln(cmd.OutOrStdout(), "Deleted target:", removed.Alias, "("+removed.Name+")")
+			return nil
+		},
+	}
+}
+
+func (a *app) targetClearCmd() *cobra.Command {
+	var yes bool
+	cmd := &cobra.Command{
+		Use:   "clear",
+		Short: "Delete all targets from the local cache",
+		Long: "Delete all targets from the local cache. Scopes, credentials, and sources\n" +
+			"are kept, and a resync repopulates targets. Prompts for confirmation\n" +
+			"unless --yes is given.",
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			svc := services.NewTargetService(a.store)
+			targets, err := svc.List(services.TargetFilter{})
+			if err != nil {
+				return err
+			}
+			out := cmd.OutOrStdout()
+			if len(targets) == 0 {
+				fprintln(out, "No targets to clear.")
+				return nil
+			}
+			if !yes {
+				ok, err := confirmPrompt(cmd, fmt.Sprintf("Delete all %d target(s)?", len(targets)))
+				if err != nil {
+					return err
+				}
+				if !ok {
+					fprintln(out, "Aborted.")
+					return nil
+				}
+			}
+			n, err := svc.Clear()
+			if err != nil {
+				return err
+			}
+			fprintln(out, "Cleared", n, "target(s).")
+			return nil
+		},
+	}
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "skip the confirmation prompt")
+	return cmd
 }
 
 func (a *app) targetUseCmd() *cobra.Command {
