@@ -194,5 +194,19 @@ for gone in "provider list" "source list" "scope list" "aws sso populate"; do
   if "$BIN" $gone >/dev/null 2>&1; then fail "removed command still works: kuberoutectl $gone"; fi
 done
 
+echo; echo "==> target delete is ephemeral: removed from the cache, restored by a resync"
+assert_contains "$("$BIN" target list --provider aws)" "eks-prod-frankfurt"
+del="$("$BIN" target delete eks-prod-frankfurt 2>&1)"; echo "$del"
+assert_contains "$del" "Deleted target:"
+echo "$("$BIN" target list --provider aws)" | grep -qF "eks-prod-frankfurt" && fail "deleted target must be gone from the list"
+"$BIN" sync aws >/dev/null
+assert_contains "$("$BIN" target list --provider aws)" "eks-prod-frankfurt"   # resync repopulates
+
+echo; echo "==> target clear wipes targets only; credentials survive; --yes skips the prompt"
+cleared="$("$BIN" target clear --yes 2>&1)"; echo "$cleared"
+assert_contains "$cleared" "Cleared"
+assert_contains "$("$BIN" target list)" "No targets"          # every target gone
+assert_contains "$("$BIN" credential list)" "static"          # credentials untouched by clear
+
 echo
 echo "E2E OK: cross-provider discovery, health spectrum, and label survival verified."

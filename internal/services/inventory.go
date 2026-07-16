@@ -175,3 +175,51 @@ func (s *TargetService) Resolve(ref string) (domain.Target, error) {
 	}
 	return ResolveTargetRef(targets, ref)
 }
+
+// Delete removes the target matching ref (id, alias, or name) from the cached
+// snapshot and persists, returning the removed target. Only the target is
+// dropped — its scope, credential, and source are left in place. This is a cache
+// cleanup, not a permanent exclusion: a later `sync` of the owning provider
+// re-adds the target if the cluster still exists.
+func (s *TargetService) Delete(ref string) (domain.Target, error) {
+	snap, err := s.store.LoadSnapshot()
+	if err != nil {
+		return domain.Target{}, err
+	}
+	// Resolve against an aliased copy so ref accepts id/alias/name, exactly like
+	// the read paths, without mutating the snapshot we are about to save.
+	resolved := make([]domain.Target, len(snap.Targets))
+	copy(resolved, snap.Targets)
+	AssignAliases(resolved)
+	found, err := ResolveTargetRef(resolved, ref)
+	if err != nil {
+		return domain.Target{}, err
+	}
+	kept := make([]domain.Target, 0, len(snap.Targets))
+	for _, t := range snap.Targets {
+		if t.ID != found.ID {
+			kept = append(kept, t)
+		}
+	}
+	snap.Targets = kept
+	if err := s.store.SaveSnapshot(snap); err != nil {
+		return domain.Target{}, err
+	}
+	return found, nil
+}
+
+// Clear removes all targets from the cached snapshot and persists, returning the
+// number removed. Scopes, credentials, and sources are left intact; a resync
+// repopulates targets.
+func (s *TargetService) Clear() (int, error) {
+	snap, err := s.store.LoadSnapshot()
+	if err != nil {
+		return 0, err
+	}
+	n := len(snap.Targets)
+	snap.Targets = nil
+	if err := s.store.SaveSnapshot(snap); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
