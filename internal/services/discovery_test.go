@@ -33,6 +33,7 @@ type memStore struct {
 	userLabels  map[domain.TargetID]map[string]string
 	collections []domain.Collection
 	selection   domain.Selection
+	hidden      []domain.TargetID
 }
 
 func newMemStore() *memStore {
@@ -52,6 +53,8 @@ func (m *memStore) LoadCollections() ([]domain.Collection, error) { return m.col
 func (m *memStore) SaveCollections(c []domain.Collection) error   { m.collections = c; return nil }
 func (m *memStore) LoadSelection() (domain.Selection, error)      { return m.selection, nil }
 func (m *memStore) SaveSelection(s domain.Selection) error        { m.selection = s; return nil }
+func (m *memStore) LoadHiddenTargets() ([]domain.TargetID, error) { return m.hidden, nil }
+func (m *memStore) SaveHiddenTargets(ids []domain.TargetID) error { m.hidden = ids; return nil }
 
 // fakeProvider returns a fixed discovery result. caps is configurable so tests
 // can exercise capability-gated behavior (e.g. OverlayProvider dedup).

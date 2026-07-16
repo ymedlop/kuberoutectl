@@ -21,6 +21,18 @@ func (s LabelSelector) IsZero() bool {
 	return len(s.MatchLabels) == 0 && len(s.MatchAny) == 0
 }
 
+// HasKey reports whether the selector constrains the given key (via either
+// MatchLabels or MatchAny). The default-hide rule uses it to detect a selector
+// that already constrains visibility (visible/hidden) and so should not be
+// auto-filtered.
+func (s LabelSelector) HasKey(key string) bool {
+	if _, ok := s.MatchLabels[key]; ok {
+		return true
+	}
+	_, ok := s.MatchAny[key]
+	return ok
+}
+
 // Matches evaluates the selector against a label set. Evaluation is
 // deterministic and side-effect free.
 func (s LabelSelector) Matches(labels map[string]string) bool {

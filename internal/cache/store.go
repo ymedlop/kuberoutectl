@@ -21,4 +21,10 @@ type CacheStore interface {
 
 	LoadSelection() (domain.Selection, error)
 	SaveSelection(domain.Selection) error
+
+	// Hidden targets are user-owned: a set of target IDs the operator has hidden
+	// from default listings. Stored separately from the snapshot so hiding
+	// survives a resync, exactly like user labels.
+	LoadHiddenTargets() ([]domain.TargetID, error)
+	SaveHiddenTargets([]domain.TargetID) error
 }
