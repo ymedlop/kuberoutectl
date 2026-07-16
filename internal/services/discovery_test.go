@@ -2,12 +2,30 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/ymedlop/kuberoutectl/internal/domain"
 	"github.com/ymedlop/kuberoutectl/internal/providers"
 )
+
+// recordProgress captures Step calls so tests can assert user-facing messages.
+type recordProgress struct{ steps []string }
+
+func (r *recordProgress) Step(format string, args ...any) {
+	r.steps = append(r.steps, fmt.Sprintf(format, args...))
+}
+
+func (r *recordProgress) contains(sub string) bool {
+	for _, s := range r.steps {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
+}
 
 // memStore is an in-memory CacheStore for service tests.
 type memStore struct {
@@ -172,7 +190,8 @@ func TestSync_KubeconfigAfterAWS_SuppressesDuplicate(t *testing.T) {
 		}},
 	})
 
-	snap, err := NewDiscoveryService(reg, store, fixedNow).Sync(context.Background(), "kubeconfig", nil)
+	prog := &recordProgress{}
+	snap, err := NewDiscoveryService(reg, store, fixedNow).Sync(context.Background(), "kubeconfig", prog)
 	if err != nil {
 		t.Fatalf("Sync: %v", err)
 	}
@@ -185,6 +204,10 @@ func TestSync_KubeconfigAfterAWS_SuppressesDuplicate(t *testing.T) {
 	}
 	if !contains(ids, "kubeconfig:context:homelab") {
 		t.Errorf("non-duplicate kubeconfig context wrongly suppressed: %v", ids)
+	}
+	// The suppression must be observable to the operator (documented CLI output).
+	if !prog.contains("suppressed 1 overlay context(s) already discovered natively") {
+		t.Errorf("expected a suppression progress message, got %v", prog.steps)
 	}
 }
 

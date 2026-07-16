@@ -22,6 +22,9 @@ func TestNormalizeEndpoint(t *testing.T) {
 		{"http and https compare equal (b)", "https://h.example.com", "h.example.com"},
 		{"gcp post-build ip form", "https://35.40.50.60", "35.40.50.60"},
 		{"ip with non-default port", "https://192.168.1.10:6443", "192.168.1.10:6443"},
+		{"ipv6 with non-default port", "https://[2001:db8::1]:6443", "[2001:db8::1]:6443"},
+		{"ipv6 default port stripped and bracketed", "https://[2001:db8::1]:443", "[2001:db8::1]"},
+		{"ipv6 no port bracketed", "https://[2001:db8::1]", "[2001:db8::1]"},
 		{"empty is empty", "", ""},
 		{"whitespace is empty", "   ", ""},
 	}
@@ -31,6 +34,17 @@ func TestNormalizeEndpoint(t *testing.T) {
 				t.Errorf("normalizeEndpoint(%q) = %q, want %q", c.in, got, c.want)
 			}
 		})
+	}
+}
+
+// Regression: an IPv6 host must never collide with a differently-shaped
+// (host, port) pair. Naive host+":"+port encoding made these two distinct
+// endpoints hash to the same key, silently suppressing a real cluster.
+func TestNormalizeEndpoint_IPv6NoCollision(t *testing.T) {
+	a := normalizeEndpoint("https://[2001:db8::1]:6443") // host 2001:db8::1, port 6443
+	b := normalizeEndpoint("https://[2001:db8::1:6443]") // host 2001:db8::1:6443, no port
+	if a == b {
+		t.Fatalf("distinct IPv6 endpoints collapsed to the same key: %q", a)
 	}
 }
 

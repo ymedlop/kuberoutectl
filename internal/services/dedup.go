@@ -1,6 +1,7 @@
 package services
 
 import (
+	"net"
 	"net/url"
 	"strings"
 
@@ -50,7 +51,15 @@ func normalizeEndpoint(raw string) string {
 		}
 	}
 	if port != "" {
-		return host + ":" + port
+		// net.JoinHostPort brackets an IPv6 host, so the key stays an injective
+		// encoding of (host, port) — a naive host+":"+port would let an IPv6
+		// address (which contains colons) collide with a different host:port pair
+		// and silently suppress a real, distinct cluster.
+		return net.JoinHostPort(host, port)
+	}
+	if strings.Contains(host, ":") {
+		// Bare IPv6 host with no port: bracket it for the same unambiguity.
+		return "[" + host + "]"
 	}
 	return host
 }
