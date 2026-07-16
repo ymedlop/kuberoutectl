@@ -171,7 +171,7 @@ kuberoutectl target list -l env=prod          # filter by label selector
 kuberoutectl target inspect <alias|id|name>  # detailed cluster info
 kuberoutectl target use <alias|id|name>      # activate a cluster (update kubeconfig)
 kuberoutectl target delete <alias|id|name>   # drop one target from the cache (a resync re-adds it)
-kuberoutectl target clear                     # drop all targets (prompts; --yes to skip)
+kuberoutectl target clear                     # drop all targets (prompts; --yes to skip); a resync repopulates
 
 # Labels
 kuberoutectl target label add <id> env=prod           # add labels

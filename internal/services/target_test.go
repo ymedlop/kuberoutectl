@@ -67,6 +67,22 @@ func TestTargetService_Delete_NotFound(t *testing.T) {
 	}
 }
 
+// An ambiguous name (two targets share it) must error via ResolveTargetRef and
+// leave the snapshot untouched — never delete an arbitrary one.
+func TestTargetService_Delete_AmbiguousName(t *testing.T) {
+	store := newMemStore()
+	store.snap = domain.InventorySnapshot{Targets: []domain.Target{
+		{ID: "aws:dup-1", ProviderID: "aws", Name: "dup"},
+		{ID: "aws:dup-2", ProviderID: "aws", Name: "dup"},
+	}}
+	if _, err := NewTargetService(store).Delete("dup"); err == nil {
+		t.Fatal("expected error deleting an ambiguous name")
+	}
+	if len(store.snap.Targets) != 2 {
+		t.Errorf("ambiguous delete must not mutate the snapshot")
+	}
+}
+
 func TestTargetService_Delete_PreservesOrder(t *testing.T) {
 	store := seededTargetStore()
 	if _, err := NewTargetService(store).Delete("eks-staging"); err != nil {
