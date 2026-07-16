@@ -112,6 +112,35 @@ func TestSync_PreservesUserLabelsAcrossResync(t *testing.T) {
 	}
 }
 
+// A hidden target must stay hidden after a resync rediscovers it — the hidden
+// set is user-owned state, like labels.
+func TestSync_PreservesHiddenAcrossResync(t *testing.T) {
+	store := newMemStore()
+	store.hidden = []domain.TargetID{"t1"}
+
+	reg := providers.NewRegistry()
+	_ = reg.Register(fakeProvider{
+		id: "azure",
+		res: providers.DiscoveryResult{Targets: []domain.Target{
+			{ID: "t1", ProviderID: "azure", Name: "aks-prod"},
+		}},
+	})
+
+	if _, err := NewDiscoveryService(reg, store, fixedNow).Sync(context.Background(), "azure", nil); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	// Rediscovered, but still hidden from the default list.
+	def, _ := NewTargetService(store).List(TargetFilter{})
+	if contains(targetIDs(def), "t1") {
+		t.Errorf("hidden target resurfaced in default list after resync")
+	}
+	// Still present when hidden are included.
+	all, _ := NewTargetService(store).List(TargetFilter{IncludeHidden: true})
+	if !contains(targetIDs(all), "t1") {
+		t.Errorf("target should still exist, just hidden: %v", targetIDs(all))
+	}
+}
+
 // Syncing one provider must not drop another provider's inventory.
 func TestSync_ReplacesOnlyOwnProvider(t *testing.T) {
 	store := newMemStore()

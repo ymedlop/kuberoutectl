@@ -106,13 +106,17 @@ type TargetService struct{ store cache.CacheStore }
 
 func NewTargetService(store cache.CacheStore) *TargetService { return &TargetService{store: store} }
 
-// TargetFilter narrows a target listing. A zero value matches everything.
+// TargetFilter narrows a target listing. A zero value matches everything except
+// hidden targets (see IncludeHidden).
 type TargetFilter struct {
 	// Provider, when non-empty, keeps only targets from that provider.
 	Provider domain.ProviderID
 	// Selector, when non-nil, keeps only targets the selector matches
 	// (evaluated against SelectionLabels, like collections).
 	Selector *domain.LabelSelector
+	// IncludeHidden keeps user-hidden targets in the result. By default they are
+	// dropped, unless Selector already constrains visibility (visible/hidden).
+	IncludeHidden bool
 }
 
 // all loads the snapshot's targets, as a fresh copy, with aliases assigned.
@@ -127,10 +131,17 @@ func (s *TargetService) all() ([]domain.Target, error) {
 	targets := make([]domain.Target, len(snap.Targets))
 	copy(targets, snap.Targets)
 	AssignAliases(targets)
+	hidden, err := loadHiddenSet(s.store)
+	if err != nil {
+		return nil, err
+	}
+	ApplyVisibility(targets, hidden)
 	return targets, nil
 }
 
-// List returns targets matching the filter, preserving snapshot order.
+// List returns targets matching the filter, preserving snapshot order. Hidden
+// targets are dropped unless the filter opts in (IncludeHidden) or its selector
+// already constrains visibility.
 func (s *TargetService) List(f TargetFilter) ([]domain.Target, error) {
 	targets, err := s.all()
 	if err != nil {
@@ -148,7 +159,23 @@ func (s *TargetService) List(f TargetFilter) ([]domain.Target, error) {
 	if f.Selector != nil {
 		targets = NewSelectorEngine().Filter(*f.Selector, targets)
 	}
+	if !f.IncludeHidden && !selectorConstrainsVisibility(f.Selector) {
+		kept := make([]domain.Target, 0, len(targets))
+		for _, t := range targets {
+			if !t.Hidden {
+				kept = append(kept, t)
+			}
+		}
+		targets = kept
+	}
 	return targets, nil
+}
+
+// selectorConstrainsVisibility reports whether the selector already filters on a
+// visibility key, in which case List must not additionally auto-drop hidden
+// targets (otherwise `-l hidden=true` would return nothing).
+func selectorConstrainsVisibility(sel *domain.LabelSelector) bool {
+	return sel != nil && (sel.HasKey("hidden") || sel.HasKey("visible"))
 }
 
 // Get returns a single target by its exact ID.
