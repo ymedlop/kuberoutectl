@@ -79,6 +79,29 @@ func TestUseTarget_NoKubeconfigSkipsActivation(t *testing.T) {
 	}
 }
 
+// Status must report the computed Hidden flag for the selected target, so
+// `current` is consistent with the shared selector visibility.
+func TestStatus_ReportsHiddenSelectedTarget(t *testing.T) {
+	store := newMemStore()
+	store.snap = domain.InventorySnapshot{Targets: []domain.Target{
+		{ID: "t1", ProviderID: "aws", Name: "eks-prod"},
+	}}
+	store.hidden = []domain.TargetID{"t1"}
+	if err := store.SaveSelection(domain.Selection{TargetID: "t1"}); err != nil {
+		t.Fatalf("SaveSelection: %v", err)
+	}
+	st, err := NewSelectionService(store, nil, nil).Status()
+	if err != nil {
+		t.Fatalf("Status: %v", err)
+	}
+	if st.Target == nil {
+		t.Fatal("expected the selected target to resolve")
+	}
+	if !st.Target.Hidden {
+		t.Error("selected target should be reported as hidden")
+	}
+}
+
 func TestStatus_ResolvesSelectedTarget(t *testing.T) {
 	store := storeWithSelTarget()
 	svc := NewSelectionService(store, nil, fixedNow)

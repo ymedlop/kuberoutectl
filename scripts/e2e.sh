@@ -110,12 +110,20 @@ run sync aws
 run sync kubeconfig
 run sync gcp
 
-echo; echo "==> kubeconfig contexts are inventoried, health is honest (static/unknown, never renew)"
+echo; echo "==> kubeconfig: unique contexts inventoried; a context duplicating a native EKS cluster (same endpoint) is suppressed"
 kc="$("$BIN" target list --provider kubeconfig)"; echo "$kc"
-assert_contains "$kc" "homelab"          # a self-hosted context
-assert_contains "$kc" "static"           # client-cert user
-assert_contains "$kc" "unknown"          # exec-based user (externally managed)
-echo "$kc" | grep -qF "renew" && fail "kubeconfig credentials must never suggest renew"
+assert_contains "$kc" "homelab"          # a self-hosted context, unique endpoint — survives
+assert_contains "$kc" "static"           # homelab client-cert user
+# The prod-eks context shares the Frankfurt EKS endpoint with the natively-synced
+# aws target (sync aws ran first), so the richer native target wins and the
+# kubeconfig duplicate is dropped from inventory.
+echo "$kc" | grep -qF "prod-eks" && fail "kubeconfig context duplicating a native EKS cluster must be suppressed"
+assert_contains "$("$BIN" target list --provider aws)" "eks-prod-frankfurt"  # native target is the single survivor
+# The exec-based user's credential is not suppressed (only its duplicate target
+# is) and stays honest: unknown health, never renew.
+kc_creds="$("$BIN" credential list --provider kubeconfig)"; echo "$kc_creds"
+assert_contains "$kc_creds" "unknown"    # exec-based user (externally managed)
+echo "$kc_creds" | grep -qF "renew" && fail "kubeconfig credentials must never suggest renew"
 use_kc="$("$BIN" target use homelab 2>&1)"; echo "$use_kc"
 assert_contains "$use_kc" "kubeconfig updated"   # kubectl config use-context ran
 
@@ -176,6 +184,12 @@ show2="$("$BIN" collection show production)"
 assert_contains "$show2" "Members: 2"
 assert_contains "$("$BIN" target inspect "$EKS_FRA")" "user-label    env=prod"
 
+echo; echo "==> inspect reports the Kubernetes server version (unknown for kubeconfig, which has no source)"
+eks_inspect="$("$BIN" target inspect "$EKS_FRA")"; echo "$eks_inspect"
+echo "$eks_inspect" | grep -Eq '^Version[[:space:]]+1\.29$' || fail "EKS inspect Version should be 1.29 (from discovery, normalized)"
+kc_inspect="$("$BIN" target inspect homelab)"; echo "$kc_inspect"
+echo "$kc_inspect" | grep -Eq '^Version[[:space:]]+unknown$' || fail "kubeconfig inspect Version should be unknown"
+
 echo; echo "==> consolidated command surface: inventory group, setup, and the clusters alias"
 assert_contains "$("$BIN" inventory sources)"    "PROVIDER"     # was: source list
 assert_contains "$("$BIN" inventory scopes)"     "KIND"         # was: scope list
@@ -185,6 +199,30 @@ assert_contains "$("$BIN" setup aws-sso --help)" "sso-session"  # was: aws sso p
 for gone in "provider list" "source list" "scope list" "aws sso populate"; do
   if "$BIN" $gone >/dev/null 2>&1; then fail "removed command still works: kuberoutectl $gone"; fi
 done
+
+echo; echo "==> target hide is persistent: dropped from the default list, kept across a resync, revealed by --all"
+"$BIN" target hide eks-prod-frankfurt >/dev/null
+echo "$("$BIN" target list --provider aws)" | grep -qF "eks-prod-frankfurt" && fail "hidden target must be absent from the default list"
+assert_contains "$("$BIN" target list --provider aws --all)" "eks-prod-frankfurt"   # --all reveals it
+assert_contains "$("$BIN" target list -l hidden=true)" "eks-prod-frankfurt"          # isolate hidden ones
+"$BIN" sync aws >/dev/null                                                            # a resync rediscovers the cluster
+echo "$("$BIN" target list --provider aws)" | grep -qF "eks-prod-frankfurt" && fail "hide must survive a resync (user-owned state)"
+"$BIN" target unhide eks-prod-frankfurt >/dev/null
+assert_contains "$("$BIN" target list --provider aws)" "eks-prod-frankfurt"           # unhide restores it
+
+echo; echo "==> target delete is ephemeral: removed from the cache, restored by a resync"
+assert_contains "$("$BIN" target list --provider aws)" "eks-prod-frankfurt"
+del="$("$BIN" target delete eks-prod-frankfurt 2>&1)"; echo "$del"
+assert_contains "$del" "Deleted target:"
+echo "$("$BIN" target list --provider aws)" | grep -qF "eks-prod-frankfurt" && fail "deleted target must be gone from the list"
+"$BIN" sync aws >/dev/null
+assert_contains "$("$BIN" target list --provider aws)" "eks-prod-frankfurt"   # resync repopulates
+
+echo; echo "==> target clear wipes targets only; credentials survive; --yes skips the prompt"
+cleared="$("$BIN" target clear --yes 2>&1)"; echo "$cleared"
+assert_contains "$cleared" "Cleared"
+assert_contains "$("$BIN" target list)" "No targets"          # every target gone
+assert_contains "$("$BIN" credential list)" "static"          # credentials untouched by clear
 
 echo
 echo "E2E OK: cross-provider discovery, health spectrum, and label survival verified."

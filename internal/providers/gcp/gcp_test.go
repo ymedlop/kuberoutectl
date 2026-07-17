@@ -65,8 +65,8 @@ func TestDiscover(t *testing.T) {
 	if prod.Endpoint != "https://34.10.20.30" {
 		t.Errorf("prod endpoint = %q", prod.Endpoint)
 	}
-	if prod.Metadata["kubernetes_version"] == "" {
-		t.Error("prod missing kubernetes_version")
+	if prod.KubernetesVersion != "1.29.5" {
+		t.Errorf("prod KubernetesVersion = %q, want 1.29.5 (vendor suffix stripped)", prod.KubernetesVersion)
 	}
 }
 

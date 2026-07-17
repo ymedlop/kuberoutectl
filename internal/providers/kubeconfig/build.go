@@ -82,7 +82,10 @@ func buildTarget(cx kcNamedContext, server string, health domain.AccessHealth, a
 		Health:       health,
 		ActionHint:   action,
 		LastSeenAt:   now,
-		SystemLabels: sys,
+		// A kubeconfig has no server version to read (its data source is a
+		// static file, not a live cluster), so the version is unknowable here.
+		KubernetesVersion: domain.VersionUnknown,
+		SystemLabels:      sys,
 		Metadata: map[string]string{
 			"cluster":   cx.Context.Cluster,
 			"user":      cx.Context.User,

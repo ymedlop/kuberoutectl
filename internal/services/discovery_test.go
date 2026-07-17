@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,12 +11,29 @@ import (
 	"github.com/ymedlop/kuberoutectl/internal/providers"
 )
 
+// recordProgress captures Step calls so tests can assert user-facing messages.
+type recordProgress struct{ steps []string }
+
+func (r *recordProgress) Step(format string, args ...any) {
+	r.steps = append(r.steps, fmt.Sprintf(format, args...))
+}
+
+func (r *recordProgress) contains(sub string) bool {
+	for _, s := range r.steps {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+	return false
+}
+
 // memStore is an in-memory CacheStore for service tests.
 type memStore struct {
 	snap        domain.InventorySnapshot
 	userLabels  map[domain.TargetID]map[string]string
 	collections []domain.Collection
 	selection   domain.Selection
+	hidden      []domain.TargetID
 }
 
 func newMemStore() *memStore {
@@ -34,15 +53,19 @@ func (m *memStore) LoadCollections() ([]domain.Collection, error) { return m.col
 func (m *memStore) SaveCollections(c []domain.Collection) error   { m.collections = c; return nil }
 func (m *memStore) LoadSelection() (domain.Selection, error)      { return m.selection, nil }
 func (m *memStore) SaveSelection(s domain.Selection) error        { m.selection = s; return nil }
+func (m *memStore) LoadHiddenTargets() ([]domain.TargetID, error) { return m.hidden, nil }
+func (m *memStore) SaveHiddenTargets(ids []domain.TargetID) error { m.hidden = ids; return nil }
 
-// fakeProvider returns a fixed discovery result.
+// fakeProvider returns a fixed discovery result. caps is configurable so tests
+// can exercise capability-gated behavior (e.g. OverlayProvider dedup).
 type fakeProvider struct {
-	id  domain.ProviderID
-	res providers.DiscoveryResult
+	id   domain.ProviderID
+	res  providers.DiscoveryResult
+	caps domain.Capabilities
 }
 
 func (f fakeProvider) ID() domain.ProviderID             { return f.id }
-func (f fakeProvider) Capabilities() domain.Capabilities { return domain.Capabilities{CanRenew: true} }
+func (f fakeProvider) Capabilities() domain.Capabilities { return f.caps }
 func (f fakeProvider) Discover(context.Context, providers.DiscoveryInput) (providers.DiscoveryResult, error) {
 	return f.res, nil
 }
@@ -86,6 +109,35 @@ func TestSync_PreservesUserLabelsAcrossResync(t *testing.T) {
 	// System labels remain provider-owned.
 	if snap.Targets[0].SystemLabels[domain.LabelProvider] != "azure" {
 		t.Errorf("system label lost")
+	}
+}
+
+// A hidden target must stay hidden after a resync rediscovers it — the hidden
+// set is user-owned state, like labels.
+func TestSync_PreservesHiddenAcrossResync(t *testing.T) {
+	store := newMemStore()
+	store.hidden = []domain.TargetID{"t1"}
+
+	reg := providers.NewRegistry()
+	_ = reg.Register(fakeProvider{
+		id: "azure",
+		res: providers.DiscoveryResult{Targets: []domain.Target{
+			{ID: "t1", ProviderID: "azure", Name: "aks-prod"},
+		}},
+	})
+
+	if _, err := NewDiscoveryService(reg, store, fixedNow).Sync(context.Background(), "azure", nil); err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	// Rediscovered, but still hidden from the default list.
+	def, _ := NewTargetService(store).List(TargetFilter{})
+	if contains(targetIDs(def), "t1") {
+		t.Errorf("hidden target resurfaced in default list after resync")
+	}
+	// Still present when hidden are included.
+	all, _ := NewTargetService(store).List(TargetFilter{IncludeHidden: true})
+	if !contains(targetIDs(all), "t1") {
+		t.Errorf("target should still exist, just hidden: %v", targetIDs(all))
 	}
 }
 
@@ -144,6 +196,118 @@ func TestSync_UnknownProvider(t *testing.T) {
 	svc := NewDiscoveryService(providers.NewRegistry(), newMemStore(), fixedNow)
 	if _, err := svc.Sync(context.Background(), "nope", nil); err == nil {
 		t.Fatal("expected error for unregistered provider")
+	}
+}
+
+// The dedup guarantee: an overlay provider's target (kubeconfig context) is
+// suppressed when a native provider already owns that endpoint — no matter which
+// provider was synced first.
+const dupEndpoint = "https://ABC123.gr7.eu-central-1.eks.amazonaws.com"
+
+func TestSync_KubeconfigAfterAWS_SuppressesDuplicate(t *testing.T) {
+	store := newMemStore()
+	store.snap = domain.InventorySnapshot{
+		Targets: []domain.Target{
+			{ID: "aws:eks", ProviderID: "aws", Name: "eks-prod", Endpoint: dupEndpoint},
+		},
+	}
+
+	reg := providers.NewRegistry()
+	_ = reg.Register(fakeProvider{
+		id:   "kubeconfig",
+		caps: domain.Capabilities{OverlayProvider: true},
+		res: providers.DiscoveryResult{Targets: []domain.Target{
+			{ID: "kubeconfig:context:eks", ProviderID: "kubeconfig", Name: "prod-eks", Endpoint: dupEndpoint},
+			{ID: "kubeconfig:context:homelab", ProviderID: "kubeconfig", Name: "homelab", Endpoint: "https://192.168.1.10:6443"},
+		}},
+	})
+
+	prog := &recordProgress{}
+	snap, err := NewDiscoveryService(reg, store, fixedNow).Sync(context.Background(), "kubeconfig", prog)
+	if err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	ids := targetIDs(snap.Targets)
+	if contains(ids, "kubeconfig:context:eks") {
+		t.Errorf("kubeconfig duplicate of a native cluster not suppressed: %v", ids)
+	}
+	if !contains(ids, "aws:eks") {
+		t.Errorf("native aws target dropped: %v", ids)
+	}
+	if !contains(ids, "kubeconfig:context:homelab") {
+		t.Errorf("non-duplicate kubeconfig context wrongly suppressed: %v", ids)
+	}
+	// The suppression must be observable to the operator (documented CLI output).
+	if !prog.contains("suppressed 1 overlay context(s) already discovered natively") {
+		t.Errorf("expected a suppression progress message, got %v", prog.steps)
+	}
+}
+
+func TestSync_AWSAfterKubeconfig_SuppressesDuplicate(t *testing.T) {
+	// Reverse order: the kubeconfig target already sits in the cache; syncing the
+	// native provider must still make native win.
+	store := newMemStore()
+	store.snap = domain.InventorySnapshot{
+		Targets: []domain.Target{
+			{ID: "kubeconfig:context:eks", ProviderID: "kubeconfig", Name: "prod-eks", Endpoint: dupEndpoint},
+		},
+	}
+
+	reg := providers.NewRegistry()
+	// Both providers must be registered so isOverlay can classify the cached
+	// kubeconfig target during an aws sync.
+	_ = reg.Register(fakeProvider{id: "kubeconfig", caps: domain.Capabilities{OverlayProvider: true}})
+	_ = reg.Register(fakeProvider{
+		id:   "aws",
+		caps: domain.Capabilities{CanRenew: true},
+		res: providers.DiscoveryResult{Targets: []domain.Target{
+			{ID: "aws:eks", ProviderID: "aws", Name: "eks-prod", Endpoint: dupEndpoint},
+		}},
+	})
+
+	snap, err := NewDiscoveryService(reg, store, fixedNow).Sync(context.Background(), "aws", nil)
+	if err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	ids := targetIDs(snap.Targets)
+	if contains(ids, "kubeconfig:context:eks") {
+		t.Errorf("cached kubeconfig duplicate not suppressed after native sync: %v", ids)
+	}
+	if !contains(ids, "aws:eks") {
+		t.Errorf("native aws target missing: %v", ids)
+	}
+}
+
+func TestSync_UnregisteredProviderTreatedAsNative(t *testing.T) {
+	// A cached target for a provider no longer registered must not panic on the
+	// registry lookup and must be treated as non-overlay (never suppressed); it
+	// can still own an endpoint that suppresses an overlay duplicate.
+	store := newMemStore()
+	store.snap = domain.InventorySnapshot{
+		Targets: []domain.Target{
+			{ID: "ghost:cluster", ProviderID: "ghost", Name: "legacy", Endpoint: dupEndpoint},
+		},
+	}
+
+	reg := providers.NewRegistry()
+	_ = reg.Register(fakeProvider{
+		id:   "kubeconfig",
+		caps: domain.Capabilities{OverlayProvider: true},
+		res: providers.DiscoveryResult{Targets: []domain.Target{
+			{ID: "kubeconfig:context:eks", ProviderID: "kubeconfig", Name: "prod-eks", Endpoint: dupEndpoint},
+		}},
+	})
+
+	snap, err := NewDiscoveryService(reg, store, fixedNow).Sync(context.Background(), "kubeconfig", nil)
+	if err != nil {
+		t.Fatalf("Sync: %v", err)
+	}
+	ids := targetIDs(snap.Targets)
+	if !contains(ids, "ghost:cluster") {
+		t.Errorf("unregistered-provider target wrongly dropped: %v", ids)
+	}
+	if contains(ids, "kubeconfig:context:eks") {
+		t.Errorf("overlay duplicate not suppressed by unregistered native owner: %v", ids)
 	}
 }
 

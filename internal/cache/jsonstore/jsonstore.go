@@ -37,10 +37,11 @@ func New(cacheDir, stateDir string) *Store {
 }
 
 const (
-	snapshotFile    = "snapshot.json"
-	userLabelsFile  = "user-labels.json"
-	collectionsFile = "collections.json"
-	selectionFile   = "selection.json"
+	snapshotFile      = "snapshot.json"
+	userLabelsFile    = "user-labels.json"
+	collectionsFile   = "collections.json"
+	selectionFile     = "selection.json"
+	hiddenTargetsFile = "hidden-targets.json"
 )
 
 // --- Snapshot (discovered inventory) ---
@@ -101,6 +102,21 @@ func (s *Store) LoadSelection() (domain.Selection, error) {
 
 func (s *Store) SaveSelection(sel domain.Selection) error {
 	return writeJSON(filepath.Join(s.stateDir, selectionFile), sel)
+}
+
+// --- Hidden targets (user-owned) ---
+
+func (s *Store) LoadHiddenTargets() ([]domain.TargetID, error) {
+	var out []domain.TargetID
+	err := readJSON(filepath.Join(s.stateDir, hiddenTargetsFile), &out)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	return out, err
+}
+
+func (s *Store) SaveHiddenTargets(ids []domain.TargetID) error {
+	return writeJSON(filepath.Join(s.stateDir, hiddenTargetsFile), ids)
 }
 
 // --- helpers ---

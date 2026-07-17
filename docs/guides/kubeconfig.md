@@ -69,7 +69,9 @@ prod-eks  kubeconfig          unknown  kubeconfig
 
 The **ALIAS** is the context name (kubeconfig names are already short), usable
 directly with `target use`/`inspect`/`label`. `REGION` is blank — kubeconfig has
-no region concept.
+no region concept. Likewise, `target inspect` reports the Kubernetes version as
+`unknown`: a kubeconfig is a static file with no server version to read, and
+kuberoutectl never probes the cluster to find one.
 
 ## 2. Check credential health
 
@@ -115,6 +117,27 @@ kuberoutectl target label add prod-eks env=prod
 kuberoutectl collection create prod --selector env=prod   # can span aks/eks/kubeconfig
 ```
 
+## Duplicate clusters across providers
+
+Running a cloud CLI (e.g. `aws eks update-kubeconfig`) writes a context into your
+kubeconfig, so the *same* cluster can be discovered twice: once natively by the
+cloud provider and once here. `kuberoutectl` detects this by the **API-server
+endpoint** — identical across both — and keeps only the native target, which
+carries the richer region and renewable-credential information. The kubeconfig
+duplicate is suppressed, and `sync kubeconfig` reports how many:
+
+```console
+$ kuberoutectl sync kubeconfig
+Syncing kubeconfig ...
+  → reading kubeconfig (kubectl config view)
+  → suppressed 1 overlay context(s) already discovered natively
+  ...
+```
+
+This is endpoint-based, not name-based, so it never guesses: a self-hosted
+context with its own endpoint (like `homelab`) always survives. The order you
+sync in doesn't matter — the native target wins either way.
+
 ## Capability summary (kubeconfig)
 
 | Capability          | kubeconfig | Notes                                          |
@@ -130,6 +153,9 @@ kuberoutectl collection create prod --selector env=prod   # can span aks/eks/kub
   `kubectl config get-contexts`. An empty kubeconfig is not an error.
 - **A context shows `unknown`** — expected for `exec`/auth-provider users; it
   still works via `target use` (kubectl runs the plugin).
+- **A context is missing after syncing a cloud provider** — expected if it
+  duplicates a natively-discovered cluster (same API-server endpoint); the native
+  target wins. See [Duplicate clusters across providers](#duplicate-clusters-across-providers).
 - **`kubectl` not found** — install it or set an explicit path in config;
   `kuberoutectl doctor` shows what it resolved.
 - **Wrong `$KUBECONFIG`** — `kuberoutectl` sees exactly what `kubectl` sees;

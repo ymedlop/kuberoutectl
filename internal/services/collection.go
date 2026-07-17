@@ -110,16 +110,27 @@ func (s *CollectionService) Resolve(name string) ([]domain.Target, error) {
 	if err != nil {
 		return nil, fmt.Errorf("load snapshot: %w", err)
 	}
+	// Populate the computed Hidden flag so the selector's visible/hidden keys are
+	// honest here too — the selector engine is shared with target list. This does
+	// not auto-drop hidden targets from collections; it only makes the keys
+	// correct if a collection selector references them.
+	targets := make([]domain.Target, len(snap.Targets))
+	copy(targets, snap.Targets)
+	hidden, err := loadHiddenSet(s.store)
+	if err != nil {
+		return nil, err
+	}
+	ApplyVisibility(targets, hidden)
 
 	members := map[domain.TargetID]domain.Target{}
 	if !col.Selector.IsZero() {
-		for _, t := range s.engine.Filter(col.Selector, snap.Targets) {
+		for _, t := range s.engine.Filter(col.Selector, targets) {
 			members[t.ID] = t
 		}
 	}
 	if len(col.StaticIDs) > 0 {
 		byID := map[domain.TargetID]domain.Target{}
-		for _, t := range snap.Targets {
+		for _, t := range targets {
 			byID[t.ID] = t
 		}
 		for _, id := range col.StaticIDs {

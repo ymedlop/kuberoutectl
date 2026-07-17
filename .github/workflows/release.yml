@@ -1,0 +1,42 @@
+name: release
+
+# Cuts a stable release from a semver tag. Pushing `vX.Y.Z` (or a pre-release
+# like `vX.Y.Z-rc.1`) builds the cross-platform artifacts and checksums with
+# GoReleaser and uploads them to a DRAFT GitHub release for a maintainer to
+# review and publish — nothing goes public automatically.
+#
+# Only tag a commit that is already green on CI (`main` runs the full gate
+# incl. e2e via ci.yml). This job's own gate is `make check` (fmt + vet + test);
+# it does not re-run scripts/e2e.sh. See RELEASING.md.
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Verify (fmt + vet + test)
+        run: make check
+
+      - name: Build and publish draft release
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

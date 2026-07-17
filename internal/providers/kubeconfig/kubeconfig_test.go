@@ -117,6 +117,10 @@ func TestDiscover(t *testing.T) {
 	if prod.SystemLabels[domain.LabelPlatform] != "kubeconfig" {
 		t.Errorf("prod platform label = %q", prod.SystemLabels[domain.LabelPlatform])
 	}
+	// A kubeconfig has no server version to read.
+	if prod.KubernetesVersion != domain.VersionUnknown {
+		t.Errorf("prod KubernetesVersion = %q, want %q", prod.KubernetesVersion, domain.VersionUnknown)
+	}
 
 	home := byName["homelab"]
 	if home.Health != domain.HealthStatic { // client cert
@@ -163,6 +167,11 @@ func TestCapabilitiesAndRenew(t *testing.T) {
 	}
 	if !caps.CanSwitchContext || !caps.StaticCredentials || !caps.CanDiscoverScopes {
 		t.Errorf("unexpected capabilities: %+v", caps)
+	}
+	// kubeconfig is an overlay: its contexts may duplicate clusters a cloud
+	// provider owns natively, so it defers to them during cross-provider dedup.
+	if !caps.OverlayProvider {
+		t.Error("kubeconfig must report OverlayProvider")
 	}
 	if err := p.Renew(context.Background(), domain.Credential{}); !errors.Is(err, providers.ErrUnsupported) {
 		t.Errorf("Renew should return ErrUnsupported, got %v", err)

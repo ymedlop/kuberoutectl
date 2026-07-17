@@ -130,10 +130,13 @@ A fuller walkthrough lives in the docs site under
 
 ## Installation
 
-Pre-built binaries are published as a rolling **`development-snapshot`**
-pre-release, rebuilt on every push to `development`:
+Pre-built binaries come in two flavors: **stable** releases cut from `vX.Y.Z`
+tags, and a rolling **`development-snapshot`** pre-release rebuilt on every push
+to `development`. Grab either from the releases page:
 
-**→ [github.com/ymedlop/kuberoutectl/releases/tag/development-snapshot](https://github.com/ymedlop/kuberoutectl/releases/tag/development-snapshot)**
+**→ [github.com/ymedlop/kuberoutectl/releases](https://github.com/ymedlop/kuberoutectl/releases)**
+
+See **[RELEASING.md](RELEASING.md)** for how releases are produced and verified.
 
 Each build ships **Windows, Linux, and macOS in both `amd64` and `arm64`**.
 Assets are named `kuberoutectl_<version>_<os>_<arch>.<ext>` (`.tar.gz` for Linux
@@ -195,7 +198,7 @@ kuberoutectl doctor                              # check required provider CLIs 
 kuberoutectl sync azure                          # discover Azure inventory into the cache
 kuberoutectl sync aws                            # discover AWS inventory into the cache
 kuberoutectl sync gcp                            # discover GCP (GKE) inventory into the cache
-kuberoutectl sync kubeconfig                     # discover kubeconfig contexts into the cache
+kuberoutectl sync kubeconfig                     # discover kubeconfig contexts (contexts duplicating a natively-synced cluster, by endpoint, are suppressed)
 
 kuberoutectl inventory providers                 # registered providers + capabilities
 kuberoutectl inventory sources                   # discovered access sources
@@ -211,9 +214,18 @@ kuberoutectl clusters list                       # `clusters`/`cluster` are alia
 kuberoutectl target list --provider aws          # filter by provider
 kuberoutectl target list -l env=prod             # filter by selector (repeatable)
 kuberoutectl target list --wide                  # also show the full ID
-kuberoutectl target inspect <alias|id|name>
+kuberoutectl target inspect <alias|id|name>          # details incl. Kubernetes server version (unknown for kubeconfig)
 kuberoutectl target use <alias|id|name>              # fetch credentials into ~/.kube/config + set context
 kuberoutectl target use <alias|id|name> --no-kubeconfig  # record the selection only
+
+kuberoutectl target delete <alias|id|name>           # drop one target from the cache (a resync re-adds it)
+kuberoutectl target clear                            # drop all targets (prompts; --yes to skip); a resync repopulates
+
+kuberoutectl target hide <alias|id|name>             # hide from the default list; persists across resyncs
+kuberoutectl target hide -l env=staging              # hide every matching target (bulk, by selector)
+kuberoutectl target unhide <alias|id|name>           # reveal a hidden target again
+kuberoutectl target list --all                       # include hidden targets (adds a HIDDEN column)
+kuberoutectl target list -l hidden=true              # list only hidden targets
 
 kuberoutectl target label add <alias|id|name> env=prod
 kuberoutectl target label remove <alias|id|name> env

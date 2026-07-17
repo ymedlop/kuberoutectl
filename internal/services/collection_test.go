@@ -104,6 +104,31 @@ func TestCollection_StaticUnionAndDedup(t *testing.T) {
 	}
 }
 
+// The visible/hidden selector keys must be honest in collection resolution too
+// (the selector engine is shared with target list), so a collection selecting
+// hidden targets resolves to the actually-hidden ones — not silently empty.
+func TestCollection_ResolveHonorsHiddenSelector(t *testing.T) {
+	store := newMemStore()
+	store.snap = domain.InventorySnapshot{Targets: []domain.Target{
+		{ID: "aws:eks-1", ProviderID: "aws", Name: "eks-prod"},
+		{ID: "aws:eks-2", ProviderID: "aws", Name: "eks-staging"},
+	}}
+	store.hidden = []domain.TargetID{"aws:eks-1"}
+	store.collections = []domain.Collection{{
+		ID:       "c",
+		Name:     "hidden-ones",
+		Selector: domain.LabelSelector{MatchLabels: map[string]string{"hidden": "true"}},
+	}}
+
+	members, err := NewCollectionService(store, nil).Resolve("hidden-ones")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if len(members) != 1 || members[0].ID != "aws:eks-1" {
+		t.Fatalf("expected the hidden target, got %v", targetIDs(members))
+	}
+}
+
 func TestCollection_Delete(t *testing.T) {
 	store := storeWithTargets(prodAndLab()...)
 	svc := NewCollectionService(store, nil)

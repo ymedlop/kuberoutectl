@@ -86,7 +86,7 @@ func TestCredential_RenewDelegatesWhenSupported(t *testing.T) {
 		{ID: "az-1", ProviderID: "azure"},
 	}}
 	reg := providers.NewRegistry()
-	_ = reg.Register(fakeProvider{id: "azure"}) // CanRenew: true, Renew returns nil
+	_ = reg.Register(fakeProvider{id: "azure", caps: domain.Capabilities{CanRenew: true}}) // Renew returns nil
 
 	svc := NewCredentialService(store, reg)
 	if err := svc.Renew(context.Background(), "az-1"); err != nil {

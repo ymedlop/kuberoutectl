@@ -43,6 +43,11 @@ func (s *SelectionService) UseTarget(ctx context.Context, ref string, activate b
 		return domain.Target{}, err
 	}
 	AssignAliases(snap.Targets)
+	hidden, err := loadHiddenSet(s.store)
+	if err != nil {
+		return domain.Target{}, err
+	}
+	ApplyVisibility(snap.Targets, hidden)
 	found, err := ResolveTargetRef(snap.Targets, ref)
 	if err != nil {
 		return domain.Target{}, err
@@ -118,6 +123,11 @@ func (s *SelectionService) Status() (SelectionStatus, error) {
 
 	if sel.TargetID != "" {
 		AssignAliases(snap.Targets)
+		hidden, err := loadHiddenSet(s.store)
+		if err != nil {
+			return SelectionStatus{}, err
+		}
+		ApplyVisibility(snap.Targets, hidden)
 		for i := range snap.Targets {
 			if snap.Targets[i].ID == sel.TargetID {
 				t := snap.Targets[i]

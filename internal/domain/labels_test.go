@@ -24,6 +24,14 @@ func TestValidateUserLabel_RejectsReservedNamespace(t *testing.T) {
 	}
 }
 
+func TestValidateUserLabel_RejectsReservedVisibilityKeys(t *testing.T) {
+	for _, k := range []string{"visible", "hidden"} {
+		if err := ValidateUserLabelKey(k); err == nil {
+			t.Errorf("expected reserved visibility key %q to be rejected", k)
+		}
+	}
+}
+
 func TestValidateUserLabel_RejectsBadFormat(t *testing.T) {
 	bad := []struct{ k, v string }{
 		{"", "x"},        // empty key
