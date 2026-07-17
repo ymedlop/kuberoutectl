@@ -12,8 +12,9 @@ const VersionUnknown = "unknown"
 // dotted-numeric core: it trims whitespace, drops a leading v/V, and keeps only
 // the leading run of digits and dots — discarding vendor and pre-release
 // suffixes (GKE's "-gke.1000000", a channel's "-alpha.1"). EKS reports a bare
-// "1.29" and it stays "1.29" (no padding). Anything without a leading digit
-// (empty, "stable") normalizes to VersionUnknown.
+// "1.29" and it stays "1.29" (no padding). The core must be a well-formed
+// dotted-numeric string (every dot-separated segment a non-empty digit run);
+// anything else — "stable", "" , ".1.2", "1..2" — normalizes to VersionUnknown.
 func NormalizeKubernetesVersion(raw string) string {
 	s := strings.TrimSpace(raw)
 	s = strings.TrimPrefix(s, "v")
@@ -29,8 +30,17 @@ func NormalizeKubernetesVersion(raw string) string {
 		break
 	}
 	core := strings.TrimRight(s[:end], ".")
-	if core == "" || !strings.ContainsAny(core, "0123456789") {
+	if core == "" {
 		return VersionUnknown
+	}
+	// The char filter above admits only digits and dots, so a segment is either
+	// digits or empty; requiring every segment non-empty rejects a leading dot
+	// (".1.2") or an embedded double dot ("1..2") that would otherwise slip
+	// through as a bogus "core".
+	for _, seg := range strings.Split(core, ".") {
+		if seg == "" {
+			return VersionUnknown
+		}
 	}
 	return core
 }

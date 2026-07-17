@@ -19,6 +19,10 @@ func TestNormalizeKubernetesVersion(t *testing.T) {
 		{"only whitespace", "   ", VersionUnknown},
 		{"no digits", "stable", VersionUnknown},
 		{"only v", "v", VersionUnknown},
+		{"trailing junk dropped", "1.2.x", "1.2"},
+		{"leading dot", ".1.2", VersionUnknown},
+		{"embedded double dot", "1..2", VersionUnknown},
+		{"only dots", "..1", VersionUnknown},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

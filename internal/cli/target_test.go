@@ -261,10 +261,17 @@ func TestTargetInspect_EmptyVersionRendersUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("inspect: %v", err)
 	}
+	found := false
 	for _, line := range strings.Split(out, "\n") {
-		if strings.HasPrefix(line, "Version") && !strings.Contains(line, domain.VersionUnknown) {
-			t.Errorf("empty version should render %q, got %q", domain.VersionUnknown, line)
+		if strings.HasPrefix(line, "Version") {
+			found = true
+			if !strings.Contains(line, domain.VersionUnknown) {
+				t.Errorf("empty version should render %q, got %q", domain.VersionUnknown, line)
+			}
 		}
+	}
+	if !found {
+		t.Error("inspect output missing a Version line")
 	}
 }
 
