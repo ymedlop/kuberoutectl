@@ -91,6 +91,7 @@ can use anywhere a target is expected — `target use`, `target inspect`,
 underlying identity (stable across resyncs, what labels/collections attach to);
 show it with `--wide` or `-o json`. Filter the list with `--provider azure` or a
 selector, e.g. `-l env=prod` or `-l "region in [westeurope, northeurope]"`.
+`target inspect` also reports the cluster's **Kubernetes server version**.
 
 ## 3. Check credential health
 

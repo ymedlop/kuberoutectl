@@ -19,6 +19,7 @@ description: >-
     <a class="hero__btn hero__btn--primary" href="{{ '/installation/' | relative_url }}">Install</a>
     <a class="hero__btn hero__btn--ghost" href="#quick-start">Quick start</a>
     <a class="hero__btn hero__btn--ghost" href="{{ '/guides/' | relative_url }}">Provider guides</a>
+    <a class="hero__btn hero__btn--ghost" href="{{ '/organizing/' | relative_url }}">Organizing</a>
   </div>
 </div>
 

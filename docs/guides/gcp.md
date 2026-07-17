@@ -87,7 +87,8 @@ gke-prod-euw1  gke       europe-west1    valid   gcp
 
 `REGION` is the GKE **location** — a region (`europe-west1`) for regional
 clusters or a zone (`europe-west4-a`) for zonal ones. The **ALIAS** is the
-cluster name, usable with `target use`/`inspect`/`label`.
+cluster name, usable with `target use`/`inspect`/`label`. `target inspect` also
+reports the cluster's **Kubernetes server version**.
 
 ## 3. Check credential health
 

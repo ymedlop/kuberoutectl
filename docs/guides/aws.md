@@ -91,6 +91,7 @@ The **ALIAS** is a short, stable handle you can pass to `target use`,
 `target inspect`, and `target label` instead of the full cluster ARN. Add
 `--wide` (or `-o json`) to see the ARN; filter with `--provider aws` or a
 selector such as `-l env=prod` or `-l "region in [eu-central-1, eu-west-1]"`.
+`target inspect` also reports the cluster's **Kubernetes server version**.
 
 > **Region note:** discovery scans each profile's **default region** only.
 > If a profile has clusters in multiple regions, add a per-region profile (or
