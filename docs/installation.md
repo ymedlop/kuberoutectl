@@ -25,7 +25,20 @@ Linux and macOS, `.zip` for Windows.
 Prefer to build it yourself? See
 [Building from source](https://github.com/ymedlop/kuberoutectl#building-from-source).
 
-## Linux and macOS
+## macOS (Homebrew)
+
+The simplest path on macOS — installs and updates via `brew`, and handles the
+unsigned-binary quarantine for you (no manual `xattr` step):
+
+```bash
+brew install ymedlop/tap/kuberoutectl
+kuberoutectl version
+```
+
+`brew upgrade kuberoutectl` picks up new releases. Prefer a manual download?
+Use the cross-platform instructions below.
+
+## Linux and macOS (manual)
 
 Download the asset matching your OS (`linux` | `darwin`) and arch
 (`amd64` | `arm64`) from the releases page, then, from the folder where it

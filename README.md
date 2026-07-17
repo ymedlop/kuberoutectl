@@ -143,7 +143,16 @@ Assets are named `kuberoutectl_<version>_<os>_<arch>.<ext>` (`.tar.gz` for Linux
 and macOS, `.zip` for Windows). Not sure which architecture you need? Run
 `uname -m` — `x86_64` → `amd64`, `aarch64`/`arm64` → `arm64`.
 
-### Linux and macOS
+### macOS (Homebrew)
+
+```bash
+brew install ymedlop/tap/kuberoutectl
+```
+
+Installs and updates via `brew`, no manual quarantine step. Manual download works
+too — see below.
+
+### Linux and macOS (manual)
 
 ```bash
 # Download the asset for your OS (linux|darwin) and arch (amd64|arm64) from the

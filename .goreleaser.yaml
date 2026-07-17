@@ -66,3 +66,34 @@ changelog:
 release:
   draft: true
   prerelease: auto
+
+# Homebrew distribution. GoReleaser generates a cask and pushes it to a separate
+# tap repo (ymedlop/homebrew-tap) on stable releases, so macOS users can
+# `brew install ymedlop/tap/kuberoutectl`. Casks, not the deprecated `brews:`
+# formula block (which fails `goreleaser check` since v2.16).
+#
+# Only fires on a real `goreleaser release`; `skip_upload: auto` also skips
+# pre-releases so the tap only ever points at a stable version. Requires the
+# HOMEBREW_TAP_GITHUB_TOKEN secret (a PAT with write access to the tap repo) —
+# the default GITHUB_TOKEN cannot push to a different repository. See RELEASING.md.
+homebrew_casks:
+  - name: kuberoutectl
+    binary: kuberoutectl
+    repository:
+      owner: ymedlop
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Casks
+    homepage: "https://github.com/ymedlop/kuberoutectl"
+    description: "Provider-agnostic Kubernetes access routing CLI"
+    license: "Apache-2.0"
+    skip_upload: auto
+    # The binary is unsigned, so macOS quarantines it on install. Clear the
+    # quarantine attribute post-install so `brew install` yields a runnable
+    # binary with no manual `xattr` step.
+    hooks:
+      post:
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/kuberoutectl"]
+          end
