@@ -92,9 +92,12 @@
     border: 1px solid rgba(248, 250, 252, 0.5);
     color: #f8fafc;
 
-    // Fill on hover instead of staying inert.
+    // Fill on hover instead of staying inert — deepening rather than lightening.
+    // A white wash (0.14) composites the gradient's teal end up to #2f879f,
+    // dragging this button's own label to 3.95:1; the slate wash darkens the
+    // surface instead, so the label reads at 7.57:1 at the same worst-case point.
     &:hover {
-      background: rgba(248, 250, 252, 0.14);
+      background: rgba(15, 23, 42, 0.3);
       border-color: rgba(248, 250, 252, 0.8);
     }
   }
@@ -142,7 +145,11 @@
   padding: 0.2rem 0.6rem;
   border: 1px solid rgba(248, 250, 252, 0.28);
   border-radius: 999px;
-  background: rgba(248, 250, 252, 0.08);
+  // Recessed (slate) rather than a white wash. Measured on the composited
+  // surface, not the bare gradient: a 0.08 white fill lifts the teal end to
+  // #217f99 and drops this pill's own text to 4.4:1, under AA. The slate fill
+  // deepens it instead — 7.36:1 at the same point — and reads as inset.
+  background: rgba(15, 23, 42, 0.28);
   font-size: 0.78rem;
   font-weight: 600;
   color: #f8fafc;
