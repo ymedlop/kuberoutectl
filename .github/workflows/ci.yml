@@ -30,3 +30,19 @@ jobs:
 
       - name: E2E smoke test (fake provider CLIs)
         run: bash scripts/e2e.sh
+
+  # Validate the GoReleaser packaging config so a broken release setup fails the
+  # PR instead of the tag push. `goreleaser check` only lints the YAML — it does
+  # not build, publish, or need a Go toolchain.
+  goreleaser-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check .goreleaser.yaml
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: check

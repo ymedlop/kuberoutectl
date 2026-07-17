@@ -1,11 +1,16 @@
-# GoReleaser v2 configuration for kuberoutectl.
+# GoReleaser v2 configuration for kuberoutectl. It drives two workflows:
 #
-# Snapshot builds are produced from the `development` branch by the
-# snapshot-release workflow with `goreleaser release --snapshot`, which builds
-# and archives without publishing; the workflow then uploads the artifacts to a
-# mutable draft pre-release. Every OS/arch pair is shipped: Windows, Linux, and
-# macOS, each in amd64 and arm64. The build is pure Go (CGO disabled), so arm64
-# cross-compilation needs no extra toolchain.
+#   - snapshot-release.yml (development branch) runs `goreleaser release
+#     --snapshot`, which builds and archives WITHOUT publishing; that workflow
+#     then uploads the artifacts to a mutable pre-release via the gh CLI. The
+#     `release:` block below is inert in snapshot mode.
+#   - release.yml (on a `vX.Y.Z` tag) runs `goreleaser release`, which builds
+#     AND publishes using the `release:` block — a draft GitHub release a
+#     maintainer reviews and publishes.
+#
+# Every OS/arch pair is shipped: Windows, Linux, and macOS, each in amd64 and
+# arm64. The build is pure Go (CGO disabled), so arm64 cross-compilation needs
+# no extra toolchain.
 version: 2
 
 project_name: kuberoutectl
@@ -54,8 +59,10 @@ snapshot:
 changelog:
   disable: true
 
-# The workflow publishes the draft pre-release via the gh CLI, so GoReleaser's
-# own release step is not used for snapshots.
+# Used only on a real tag (release.yml). Snapshots publish via the gh CLI and
+# never reach this step. Releases land as a draft for a maintainer to review and
+# publish; prerelease is auto-detected from the tag's semver pre-release segment
+# (v1.0.0 -> full, v1.0.0-rc.1 -> pre-release).
 release:
   draft: true
-  prerelease: true
+  prerelease: auto
