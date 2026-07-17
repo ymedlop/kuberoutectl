@@ -39,6 +39,13 @@ type Target struct {
 	ActionHint ActionHint   `json:"action_hint"`
 	LastSeenAt time.Time    `json:"last_seen_at"`
 
+	// KubernetesVersion is the normalized server version, set by each provider's
+	// discovery (VersionUnknown when the source has none). Unlike Alias/Hidden it
+	// is provider-sourced persisted data, so it lives in the snapshot and carries
+	// no omitempty — a stale pre-upgrade target serializes a plain "" rather than
+	// dropping the key.
+	KubernetesVersion string `json:"kubernetes_version"`
+
 	// Hidden is a computed-on-read flag (like Alias) — never stored in the
 	// snapshot. It is the read-time join between a target and the user-owned
 	// hidden-ID set, so hiding survives a resync. Populated wherever the selector

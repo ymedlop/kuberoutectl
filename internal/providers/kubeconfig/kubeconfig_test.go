@@ -117,6 +117,10 @@ func TestDiscover(t *testing.T) {
 	if prod.SystemLabels[domain.LabelPlatform] != "kubeconfig" {
 		t.Errorf("prod platform label = %q", prod.SystemLabels[domain.LabelPlatform])
 	}
+	// A kubeconfig has no server version to read.
+	if prod.KubernetesVersion != domain.VersionUnknown {
+		t.Errorf("prod KubernetesVersion = %q, want %q", prod.KubernetesVersion, domain.VersionUnknown)
+	}
 
 	home := byName["homelab"]
 	if home.Health != domain.HealthStatic { // client cert
