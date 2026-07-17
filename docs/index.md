@@ -21,6 +21,13 @@ description: >-
     <a class="hero__btn hero__btn--ghost" href="{{ '/guides/' | relative_url }}">Provider guides</a>
     <a class="hero__btn hero__btn--ghost" href="{{ '/organizing/' | relative_url }}">Organizing</a>
   </div>
+  <div class="provider-strip">
+    <span class="provider-strip__label">Works with</span>
+    <span class="provider-strip__item">Azure AKS</span>
+    <span class="provider-strip__item">AWS EKS</span>
+    <span class="provider-strip__item">GCP GKE</span>
+    <span class="provider-strip__item">kubeconfig</span>
+  </div>
 </div>
 
 <div class="feature-grid" markdown="0">
@@ -47,6 +54,7 @@ description: >-
 </div>
 
 <div class="terminal" markdown="0">
+  <span class="terminal__caption">example session</span>
   <div class="terminal__bar"><span></span><span></span><span></span></div>
   <pre class="terminal__body"><code><span class="term-prompt">$</span> kuberoutectl sync azure &amp;&amp; kuberoutectl sync aws
 <span class="term-ok">Synced provider: azure</span>  targets: 3

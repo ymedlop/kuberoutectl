@@ -8,12 +8,28 @@
 // --- Hero ---------------------------------------------------------------------
 
 .hero {
+  position: relative;
   margin: -1rem -1rem 2rem; // bleed to the content edges
   padding: 3.5rem 2rem 3rem;
   border-radius: 12px;
-  background: linear-gradient(135deg, #0f172a 0%, #0e7490 100%);
+  // Layered depth: a soft off-centre glow over the base brand gradient, so the
+  // panel reads as lit rather than as a flat fill.
+  background:
+    radial-gradient(60rem 22rem at 78% -8%, rgba(34, 211, 238, 0.28), transparent 60%),
+    radial-gradient(40rem 18rem at 8% 108%, rgba(14, 116, 144, 0.35), transparent 62%),
+    linear-gradient(135deg, #0f172a 0%, #0e7490 100%);
   color: #f8fafc;
   text-align: center;
+  overflow: hidden;
+
+  // Hairline top highlight — the classic cue that a surface has an edge.
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(248, 250, 252, 0.5), transparent);
+  }
 }
 
 .hero__eyebrow {
@@ -41,7 +57,9 @@
   margin: 0 auto 1.75rem;
   font-size: 1.15rem;
   line-height: 1.5;
-  color: rgba(248, 250, 252, 0.9);
+  // Solid rather than 0.9 alpha: the faded value measured 4.49:1 against the
+  // gradient's teal end — a hair under the 4.5:1 AA floor for text this size.
+  color: #f8fafc;
 }
 
 .hero__actions {
@@ -57,21 +75,84 @@
   border-radius: 8px;
   font-weight: 600;
   text-decoration: none;
+  transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
 
   &--primary {
     background: #ffffff;
     color: #0e7490;
+    box-shadow: 0 1px 2px rgba(8, 23, 42, 0.25);
+
+    &:hover {
+      color: #0c5f78;
+      box-shadow: 0 6px 18px rgba(8, 23, 42, 0.32);
+    }
   }
 
   &--ghost {
     border: 1px solid rgba(248, 250, 252, 0.5);
     color: #f8fafc;
+
+    // Fill on hover instead of staying inert — deepening rather than lightening.
+    // A white wash (0.14) composites the gradient's teal end up to #2f879f,
+    // dragging this button's own label to 3.95:1; the slate wash darkens the
+    // surface instead, so the label reads at 7.57:1 at the same worst-case point.
+    &:hover {
+      background: rgba(15, 23, 42, 0.3);
+      border-color: rgba(248, 250, 252, 0.8);
+    }
   }
 
   &:hover {
     text-decoration: none;
     transform: translateY(-1px);
   }
+
+  // Keyboard users get the same affordance as mouse users.
+  &:focus-visible {
+    outline: 2px solid #ffffff;
+    outline-offset: 3px;
+  }
+}
+
+// --- Provider strip -----------------------------------------------------------
+//
+// Names the four supported providers directly under the hero actions: the
+// product's core claim is breadth, and a reader should not have to scroll to
+// learn it.
+
+.provider-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+  align-items: center;
+  margin-top: 1.5rem;
+}
+
+.provider-strip__label {
+  margin-right: 0.15rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  // Solid, not a dimmed rgba: the hero's teal end (#0e7490) caps even pure white
+  // at ~5.1:1, so any opacity fade drops this small label under the 4.5:1 AA
+  // floor (0.65 measured 2.6:1). Hierarchy comes from size/casing instead.
+  color: #f8fafc;
+}
+
+.provider-strip__item {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid rgba(248, 250, 252, 0.28);
+  border-radius: 999px;
+  // Recessed (slate) rather than a white wash. Measured on the composited
+  // surface, not the bare gradient: a 0.08 white fill lifts the teal end to
+  // #217f99 and drops this pill's own text to 4.4:1, under AA. The slate fill
+  // deepens it instead — 7.36:1 at the same point — and reads as inset.
+  background: rgba(15, 23, 42, 0.28);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #f8fafc;
 }
 
 // --- Feature grid -------------------------------------------------------------
@@ -88,6 +169,19 @@
   border: 1px solid $border-color; // scheme-aware via the color scheme
   border-radius: 10px;
   background: if($color-scheme == dark, #1c2128, #ffffff);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+
+  // Lift + brand-tinted edge on hover, so the grid reads as a set of objects
+  // rather than flat boxes.
+  &:hover {
+    transform: translateY(-2px);
+    border-color: if($color-scheme == dark, #22d3ee, #0e7490);
+    box-shadow: if(
+      $color-scheme == dark,
+      0 8px 22px rgba(2, 8, 20, 0.55),
+      0 8px 22px rgba(15, 23, 42, 0.1)
+    );
+  }
 
   h3 {
     margin-top: 0;
@@ -103,19 +197,38 @@
 }
 
 .feature-card__icon {
-  font-size: 1.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  margin-bottom: 0.6rem;
+  border-radius: 8px;
+  background: if($color-scheme == dark, rgba(34, 211, 238, 0.12), rgba(14, 116, 144, 0.09));
+  font-size: 1.2rem;
   line-height: 1;
 }
 
 // --- Terminal demo ------------------------------------------------------------
 
 .terminal {
+  position: relative;
   margin: 1.5rem 0 2rem;
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid #1e293b;
   background: #0f172a;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+
+  // Subtle sheen across the top so the block reads as a framed surface.
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 3rem;
+    background: linear-gradient(180deg, rgba(148, 163, 184, 0.07), transparent);
+    pointer-events: none;
+  }
 }
 
 .terminal__bar {
@@ -137,6 +250,20 @@
   }
 }
 
+// Caption above the bar — frames the block as a deliberate example rather than
+// stray output.
+.terminal__caption {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.8rem;
+  z-index: 1;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
 .terminal__body {
   margin: 0;
   padding: 1rem 1.1rem;
@@ -148,9 +275,40 @@
 
   code { background: transparent !important; color: inherit; }
   .term-prompt { color: #38bdf8; }
-  .term-comment { color: #64748b; }
+  // slate-400, not slate-500: #64748b measured 3.75:1 on this background, below
+  // the 4.5:1 AA floor. #94a3b8 is ~6.9:1 — comments are the most-skipped text
+  // on the page, so they must still be legible.
+  .term-comment { color: #94a3b8; }
   .term-ok { color: #4ade80; }
   .term-warn { color: #fbbf24; }
+}
+
+// --- Code legibility ----------------------------------------------------------
+//
+// The theme sets code at 0.75em (~12px against the 16px base). The token colors
+// themselves are fine — the accessible-pygments github-dark palette clears AA on
+// the dark code background — but 12px monospace is a strain to read regardless
+// of contrast, and code is the whole point of these pages. A modest bump costs
+// nothing and applies to inline and fenced code in both schemes.
+
+code {
+  font-size: 0.82em;
+}
+
+// --- Motion -------------------------------------------------------------------
+//
+// Every transform above is decoration. Respect a visitor who has asked the OS
+// for less movement.
+
+@media (prefers-reduced-motion: reduce) {
+  .hero__btn,
+  .feature-card {
+    transition: none;
+
+    &:hover {
+      transform: none;
+    }
+  }
 }
 
 // --- Health badges ------------------------------------------------------------
