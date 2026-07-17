@@ -184,6 +184,12 @@ show2="$("$BIN" collection show production)"
 assert_contains "$show2" "Members: 2"
 assert_contains "$("$BIN" target inspect "$EKS_FRA")" "user-label    env=prod"
 
+echo; echo "==> inspect reports the Kubernetes server version (unknown for kubeconfig, which has no source)"
+eks_inspect="$("$BIN" target inspect "$EKS_FRA")"; echo "$eks_inspect"
+echo "$eks_inspect" | grep -Eq '^Version[[:space:]]+1\.29$' || fail "EKS inspect Version should be 1.29 (from discovery, normalized)"
+kc_inspect="$("$BIN" target inspect homelab)"; echo "$kc_inspect"
+echo "$kc_inspect" | grep -Eq '^Version[[:space:]]+unknown$' || fail "kubeconfig inspect Version should be unknown"
+
 echo; echo "==> consolidated command surface: inventory group, setup, and the clusters alias"
 assert_contains "$("$BIN" inventory sources)"    "PROVIDER"     # was: source list
 assert_contains "$("$BIN" inventory scopes)"     "KIND"         # was: scope list

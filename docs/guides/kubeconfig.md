@@ -69,7 +69,9 @@ prod-eks  kubeconfig          unknown  kubeconfig
 
 The **ALIAS** is the context name (kubeconfig names are already short), usable
 directly with `target use`/`inspect`/`label`. `REGION` is blank — kubeconfig has
-no region concept.
+no region concept. Likewise, `target inspect` reports the Kubernetes version as
+`unknown`: a kubeconfig is a static file with no server version to read, and
+kuberoutectl never probes the cluster to find one.
 
 ## 2. Check credential health
 

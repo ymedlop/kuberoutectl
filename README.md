@@ -211,7 +211,7 @@ kuberoutectl clusters list                       # `clusters`/`cluster` are alia
 kuberoutectl target list --provider aws          # filter by provider
 kuberoutectl target list -l env=prod             # filter by selector (repeatable)
 kuberoutectl target list --wide                  # also show the full ID
-kuberoutectl target inspect <alias|id|name>
+kuberoutectl target inspect <alias|id|name>          # details incl. Kubernetes server version (unknown for kubeconfig)
 kuberoutectl target use <alias|id|name>              # fetch credentials into ~/.kube/config + set context
 kuberoutectl target use <alias|id|name> --no-kubeconfig  # record the selection only
 

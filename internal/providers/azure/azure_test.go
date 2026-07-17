@@ -151,6 +151,9 @@ func TestDiscover_FullInventory(t *testing.T) {
 			if tg.Endpoint != "https://aks-prod-weu-dns-abc123.hcp.westeurope.azmk8s.io" {
 				t.Errorf("aks-prod-weu endpoint = %q", tg.Endpoint)
 			}
+			if tg.KubernetesVersion != "1.28.3" {
+				t.Errorf("aks-prod-weu KubernetesVersion = %q, want 1.28.3", tg.KubernetesVersion)
+			}
 		}
 	}
 }

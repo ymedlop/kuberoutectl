@@ -151,6 +151,9 @@ func TestDiscover_AWSFullInventory(t *testing.T) {
 		if tg.Platform != "eks" {
 			t.Errorf("target %s platform = %q, want eks", tg.Name, tg.Platform)
 		}
+		if tg.KubernetesVersion != "1.29" {
+			t.Errorf("target %s KubernetesVersion = %q, want 1.29", tg.Name, tg.KubernetesVersion)
+		}
 		if tg.ScopeID != "aws:account:111111111111" {
 			t.Errorf("target %s scope = %q, want prod account", tg.Name, tg.ScopeID)
 		}
