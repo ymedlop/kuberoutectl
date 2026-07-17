@@ -130,10 +130,13 @@ A fuller walkthrough lives in the docs site under
 
 ## Installation
 
-Pre-built binaries are published as a rolling **`development-snapshot`**
-pre-release, rebuilt on every push to `development`:
+Pre-built binaries come in two flavors: **stable** releases cut from `vX.Y.Z`
+tags, and a rolling **`development-snapshot`** pre-release rebuilt on every push
+to `development`. Grab either from the releases page:
 
-**→ [github.com/ymedlop/kuberoutectl/releases/tag/development-snapshot](https://github.com/ymedlop/kuberoutectl/releases/tag/development-snapshot)**
+**→ [github.com/ymedlop/kuberoutectl/releases](https://github.com/ymedlop/kuberoutectl/releases)**
+
+See **[RELEASING.md](RELEASING.md)** for how releases are produced and verified.
 
 Each build ships **Windows, Linux, and macOS in both `amd64` and `arm64`**.
 Assets are named `kuberoutectl_<version>_<os>_<arch>.<ext>` (`.tar.gz` for Linux
