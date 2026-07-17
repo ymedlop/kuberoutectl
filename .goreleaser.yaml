@@ -78,7 +78,14 @@ release:
 # the default GITHUB_TOKEN cannot push to a different repository. See RELEASING.md.
 homebrew_casks:
   - name: kuberoutectl
-    binary: kuberoutectl
+    # No `binary:` — deprecated in v2.16+ (fails `goreleaser check`); GoReleaser
+    # infers the binary name from the build, emitting `binary "kuberoutectl"`.
+    #
+    # GoReleaser also emits on_linux stanzas here (its cask artifact filter always
+    # includes both darwin and linux archives). They are inert: Homebrew installs
+    # casks on macOS only. We deliberately do NOT split the single build/archive
+    # into per-OS ids to strip them — that would duplicate the ldflags/version
+    # block for cosmetic dead code. This distribution is macOS-only in practice.
     repository:
       owner: ymedlop
       name: homebrew-tap
