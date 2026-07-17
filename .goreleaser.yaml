@@ -93,6 +93,8 @@ homebrew_casks:
     directory: Casks
     homepage: "https://github.com/ymedlop/kuberoutectl"
     description: "Provider-agnostic Kubernetes access routing CLI"
+    # Currently a no-op for casks (GoReleaser v2.17 ignores it); kept so it takes
+    # effect if/when cask license support lands.
     license: "Apache-2.0"
     skip_upload: auto
     # The binary is unsigned, so macOS quarantines it on install. Clear the
