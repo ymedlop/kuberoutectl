@@ -131,6 +131,13 @@ func (a *app) targetInspectCmd() *cobra.Command {
 			fprintln(tw, "Platform\t"+target.Platform)
 			fprintln(tw, "Region\t"+target.Region)
 			fprintln(tw, "Endpoint\t"+target.Endpoint)
+			// A target cached before versions were tracked has an empty field;
+			// render it as unknown so the value is never blank at display time.
+			version := target.KubernetesVersion
+			if version == "" {
+				version = domain.VersionUnknown
+			}
+			fprintln(tw, "Version\t"+version)
 			fprintln(tw, "Health\t"+string(target.Health))
 			fprintln(tw, "Action\t"+string(target.ActionHint))
 			fprintln(tw, "Scope\t"+string(target.ScopeID))

@@ -237,3 +237,47 @@ func TestTargetList_HiddenSelectorIsolates(t *testing.T) {
 		t.Errorf("hidden selector should exclude visible targets: %q", out)
 	}
 }
+
+func TestTargetInspect_ShowsVersion(t *testing.T) {
+	a := testApp(t,
+		domain.Target{ID: "aws:eks-1", ProviderID: "aws", Name: "eks-prod", KubernetesVersion: "1.29"},
+	)
+	out, err := runCmd(a.targetInspectCmd(), "", "eks-prod")
+	if err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if !strings.Contains(out, "Version") || !strings.Contains(out, "1.29") {
+		t.Errorf("inspect should show the version line: %q", out)
+	}
+}
+
+// A target cached before the version field existed has an empty value; inspect
+// must render it as "unknown", never blank.
+func TestTargetInspect_EmptyVersionRendersUnknown(t *testing.T) {
+	a := testApp(t,
+		domain.Target{ID: "aws:eks-1", ProviderID: "aws", Name: "eks-prod"},
+	)
+	out, err := runCmd(a.targetInspectCmd(), "", "eks-prod")
+	if err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "Version") && !strings.Contains(line, domain.VersionUnknown) {
+			t.Errorf("empty version should render %q, got %q", domain.VersionUnknown, line)
+		}
+	}
+}
+
+func TestTargetInspect_JSONIncludesVersion(t *testing.T) {
+	a := testApp(t,
+		domain.Target{ID: "aws:eks-1", ProviderID: "aws", Name: "eks-prod", KubernetesVersion: "1.29"},
+	)
+	a.output = formatJSON
+	out, err := runCmd(a.targetInspectCmd(), "", "eks-prod")
+	if err != nil {
+		t.Fatalf("inspect json: %v", err)
+	}
+	if !strings.Contains(out, `"kubernetes_version"`) || !strings.Contains(out, "1.29") {
+		t.Errorf("json should include kubernetes_version: %q", out)
+	}
+}
