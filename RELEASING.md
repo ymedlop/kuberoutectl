@@ -46,7 +46,48 @@ Build metadata (`Version`, `Commit`, `Date`) is embedded into the binary via
 
 3. **Review and publish.** Open the draft release on GitHub, confirm the
    artifacts and generated notes look right, and click **Publish**. Nothing is
-   public until you do.
+   public until you do. **Publish promptly** — the Homebrew cask (below) points at
+   the release's archive URLs, which only resolve once the draft is published.
+
+## Homebrew tap
+
+On a stable release, GoReleaser also generates a Homebrew **cask** and pushes it
+to a separate tap repo, so macOS users can
+`brew install ymedlop/tap/kuberoutectl`.
+
+### One-time setup (before the first stable tag)
+
+The tap push needs a repo and a token that the default `GITHUB_TOKEN` can't
+provide (it can't write to another repository):
+
+1. **Create the tap repo** — `ymedlop/homebrew-tap`, public. Homebrew requires
+   the `homebrew-` prefix; it's referenced as `ymedlop/tap`.
+   ```bash
+   gh repo create ymedlop/homebrew-tap --public \
+     --description "Homebrew tap for kuberoutectl"
+   ```
+2. **Create a fine-grained PAT** with **Contents: write** on `ymedlop/homebrew-tap`
+   only.
+3. **Store it as a secret on THIS repo** (not the tap — the workflow runs here):
+   ```bash
+   gh secret set HOMEBREW_TAP_GITHUB_TOKEN --repo ymedlop/kuberoutectl
+   ```
+
+If the secret is missing when you tag, the release still creates the draft and
+uploads all archives — only the tap push fails. So a **red `release.yml` run may
+still have shipped a draft**: check the Releases page before assuming nothing
+happened, and delete the stray draft if you're re-cutting.
+
+### Behavior
+
+- **Stable tags only.** `skip_upload: auto` skips the cask push for pre-releases
+  (`vX.Y.Z-rc.N`) and snapshots, so the tap always points at a real stable
+  version. A `v0.0.1-rc.1` therefore exercises `release.yml` but **not** the tap
+  — the tap is first updated by your first stable `vX.Y.Z`.
+- **Version alignment is automatic** — the cask version and the binary's embedded
+  version both come from the git tag.
+- **No `xattr` step for users.** The cask clears the Gatekeeper quarantine on
+  install (unsigned binary), so `brew install` gives a runnable binary directly.
 
 ## Snapshots
 
