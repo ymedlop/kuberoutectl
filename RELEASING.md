@@ -94,7 +94,8 @@ happened, and delete the stray draft if you're re-cutting.
 
 On a stable release, GoReleaser also writes a Scoop manifest and pushes it to a
 separate bucket repo, so Windows users can
-`scoop install ymedlop/kuberoutectl`. Setup mirrors the Homebrew tap exactly.
+`scoop bucket add ymedlop … && scoop install kuberoutectl`. Setup mirrors the
+Homebrew tap exactly.
 
 ### One-time setup (before the first stable tag)
 

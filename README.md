@@ -144,6 +144,11 @@ and macOS, `.zip` for Windows), plus `.deb`/`.rpm`/`.apk` Linux packages. Not su
 which architecture you need? Run `uname -m` — `x86_64` → `amd64`,
 `aarch64`/`arm64` → `arm64`.
 
+Use a **package manager** (below) for automatic upgrades, or **download the
+archive directly** if you'd rather manage a single binary. Install command not
+working? See the
+[installation guide's Troubleshooting](https://ymedlop.github.io/kuberoutectl/installation/#troubleshooting).
+
 ### macOS (Homebrew)
 
 ```bash

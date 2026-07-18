@@ -25,6 +25,16 @@ Linux and macOS, `.zip` for Windows.
 Prefer to build it yourself? See
 [Building from source](https://github.com/ymedlop/kuberoutectl#building-from-source).
 
+## Choosing an install method
+
+| Method | Best when | Trade-off |
+|--------|-----------|-----------|
+| **Package manager** (Homebrew, Scoop, `.deb`/`.rpm`/`.apk`) | you want install + upgrade handled for you | Homebrew/Scoop need a **published stable release** (see [Troubleshooting](#troubleshooting)) |
+| **Direct download** (`.tar.gz` / `.zip`) | you want a single binary with no package manager, or you're on a pre-release | you upgrade manually |
+
+Both install the same binaries from the same tagged release. If a package manager
+command fails, jump to [Troubleshooting](#troubleshooting).
+
 ## macOS (Homebrew)
 
 The simplest path on macOS — installs and updates via `brew`, and handles the
@@ -115,6 +125,62 @@ shasum -a 256 -c checksums.txt      # macOS
 ```powershell
 Get-FileHash .\kuberoutectl_*.zip -Algorithm SHA256   # Windows (compare to checksums.txt)
 ```
+
+## Verify the installed version
+
+Confirm you're running the build you intended — `kuberoutectl version` prints the
+version baked into the binary at release time, matching the release tag (without
+its leading `v`, like the archive names above):
+
+```bash
+kuberoutectl version
+# kuberoutectl 1.2.3 (commit abc1234, built 2026-01-01T00:00:00Z)
+```
+
+If it reports an older version than you installed, an earlier binary is shadowing
+it on your `PATH` — see [Troubleshooting](#troubleshooting).
+
+## Troubleshooting
+
+{: .note }
+> **Homebrew and Scoop come online with the first stable `vX.Y.Z` release.** They
+> publish to a tap/bucket only on stable tags, so until then `brew install` /
+> `scoop install` won't find a formula/manifest — use a **direct download** or the
+> **Linux packages** (both work from any release, including pre-releases).
+
+**Homebrew — `Error: ... tap not found` or no formula**
+: The tap isn't published yet (see the note above), or it's stale. If it exists,
+  run `brew update` first, then `brew install ymedlop/tap/kuberoutectl`.
+
+**Scoop — `Couldn't find manifest` / empty bucket**
+: Same as above. After `scoop bucket add ymedlop https://github.com/ymedlop/scoop-bucket`,
+  run `scoop update` so the new manifest is seen, then `scoop install kuberoutectl`.
+
+**Linux `.apk` — `UNTRUSTED signature`**
+: The packages are unsigned; add `--allow-untrusted`:
+  `sudo apk add --allow-untrusted kuberoutectl_*_amd64.apk`.
+
+**Linux `.rpm` — nothing printed after `rpm -i`**
+: Success is silent. The packages are unsigned, so there's no signature prompt —
+  run `kuberoutectl version` to confirm the install.
+
+**macOS (manual) — "kuberoutectl is damaged and can't be opened"**
+: Gatekeeper quarantined the unsigned binary — clear it with the `xattr` command
+  under [Linux and macOS (manual)](#linux-and-macos-manual). (`brew install` does
+  this for you.)
+
+**Windows (manual) — SmartScreen warning**
+: The binary is unsigned — see the note under [Windows (manual)](#windows-manual).
+
+**`command not found` after install**
+: The install directory isn't on your `PATH`. Packages install to
+  `/usr/bin/kuberoutectl`; for a manual install, move the binary somewhere on
+  your `PATH`.
+
+**`kuberoutectl version` shows an old version**
+: An older binary earlier on your `PATH` is shadowing the new one. Find them with
+  `which -a kuberoutectl` (Linux/macOS) or `where kuberoutectl` (Windows) and
+  remove the stale one.
 
 ## Next steps
 
