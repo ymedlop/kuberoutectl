@@ -158,6 +158,16 @@ brew install ymedlop/tap/kuberoutectl
 Installs and updates via `brew`, no manual quarantine step. Manual download works
 too — see below.
 
+### Linux (apt — Debian/Ubuntu)
+
+```bash
+curl -1sLf 'https://dl.cloudsmith.io/public/ymedlop/kuberoutectl/setup.deb.sh' | sudo bash
+sudo apt install kuberoutectl
+```
+
+Signed apt repo via [Cloudsmith](https://cloudsmith.io) — `apt upgrade` picks up
+new releases. Prefer a manual package, or need `.rpm`/`.apk`? See below.
+
 ### Linux (packages)
 
 ```bash

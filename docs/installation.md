@@ -48,6 +48,20 @@ kuberoutectl version
 `brew upgrade kuberoutectl` picks up new releases. Prefer a manual download?
 Use the cross-platform instructions below.
 
+## Linux (apt — Debian/Ubuntu)
+
+The simplest path on Debian/Ubuntu — a signed [Cloudsmith](https://cloudsmith.io)
+apt repository, so `apt upgrade` picks up new releases:
+
+```bash
+curl -1sLf 'https://dl.cloudsmith.io/public/ymedlop/kuberoutectl/setup.deb.sh' | sudo bash
+sudo apt install kuberoutectl
+kuberoutectl version
+```
+
+The `setup.deb.sh` script adds the repo and imports its signing key. Prefer a
+manual package or need `.rpm`/`.apk`? See below.
+
 ## Linux (packages)
 
 Each release ships `.deb`, `.rpm`, and `.apk` packages (amd64 + arm64) as release
@@ -143,10 +157,10 @@ it on your `PATH` — see [Troubleshooting](#troubleshooting).
 ## Troubleshooting
 
 {: .note }
-> **Homebrew and Scoop come online with the first stable `vX.Y.Z` release.** They
-> publish to a tap/bucket only on stable tags, so until then `brew install` /
-> `scoop install` won't find a formula/manifest — use a **direct download** or the
-> **Linux packages** (both work from any release, including pre-releases).
+> **Homebrew, Scoop, and the apt repo come online with the first stable `vX.Y.Z`
+> release** (once it's published) — they publish to a tap/bucket/repo only on
+> stable releases. Until then, use a **direct download** or the **release-attached
+> Linux packages** (both work from any release, including pre-releases).
 
 **Homebrew — `Error: ... tap not found` or no formula**
 : The tap isn't published yet (see the note above), or it's stale. If it exists,
@@ -155,6 +169,12 @@ it on your `PATH` — see [Troubleshooting](#troubleshooting).
 **Scoop — `Couldn't find manifest` / empty bucket**
 : Same as above. After `scoop bucket add ymedlop https://github.com/ymedlop/scoop-bucket`,
   run `scoop update` so the new manifest is seen, then `scoop install kuberoutectl`.
+
+**apt — `Unable to locate package kuberoutectl` or a GPG/`NO_PUBKEY` error**
+: Re-run the Cloudsmith `setup.deb.sh` (it adds the repo and imports the signing
+  key), then `sudo apt update`. If the package isn't there yet, the apt repo comes
+  online with the first published stable release (see the note above) — use a
+  direct `.deb` meanwhile.
 
 **Linux `.apk` — `UNTRUSTED signature`**
 : The packages are unsigned; add `--allow-untrusted`:
