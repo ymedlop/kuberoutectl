@@ -7,7 +7,10 @@ CMD     := ./cmd/kuberoutectl
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
-DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+# Commit date in UTC (RFC3339 with a literal Z), matching GoReleaser's
+# {{ .CommitDate }} so a local build's `version` string is identical to a
+# release build's for the same commit — and reproducible, unlike a wall-clock date.
+DATE    ?= $(shell TZ=UTC git log -1 --date=format-local:%Y-%m-%dT%H:%M:%SZ --format=%cd 2>/dev/null || echo unknown)
 
 LDFLAGS := -s -w \
 	-X $(PKG)/internal/buildinfo.Version=$(VERSION) \
@@ -60,5 +63,5 @@ dist: ## Cross-compile {windows,linux,darwin} × {amd64,arm64} into ./dist
 	GOOS=darwin  GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o dist/$(BINARY)_darwin_amd64/$(BINARY) $(CMD)
 	GOOS=darwin  GOARCH=arm64 go build -ldflags '$(LDFLAGS)' -o dist/$(BINARY)_darwin_arm64/$(BINARY) $(CMD)
 
-snapshot: ## Build a local snapshot release with GoReleaser
-	goreleaser release --snapshot --clean
+snapshot: ## Build a local snapshot release with GoReleaser (reproducible)
+	SOURCE_DATE_EPOCH=$$(git log -1 --format=%ct) goreleaser release --snapshot --clean

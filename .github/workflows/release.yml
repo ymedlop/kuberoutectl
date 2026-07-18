@@ -32,6 +32,12 @@ jobs:
       - name: Verify (fmt + vet + test)
         run: make check
 
+      # Reproducible builds: nfpm (.deb/.rpm) stamps its own metadata from
+      # SOURCE_DATE_EPOCH, which `.goreleaser.yaml`'s mod_timestamp doesn't cover.
+      # Pin it to the commit time so packages are byte-identical run to run.
+      - name: Set reproducible build timestamp
+        run: echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >> "$GITHUB_ENV"
+
       - name: Build and publish draft release
         uses: goreleaser/goreleaser-action@v6
         with:

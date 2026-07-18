@@ -40,6 +40,11 @@ jobs:
           go vet ./...
           go test ./...
 
+      # Reproducible builds — see release.yml (nfpm honors SOURCE_DATE_EPOCH,
+      # which mod_timestamp doesn't cover for .deb/.rpm).
+      - name: Set reproducible build timestamp
+        run: echo "SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)" >> "$GITHUB_ENV"
+
       - name: Build snapshot artifacts
         uses: goreleaser/goreleaser-action@v6
         with:

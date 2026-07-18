@@ -25,11 +25,17 @@ builds:
     binary: kuberoutectl
     env:
       - CGO_ENABLED=0
+    # Reproducible builds: pin the binary's file mtime to the commit time (not
+    # the wall clock) so the same commit produces byte-identical binaries and
+    # archives. deb/rpm reproducibility additionally needs SOURCE_DATE_EPOCH in
+    # the environment (set in release.yml / snapshot-release.yml / Makefile) —
+    # mod_timestamp only covers this builds pipe, not the nfpms pipe.
+    mod_timestamp: "{{ .CommitTimestamp }}"
     ldflags:
       - -s -w
       - -X github.com/ymedlop/kuberoutectl/internal/buildinfo.Version={{ .Version }}
       - -X github.com/ymedlop/kuberoutectl/internal/buildinfo.Commit={{ .ShortCommit }}
-      - -X github.com/ymedlop/kuberoutectl/internal/buildinfo.Date={{ .Date }}
+      - -X github.com/ymedlop/kuberoutectl/internal/buildinfo.Date={{ .CommitDate }}
     goos:
       - windows
       - linux
