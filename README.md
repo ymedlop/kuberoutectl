@@ -30,24 +30,24 @@ The initial goals of the project are:
 - Let the user create collections such as `env=prod`, `project=payments`, or `team=platform`.
 - Keep provider logic behind a provider-agnostic core.
 
-## MVP scope
+## What 1.0.0 includes
 
-### Milestone 1
+Everything the stable release ships (see [CHANGELOG.md](CHANGELOG.md) for detail):
 
-- Azure provider
-- AWS provider
-- Local cache in JSON
-- Labels on targets
-- Collections built from labels
-- Snapshot builds from the `development` branch via GitHub Actions draft releases
+- Azure, AWS, GCP, and kubeconfig providers on a provider-agnostic core
+- JSON local cache with labels + collections that survive resync
+- Credential-health awareness and target visibility
+- Cross-platform distribution: archives + checksums, Homebrew, Scoop, deb/rpm/apk
+- Documented, reproducible, repeatable release automation
 
-### Later milestones
+## Roadmap
 
-- kubeconfig provider for self-hosted and local clusters ✅ done
-- GCP provider ✅ done
-- richer health checks
-- improved selector support for collections
-- optional managed runtime support for third-party CLIs
+Post-1.0 work — additive, and it does not change the core workflow:
+
+- managed `kubectl` runtime with version compatibility + selection ([#37](https://github.com/ymedlop/kuberoutectl/issues/37)–[#42](https://github.com/ymedlop/kuberoutectl/issues/42))
+- an MCP server for `kuberoutectl` ([#44](https://github.com/ymedlop/kuberoutectl/issues/44))
+- an AI-skills repo ([#43](https://github.com/ymedlop/kuberoutectl/issues/43))
+- richer health checks and improved collection selectors
 
 ## Core concepts
 
@@ -396,11 +396,19 @@ The project is intended to be open source and is a good fit for **Apache License
 
 ## Status
 
-Milestone 1 is implemented: the Azure, AWS, GCP, and kubeconfig providers, JSON
-local cache, user labels, and collections all work end to end, with a
-provider-agnostic core and cross-platform snapshot builds. See `TODO.md` for
-what is done and what remains (multi-region EKS scan, richer selectors, and real
-client-cert expiry health for kubeconfig).
+**1.0.0 is the first stable public release — a stability milestone, not a feature
+milestone.** The core discover → organize → route workflow is complete across the
+Azure, AWS, GCP, and kubeconfig providers, with a provider-agnostic core, JSON
+local cache, user labels and collections that survive resync, credential-health
+awareness, and cross-platform package distribution (Homebrew, Scoop, deb/rpm/apk).
+The command surface is not expected to change in breaking ways. See
+[CHANGELOG.md](CHANGELOG.md) for the full 1.0.0 summary and
+[RELEASING.md](RELEASING.md) for the release process.
+
+Post-1.0 work (a managed `kubectl` runtime with version selection, an MCP server,
+and an AI-skills repo) is tracked as roadmap and does not change the core
+workflow — see [Roadmap](#roadmap). `TODO.md` is the historical milestone-1
+tracker, kept for reference.
 
 The architecture is shaped around real operator workflows first, not around
 generic abstractions for their own sake.
