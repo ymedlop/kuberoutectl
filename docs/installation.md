@@ -129,11 +129,12 @@ Get-FileHash .\kuberoutectl_*.zip -Algorithm SHA256   # Windows (compare to chec
 ## Verify the installed version
 
 Confirm you're running the build you intended — `kuberoutectl version` prints the
-version baked into the binary at release time, which matches the release tag:
+version baked into the binary at release time, matching the release tag (without
+its leading `v`, like the archive names above):
 
 ```bash
 kuberoutectl version
-# kuberoutectl v1.2.3 (commit abc1234, built 2026-01-01T00:00:00Z)
+# kuberoutectl 1.2.3 (commit abc1234, built 2026-01-01T00:00:00Z)
 ```
 
 If it reports an older version than you installed, an earlier binary is shadowing
@@ -159,15 +160,17 @@ it on your `PATH` — see [Troubleshooting](#troubleshooting).
 : The packages are unsigned; add `--allow-untrusted`:
   `sudo apk add --allow-untrusted kuberoutectl_*_amd64.apk`.
 
-**Linux `.rpm` — signature warning**
-: Expected — the packages are unsigned. `sudo rpm -i` still installs.
+**Linux `.rpm` — nothing printed after `rpm -i`**
+: Success is silent. The packages are unsigned, so there's no signature prompt —
+  run `kuberoutectl version` to confirm the install.
 
 **macOS (manual) — "kuberoutectl is damaged and can't be opened"**
-: Gatekeeper quarantined the unsigned binary. Clear it:
-  `xattr -d com.apple.quarantine ./kuberoutectl`. (Homebrew does this for you.)
+: Gatekeeper quarantined the unsigned binary — clear it with the `xattr` command
+  under [Linux and macOS (manual)](#linux-and-macos-manual). (`brew install` does
+  this for you.)
 
 **Windows (manual) — SmartScreen warning**
-: Choose **More info → Run anyway** (the binary is unsigned).
+: The binary is unsigned — see the note under [Windows (manual)](#windows-manual).
 
 **`command not found` after install**
 : The install directory isn't on your `PATH`. Packages install to
