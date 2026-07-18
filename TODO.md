@@ -1,4 +1,8 @@
-# TODO
+# TODO (historical)
+
+> **Historical milestone-1 MVP tracker**, superseded by
+> [CHANGELOG.md](CHANGELOG.md) as of the 1.0.0 stable release. Kept for
+> reference; new work is tracked in GitHub issues and the CHANGELOG.
 
 Implementation tracker for the `kuberoutectl` milestone-1 MVP (Azure + AWS).
 See `ARCHITECTURE.md` for the design and `AGENTS.md` for standing rules.

@@ -12,6 +12,38 @@ Every release covers Windows, Linux, and macOS on both amd64 and arm64.
 Neither kind is signed; integrity is provided by `checksums.txt` (SHA256). See
 [Verifying a download](#verifying-a-download).
 
+## 1.0.0 / stable release checklist
+
+The explicit bar for cutting a stable tag — every item must be true first
+(this is the gate from issue #50; keep it current so future contributors know
+what "ready" means):
+
+- [ ] Core CLI stable; command surface not expected to change in breaking ways.
+- [ ] Azure + AWS (and GCP + kubeconfig) discovery work end to end.
+- [ ] Labels + collections work end to end; user state survives resync.
+- [ ] JSON cache/state separation correct.
+- [ ] Version + build metadata correct (`kuberoutectl version`).
+- [ ] Docs describe the CLI + install paths.
+- [ ] Package distribution available for macOS, Windows, Linux (Homebrew, Scoop,
+      deb/rpm/apk).
+- [ ] Release automation working + repeatable (proven by a pre-release tag).
+- [ ] Tests pass in CI and locally (`make check`, `scripts/e2e.sh`).
+- [ ] Working tree clean; **reproducible builds verified** (see below).
+- [ ] The tap + bucket repos and their secrets exist (Homebrew, Scoop sections).
+
+## Reproducible builds
+
+The same commit produces byte-identical artifacts. This needs two independent
+settings — verify by running `make snapshot` twice and diffing `dist/checksums.txt`:
+
+- `.goreleaser.yaml` pins the Go binary's mtime with
+  `mod_timestamp: '{{ .CommitTimestamp }}'` and embeds `{{ .CommitDate }}`.
+- **`SOURCE_DATE_EPOCH`** (the commit epoch) is exported wherever GoReleaser runs
+  (`release.yml`, `snapshot-release.yml`, the `Makefile` `snapshot:` target).
+  This is **required for `.deb`/`.rpm`** — nfpm stamps its own package metadata
+  from it, and `mod_timestamp` does not cover the `nfpms:` pipe. **Do not remove
+  it thinking it's a no-op** — without it, deb/rpm differ on every build.
+
 ## Artifacts
 
 Each release contains, per OS/arch:
