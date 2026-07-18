@@ -18,8 +18,9 @@ Each release contains, per OS/arch:
 
 - `kuberoutectl_<version>_<os>_<arch>.tar.gz` (Linux, macOS)
 - `kuberoutectl_<version>_<os>_<arch>.zip` (Windows)
+- `kuberoutectl_<version>_linux_<arch>.{deb,rpm,apk}` (Linux packages, see below)
 
-plus a single `checksums.txt` with the SHA256 of every archive.
+plus a single `checksums.txt` with the SHA256 of every archive and package.
 
 Build metadata (`Version`, `Commit`, `Date`) is embedded into the binary via
 `-ldflags -X` and shown by `kuberoutectl version`.

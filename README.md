@@ -139,9 +139,10 @@ to `development`. Grab either from the releases page:
 See **[RELEASING.md](RELEASING.md)** for how releases are produced and verified.
 
 Each build ships **Windows, Linux, and macOS in both `amd64` and `arm64`**.
-Assets are named `kuberoutectl_<version>_<os>_<arch>.<ext>` (`.tar.gz` for Linux
-and macOS, `.zip` for Windows). Not sure which architecture you need? Run
-`uname -m` — `x86_64` → `amd64`, `aarch64`/`arm64` → `arm64`.
+Archives are named `kuberoutectl_<version>_<os>_<arch>.<ext>` (`.tar.gz` for Linux
+and macOS, `.zip` for Windows), plus `.deb`/`.rpm`/`.apk` Linux packages. Not sure
+which architecture you need? Run `uname -m` — `x86_64` → `amd64`,
+`aarch64`/`arm64` → `arm64`.
 
 ### macOS (Homebrew)
 
