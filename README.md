@@ -400,6 +400,14 @@ pre-release. This makes it easy to develop on a personal machine and validate
 builds on a more restricted work environment without promoting every test build
 to a formal release.
 
+## Acknowledgements
+
+[![Hosted By: Cloudsmith](https://img.shields.io/badge/OSS%20hosting%20by-cloudsmith-blue?logo=cloudsmith&style=flat-square)](https://cloudsmith.com)
+
+Package repository hosting for the apt distribution is graciously provided by
+[Cloudsmith](https://cloudsmith.com), which offers free package hosting for
+open-source projects.
+
 ## License
 
 The project is intended to be open source and is a good fit for **Apache License 2.0**.
