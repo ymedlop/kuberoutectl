@@ -38,6 +38,21 @@ kuberoutectl version
 `brew upgrade kuberoutectl` picks up new releases. Prefer a manual download?
 Use the cross-platform instructions below.
 
+## Linux (packages)
+
+Each release ships `.deb`, `.rpm`, and `.apk` packages (amd64 + arm64) as release
+assets. Download the one for your distro and arch, then:
+
+```bash
+sudo dpkg -i kuberoutectl_*_amd64.deb          # Debian / Ubuntu
+sudo rpm -i  kuberoutectl_*_amd64.rpm           # Fedora / RHEL / openSUSE
+sudo apk add --allow-untrusted kuberoutectl_*_amd64.apk   # Alpine
+kuberoutectl version
+```
+
+The binary lands on your `PATH` at `/usr/bin/kuberoutectl`. Packages are unsigned,
+so `apk` needs `--allow-untrusted`.
+
 ## Linux and macOS (manual)
 
 Download the asset matching your OS (`linux` | `darwin`) and arch
@@ -59,7 +74,20 @@ kuberoutectl version
 > xattr -d com.apple.quarantine ./kuberoutectl    # or: right-click → Open
 > ```
 
-## Windows
+## Windows (Scoop)
+
+The simplest path on Windows — installs and updates via [Scoop](https://scoop.sh):
+
+```powershell
+scoop bucket add ymedlop https://github.com/ymedlop/scoop-bucket
+scoop install kuberoutectl
+kuberoutectl version
+```
+
+`scoop update kuberoutectl` picks up new releases. Prefer a manual download? See
+below.
+
+## Windows (manual)
 
 Download the `..._windows_<arch>.zip` asset, extract it, and run from
 PowerShell:

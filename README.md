@@ -139,9 +139,10 @@ to `development`. Grab either from the releases page:
 See **[RELEASING.md](RELEASING.md)** for how releases are produced and verified.
 
 Each build ships **Windows, Linux, and macOS in both `amd64` and `arm64`**.
-Assets are named `kuberoutectl_<version>_<os>_<arch>.<ext>` (`.tar.gz` for Linux
-and macOS, `.zip` for Windows). Not sure which architecture you need? Run
-`uname -m` — `x86_64` → `amd64`, `aarch64`/`arm64` → `arm64`.
+Archives are named `kuberoutectl_<version>_<os>_<arch>.<ext>` (`.tar.gz` for Linux
+and macOS, `.zip` for Windows), plus `.deb`/`.rpm`/`.apk` Linux packages. Not sure
+which architecture you need? Run `uname -m` — `x86_64` → `amd64`,
+`aarch64`/`arm64` → `arm64`.
 
 ### macOS (Homebrew)
 
@@ -151,6 +152,17 @@ brew install ymedlop/tap/kuberoutectl
 
 Installs and updates via `brew`, no manual quarantine step. Manual download works
 too — see below.
+
+### Linux (packages)
+
+```bash
+sudo dpkg -i kuberoutectl_*_amd64.deb                       # Debian/Ubuntu
+sudo rpm -i  kuberoutectl_*_amd64.rpm                        # Fedora/RHEL
+sudo apk add --allow-untrusted kuberoutectl_*_amd64.apk     # Alpine
+```
+
+`.deb`/`.rpm`/`.apk` (amd64 + arm64) ship as release assets; the binary lands at
+`/usr/bin/kuberoutectl`.
 
 ### Linux and macOS (manual)
 
@@ -170,7 +182,17 @@ Clear the quarantine flag once after extracting:
 xattr -d com.apple.quarantine ./kuberoutectl     # or: right-click → Open
 ```
 
-### Windows
+### Windows (Scoop)
+
+```powershell
+scoop bucket add ymedlop https://github.com/ymedlop/scoop-bucket
+scoop install kuberoutectl
+```
+
+Installs and updates via [Scoop](https://scoop.sh). Manual download works too —
+see below.
+
+### Windows (manual)
 
 Download the `..._windows_<arch>.zip` asset, extract it, and run from PowerShell:
 
