@@ -40,3 +40,11 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # PAT with write access to ymedlop/homebrew-tap, so GoReleaser can push
+          # the Homebrew cask there (the default GITHUB_TOKEN can't reach another
+          # repo). Must be set before the first stable tag; see RELEASING.md.
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          # PAT with write access to ymedlop/scoop-bucket, so GoReleaser can push
+          # the Scoop manifest there. Must be set before the first stable tag;
+          # see RELEASING.md. (nfpm Linux packages need no token.)
+          SCOOP_BUCKET_GITHUB_TOKEN: ${{ secrets.SCOOP_BUCKET_GITHUB_TOKEN }}

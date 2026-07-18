@@ -66,3 +66,73 @@ changelog:
 release:
   draft: true
   prerelease: auto
+
+# Homebrew distribution. GoReleaser generates a cask and pushes it to a separate
+# tap repo (ymedlop/homebrew-tap) on stable releases, so macOS users can
+# `brew install ymedlop/tap/kuberoutectl`. Casks, not the deprecated `brews:`
+# formula block (which fails `goreleaser check` since v2.16).
+#
+# Only fires on a real `goreleaser release`; `skip_upload: auto` also skips
+# pre-releases so the tap only ever points at a stable version. Requires the
+# HOMEBREW_TAP_GITHUB_TOKEN secret (a PAT with write access to the tap repo) —
+# the default GITHUB_TOKEN cannot push to a different repository. See RELEASING.md.
+homebrew_casks:
+  - name: kuberoutectl
+    # No `binary:` — deprecated in v2.16+ (fails `goreleaser check`); GoReleaser
+    # infers the binary name from the build, emitting `binary "kuberoutectl"`.
+    #
+    # GoReleaser also emits on_linux stanzas here (its cask artifact filter always
+    # includes both darwin and linux archives). They are inert: Homebrew installs
+    # casks on macOS only. We deliberately do NOT split the single build/archive
+    # into per-OS ids to strip them — that would duplicate the ldflags/version
+    # block for cosmetic dead code. This distribution is macOS-only in practice.
+    repository:
+      owner: ymedlop
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Casks
+    homepage: "https://github.com/ymedlop/kuberoutectl"
+    description: "Provider-agnostic Kubernetes access routing CLI"
+    # Currently a no-op for casks (GoReleaser v2.17 ignores it); kept so it takes
+    # effect if/when cask license support lands.
+    license: "Apache-2.0"
+    skip_upload: auto
+    # The binary is unsigned, so macOS quarantines it on install. Clear the
+    # quarantine attribute post-install so `brew install` yields a runnable
+    # binary with no manual `xattr` step.
+    hooks:
+      post:
+        install: |
+          if system_command("/usr/bin/xattr", args: ["-h"]).exit_status == 0
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/kuberoutectl"]
+          end
+
+# Linux packages (issue #48). GoReleaser builds .deb/.rpm/.apk in pure Go (no
+# system tooling) and attaches them to the GitHub release — no external repo or
+# secret. Unlike casks/scoops there is no `skip_upload`, so the packages ship on
+# every release including pre-releases. The binary is auto-placed at /usr/bin.
+nfpms:
+  - id: packages
+    package_name: kuberoutectl
+    maintainer: "Yeray Medina Lopez <ymedlop@gmail.com>"
+    homepage: "https://github.com/ymedlop/kuberoutectl"
+    description: "Provider-agnostic Kubernetes access routing CLI"
+    license: Apache-2.0
+    formats: [deb, rpm, apk]
+
+# Windows distribution via Scoop (issue #47). GoReleaser writes a manifest and
+# pushes it to a separate bucket repo (ymedlop/scoop-bucket) on stable releases,
+# mirroring the Homebrew tap. `skip_upload: auto` skips pre-releases/snapshots so
+# the bucket only points at a stable version. Requires the SCOOP_BUCKET_GITHUB_TOKEN
+# secret (a PAT with write access to the bucket) — see RELEASING.md.
+scoops:
+  - name: kuberoutectl
+    repository:
+      owner: ymedlop
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_BUCKET_GITHUB_TOKEN }}"
+    directory: bucket
+    homepage: "https://github.com/ymedlop/kuberoutectl"
+    description: "Provider-agnostic Kubernetes access routing CLI"
+    license: Apache-2.0
+    skip_upload: auto
