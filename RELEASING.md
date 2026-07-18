@@ -89,6 +89,42 @@ happened, and delete the stray draft if you're re-cutting.
 - **No `xattr` step for users.** The cask clears the Gatekeeper quarantine on
   install (unsigned binary), so `brew install` gives a runnable binary directly.
 
+## Scoop bucket (Windows)
+
+On a stable release, GoReleaser also writes a Scoop manifest and pushes it to a
+separate bucket repo, so Windows users can
+`scoop install ymedlop/kuberoutectl`. Setup mirrors the Homebrew tap exactly.
+
+### One-time setup (before the first stable tag)
+
+1. **Create the bucket repo** — `ymedlop/scoop-bucket`, public.
+   ```bash
+   gh repo create ymedlop/scoop-bucket --public \
+     --description "Scoop bucket for kuberoutectl"
+   ```
+2. **Create a fine-grained PAT** with **Contents: write** on `ymedlop/scoop-bucket`
+   only.
+3. **Store it as a secret on THIS repo**:
+   ```bash
+   gh secret set SCOOP_BUCKET_GITHUB_TOKEN --repo ymedlop/kuberoutectl
+   ```
+
+Same as the tap: `skip_upload: auto` means pre-releases and snapshots don't touch
+the bucket, and a missing secret fails only the bucket push (the draft + artifacts
+are still created).
+
+## Linux packages (deb / rpm / apk)
+
+Every release also carries `.deb`, `.rpm`, and `.apk` packages (amd64 + arm64),
+built by GoReleaser and attached as release assets — **no external repo or secret
+needed**. Unlike the tap/bucket, they are **not** gated by `skip_upload`, so they
+ship on every release including a `v0.0.1-rc.1` pre-release (which makes Linux
+packaging the first thing you can prove end-to-end). Version and per-file SHA256
+(in `checksums.txt`) come for free.
+
+Packages are unsigned (no GPG repo signing): `dpkg -i` / `rpm -i` install
+directly; `apk add` needs `--allow-untrusted`.
+
 ## Snapshots
 
 Snapshots are automatic: every push to `development` rebuilds the artifacts and
