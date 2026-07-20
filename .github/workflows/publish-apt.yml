@@ -1,0 +1,75 @@
+name: publish-apt
+
+# Publishes the release's .deb packages to the Cloudsmith APT repository, so
+# Debian/Ubuntu users can `apt install kuberoutectl`.
+#
+# Triggered on `release: published` (NOT on the tag push) — so nothing reaches
+# the public apt repo until a maintainer publishes the draft, matching the
+# Homebrew/Scoop "nothing public until you publish" safety net. Unlike those,
+# this uploads the actual package BYTES (which go live immediately and have no
+# undo), which is exactly why it must wait for publish rather than run inside
+# release.yml on tag push.
+#
+# `workflow_dispatch` allows backfilling an already-published release (e.g.
+# v1.0.0, published before this workflow existed) or re-running after a
+# transient failure. A failure here never undoes the release — the release and
+# its assets are unaffected; fix the issue and re-run.
+#
+# Requires CLOUDSMITH_API_KEY (an API key with push rights to the repo). Only
+# stable tags (vX.Y.Z, no pre-release suffix) are published.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to publish (e.g. v1.0.0)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish-apt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve release tag
+        id: tag
+        run: echo "tag=${{ github.event.release.tag_name || inputs.tag }}" >> "$GITHUB_OUTPUT"
+
+      - name: Skip pre-releases
+        id: gate
+        run: |
+          tag="${{ steps.tag.outputs.tag }}"
+          if [[ "$tag" == *-* ]]; then
+            echo "Pre-release tag ($tag) — not publishing to the stable apt repo."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download .deb assets
+        if: steps.gate.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p dist
+          gh release download "${{ steps.tag.outputs.tag }}" \
+            --repo "${{ github.repository }}" \
+            --pattern '*.deb' --dir dist
+          ls -1 dist/*.deb
+
+      - name: Install Cloudsmith CLI
+        if: steps.gate.outputs.publish == 'true'
+        run: pipx install cloudsmith-cli
+
+      - name: Push .deb to Cloudsmith
+        if: steps.gate.outputs.publish == 'true'
+        env:
+          CLOUDSMITH_API_KEY: ${{ secrets.CLOUDSMITH_API_KEY }}
+        run: |
+          for deb in dist/*.deb; do
+            echo "Pushing $deb"
+            cloudsmith push deb --republish \
+              ymedlop/kuberoutectl/any-distro/any-version "$deb"
+          done
