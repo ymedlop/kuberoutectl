@@ -29,7 +29,8 @@ what "ready" means):
 - [ ] Release automation working + repeatable (proven by a pre-release tag).
 - [ ] Tests pass in CI and locally (`make check`, `scripts/e2e.sh`).
 - [ ] Working tree clean; **reproducible builds verified** (see below).
-- [ ] The tap + bucket repos and their secrets exist (Homebrew, Scoop sections).
+- [ ] The tap + bucket + Cloudsmith repos and their secrets exist (Homebrew,
+      Scoop, apt sections).
 
 ## Reproducible builds
 
@@ -158,6 +159,34 @@ packaging the first thing you can prove end-to-end). Version and per-file SHA256
 
 Packages are unsigned (no GPG repo signing): `dpkg -i` / `rpm -i` install
 directly; `apk add` needs `--allow-untrusted`.
+
+## apt repository (Cloudsmith)
+
+For a real `apt install kuberoutectl` + `apt upgrade`, the release's `.deb`
+packages are also pushed to a managed [Cloudsmith](https://cloudsmith.io) apt
+repo (`ymedlop/kuberoutectl`), which handles GPG signing, metadata, and CDN.
+
+### One-time setup
+
+1. **Create the Cloudsmith repo** — `ymedlop/kuberoutectl`, as an **open-source**
+   repository (the OSS policy gives a far larger free quota than the default).
+2. **Create an API key** with push rights, and store it as a secret on this repo:
+   ```bash
+   gh secret set CLOUDSMITH_API_KEY --repo ymedlop/kuberoutectl
+   ```
+
+### Behavior
+
+- **Publishes on `release: published`, not on tag** (`publish-apt.yml`) — nothing
+  reaches the public apt repo until you publish the draft, the same safety net as
+  the tap/bucket. (It uploads the actual package bytes, which go live immediately
+  and have no undo — hence the wait for publish.)
+- **Stable only** — pre-release tags (`-rc.N`) are skipped.
+- **Backfill / re-run** — the workflow also has a `workflow_dispatch` (with a tag
+  input) to publish an already-published release (e.g. `v1.0.0`, released before
+  this workflow existed) or to re-run after a failure. A failure here **never
+  undoes the release** — the release and its assets are unaffected; fix the secret
+  / Cloudsmith issue and re-run. `--republish` makes re-runs idempotent.
 
 ## Snapshots
 
