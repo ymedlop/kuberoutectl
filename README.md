@@ -40,13 +40,16 @@ Everything the stable release ships (see [CHANGELOG.md](CHANGELOG.md) for detail
 - Cross-platform distribution: archives + checksums, Homebrew, Scoop, deb/rpm/apk
 - Documented, reproducible, repeatable release automation
 
+Driving `kuberoutectl` from an AI assistant? See the companion
+[kuberoutectl-skills](https://github.com/ymedlop/kuberoutectl-skills) repo —
+vendor-neutral operator skills for discovery, routing, and organizing.
+
 ## Roadmap
 
 Post-1.0 work — additive, and it does not change the core workflow:
 
 - managed `kubectl` runtime with version compatibility + selection ([#37](https://github.com/ymedlop/kuberoutectl/issues/37)–[#42](https://github.com/ymedlop/kuberoutectl/issues/42))
 - an MCP server for `kuberoutectl` ([#44](https://github.com/ymedlop/kuberoutectl/issues/44))
-- an AI-skills repo ([#43](https://github.com/ymedlop/kuberoutectl/issues/43))
 - richer health checks and improved collection selectors
 
 ## Core concepts
@@ -423,9 +426,11 @@ The command surface is not expected to change in breaking ways. See
 [CHANGELOG.md](CHANGELOG.md) for the full 1.0.0 summary and
 [RELEASING.md](RELEASING.md) for the release process.
 
-Post-1.0 work (a managed `kubectl` runtime with version selection, an MCP server,
-and an AI-skills repo) is tracked as roadmap and does not change the core
-workflow — see [Roadmap](#roadmap). `TODO.md` is the historical milestone-1
+Post-1.0 work (a managed `kubectl` runtime with version selection and an MCP
+server) is tracked as roadmap and does not change the core workflow — see
+[Roadmap](#roadmap). The companion
+[kuberoutectl-skills](https://github.com/ymedlop/kuberoutectl-skills) repo (AI
+operator skills) already ships alongside 1.0.0. `TODO.md` is the historical milestone-1
 tracker, kept for reference.
 
 The architecture is shaped around real operator workflows first, not around
