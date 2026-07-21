@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
-# Regenerate the README demo GIF (assets/demo.gif) deterministically from the
+# Regenerate the demo GIF (assets/demo.gif for the README + docs/assets/demo.gif
+# for the Pages site) deterministically from the
 # committed provider fixtures — no real cloud, no credentials, no secrets.
 #
 #   make demo            # or: bash scripts/demo.sh
@@ -167,4 +168,10 @@ agg \
   --last-frame-duration 3 \
   "$CAST" "$ROOT/assets/demo.gif"
 
-echo "==> wrote $ROOT/assets/demo.gif ($(stat -c%s "$ROOT/assets/demo.gif") bytes)"
+# Second copy for the docs site: GitHub Pages serves from docs/, so the root
+# assets/ copy (used by README.md) isn't visible to the site. Keep them in sync
+# by emitting both from this one recording.
+mkdir -p "$ROOT/docs/assets"
+cp "$ROOT/assets/demo.gif" "$ROOT/docs/assets/demo.gif"
+
+echo "==> wrote $ROOT/assets/demo.gif and docs/assets/demo.gif ($(stat -c%s "$ROOT/assets/demo.gif") bytes)"
