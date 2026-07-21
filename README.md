@@ -3,7 +3,6 @@
 [![Go](https://img.shields.io/github/go-mod/go-version/ymedlop/kuberoutectl?logo=go&label=Go)](go.mod)
 [![Release](https://img.shields.io/github/v/release/ymedlop/kuberoutectl?logo=github&label=release)](https://github.com/ymedlop/kuberoutectl/releases)
 [![CI](https://github.com/ymedlop/kuberoutectl/actions/workflows/ci.yml/badge.svg)](https://github.com/ymedlop/kuberoutectl/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/ymedlop/kuberoutectl)](https://goreportcard.com/report/github.com/ymedlop/kuberoutectl)
 [![License](https://img.shields.io/github/license/ymedlop/kuberoutectl)](LICENSE)
 [![Providers](https://img.shields.io/badge/providers-AKS%20%C2%B7%20EKS%20%C2%B7%20GKE%20%C2%B7%20kubeconfig-informational)](#provider-guides)
 
