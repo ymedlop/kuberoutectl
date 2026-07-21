@@ -5,11 +5,15 @@
 # example block and the demo GIF from silently going stale after a command rename.
 #
 #   scripts/verify-readme-commands.sh      # builds the CLI, then checks
+#   make verify-readme
 #
-# Per referenced command it takes the leading run of subcommand-like tokens as the
-# command path (stopping at the first placeholder / flag / value), asserts
-# `kuberoutectl <path> --help` exits 0, and asserts every long flag on that line
-# appears in that help text.
+# Soundness note: Cobra's `--help` ALWAYS exits 0 and falls back to the nearest
+# resolvable ancestor, so an exit-code check cannot detect a renamed subcommand
+# (`kuberoutectl sync bogus --help` prints `sync`'s help and exits 0). Instead we
+# walk the real command tree: for each referenced command we descend only through
+# tokens that appear in the parent's "Available Commands" list. A token that
+# should be a subcommand but isn't (a rename/removal) is flagged; a positional
+# value after a leaf command is correctly left alone.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -23,32 +27,59 @@ echo "==> building kuberoutectl"
 fail=0
 declare -A seen
 
-check() {
-  # $* is a raw command line beginning with "kuberoutectl"
-  read -ra toks <<< "$*"
-  [ "${toks[0]:-}" = "kuberoutectl" ] || return 0
+# Names under "Available Commands:" of `kuberoutectl <path>` — empty if it's a
+# leaf (takes args, not subcommands).
+avail_subcommands() {
+  "$BIN" "$@" --help 2>/dev/null | awk '
+    /^Available Commands:/ { f = 1; next }
+    f && /^[[:space:]]*$/  { f = 0 }
+    f && /^[[:space:]]+[a-zA-Z]/ { print $1 }
+  '
+}
 
-  local path=() flags=() t
+check() {
+  read -ra toks <<< "$*"
+  [ "${toks[0]:-}" = kuberoutectl ] || return 0
+
+  # Candidate command tokens = leading run of subcommand-like words; long flags
+  # collected separately from anywhere on the line.
+  local -a cand=() flags=()
+  local t
   for t in "${toks[@]:1}"; do
     [[ "$t" =~ ^[a-z][a-z-]*$ ]] || break
-    path+=("$t")
+    cand+=("$t")
   done
-  [ ${#path[@]} -gt 0 ] || return 0
   for t in "${toks[@]:1}"; do
     [[ "$t" =~ ^--[a-z][a-z-]*$ ]] && flags+=("$t")
   done
+  [ ${#cand[@]} -gt 0 ] || return 0
+
+  # `clusters`/`cluster` are aliases of `target` (not listed under a parent's
+  # Available Commands), so normalize them to walk the canonical tree.
+  case "${cand[0]}" in clusters | cluster) cand[0]=target ;; esac
+
+  # Descend the real command tree.
+  local -a path=()
+  local subs
+  for t in "${cand[@]}"; do
+    subs="$(avail_subcommands "${path[@]}")"
+    [ -n "$subs" ] || break                       # leaf: remaining tokens are args
+    if grep -qxF "$t" <<< "$subs"; then
+      path+=("$t")
+    else
+      echo "DRIFT: '$t' is not a subcommand of 'kuberoutectl ${path[*]}' (renamed/removed?)" >&2
+      fail=1
+      return 0
+    fi
+  done
+  [ ${#path[@]} -gt 0 ] || return 0
 
   local key="${path[*]} :: ${flags[*]:-}"
   [[ -n "${seen[$key]:-}" ]] && return 0
   seen[$key]=1
 
-  local help
-  if ! help="$("$BIN" "${path[@]}" --help 2>&1)"; then
-    echo "DRIFT: 'kuberoutectl ${path[*]}' no longer exists" >&2
-    fail=1
-    return 0
-  fi
-  local f
+  local help f
+  help="$("$BIN" "${path[@]}" --help 2>&1)"
   for f in "${flags[@]:-}"; do
     [ -n "$f" ] || continue
     grep -q -- "$f" <<< "$help" || { echo "DRIFT: flag '$f' not on 'kuberoutectl ${path[*]}'" >&2; fail=1; }

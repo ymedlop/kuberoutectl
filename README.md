@@ -34,7 +34,19 @@ kuberoutectl target list         # what can I reach, and is it healthy?
 kuberoutectl target use <alias>  # fetch credentials into ~/.kube/config and switch context
 ```
 
-That's the whole flow the demo above shows. Everything below is depth: how it's
+`target list` gives you the routable clusters and their health at a glance:
+
+```console
+$ kuberoutectl target list
+ALIAS               PLATFORM    REGION          HEALTH  PROVIDER
+aks-prod-weu        aks         westeurope      valid   azure
+eks-prod-frankfurt  eks         eu-central-1    valid   aws
+gke-prod-euw1       gke         europe-west1    valid   gcp
+homelab             kubeconfig                  static  kubeconfig
+```
+
+The demo above shows the fuller flow — credential-health inspection, labels, and
+collections across all four providers. Everything below is depth: how it's
 organized, every command, and per-cloud guides.
 
 ## Why kuberoutectl
@@ -261,7 +273,9 @@ a formal release.
 **Regenerating the demo:** the README GIF is built from the committed provider
 fixtures (no real cloud, no secrets) — run `make demo` (needs
 [`asciinema`](https://asciinema.org) + [`agg`](https://github.com/asciinema/agg)).
-The command flow lives in `scripts/demo.sh`.
+The command flow lives in `scripts/demo.sh`. `make verify-readme` (run in CI)
+asserts every command shown in the README and the demo still exists in the CLI,
+so they can't silently drift after a rename.
 
 ## Roadmap
 
