@@ -63,112 +63,26 @@ description: >-
 
 ## Why kuberoutectl
 
-`kuberoutectl` is built to solve a real operational problem: **managing Kubernetes access across multiple cloud providers is fragmented**.
-
-### The Problem
-
-Operators often need to move between:
-- Multiple cloud providers (Azure, AWS, GCP, self-hosted)
-- Multiple identities or subscriptions/accounts
-- Multiple clusters per environment
-- Different local access methods
-
-The current toolchain gives you pieces — one CLI for auth, another for context switching, another for inspection — but no single operator-focused layer that keeps an organized local inventory of access and lets you route to the right cluster quickly.
-
-### The Solution
-
-`kuberoutectl` fills that gap by:
-
-- **Discovering** Kubernetes access targets from supported providers (Azure, AWS, GCP, kubeconfig)
-- **Caching** discovered inventory locally for quick access
-- **Detecting** credential health — valid, expiring, expired, static, or unknown
-- **Helping** users renew or re-authenticate credentials when supported
-- **Organizing** targets with user-defined labels and collections
-- **Keeping** provider logic behind a provider-agnostic core
+Every extra cloud means another CLI, another identity, and a few more unreadable
+`~/.kube/config` contexts. `kuberoutectl` collapses that into one local inventory
+of what you can reach and whether it's healthy — so you route `kubectl` to the
+right cluster in seconds.
 
 ## Quick Start
 
-If you're already familiar with `kuberoutectl`, here's the universal workflow:
-
 ```bash
-kuberoutectl doctor              # 1. is the provider CLI reachable?
-kuberoutectl sync <provider>     # 2. discover clusters + credential health
-kuberoutectl credential list     # 3. what's valid / expiring / expired?
-kuberoutectl target list         # 4. what can I reach?
-kuberoutectl target use <id>     # 5. route kubectl at one cluster
+brew install ymedlop/tap/kuberoutectl   # macOS — all install methods in the guide below
+kuberoutectl doctor                      # is the provider CLI reachable?
+kuberoutectl sync azure                  # discover clusters + credential health (also: aws | gcp | kubeconfig)
+kuberoutectl target list                 # what can I reach, and is it healthy?
+kuberoutectl target use <alias>          # route kubectl at the right cluster
 ```
 
-## Core Concepts
+## Learn more
 
-The CLI is built around a stable domain model that works identically across all providers:
-
-- **Provider**: source of access such as `azure`, `aws`, `gcp`, or `kubeconfig`
-- **AccessSource**: concrete source of access data (Azure CLI profile, AWS profile, kubeconfig file)
-- **Credential**: usable identity inside a provider
-- **Scope**: administrative or logical boundary (subscription, account, project)
-- **Target**: selectable Kubernetes destination (AKS, EKS, GKE, or kubeconfig context)
-- **Labels**: key/value metadata used to organize targets
-- **Collections**: saved logical views over targets, driven by label selectors
-
-## Documentation Structure
-
-### [Organizing: labels & collections](organizing.md)
-
-How to tag clusters with labels and group them into live, selector-driven
-collections that span clouds — including the create-first, label-later workflow.
-
-### [Provider Guides](guides/index.md)
-
-Step-by-step manuals for using `kuberoutectl` with each supported cloud:
-
-- **[Azure (AKS)](guides/azure.md)** — managing AKS clusters and credentials with Azure CLI
-- **[AWS (EKS)](guides/aws.md)** — managing EKS clusters across profiles and accounts
-- **[GCP (GKE)](guides/gcp.md)** — managing GKE clusters with gcloud
-- **[kubeconfig](guides/kubeconfig.md)** — self-hosted, local, and handed-to-you contexts
-
-Each guide covers:
-1. **Setting up the provider** — ensuring your CLI is configured and authenticated
-2. **Discovering clusters** — using `sync` to populate the local cache
-3. **Checking credential health** — understanding what's valid, expiring, or expired
-4. **Managing clusters** — inspecting, selecting, and routing to targets
-5. **Organizing with labels** — tagging clusters for easy filtering
-6. **Creating collections** — saving views with selectors
-
-### [Shared Model](guides/index.md)
-
-The guides reference a shared domain model that lets the same commands work identically across all providers. This section explains:
-- How each cloud provider maps to the universal model
-- The credential health spectrum
-- The universal workflow loop
-
-## Commands
-
-Every inventory command supports `--output json` (`-o json`). The full
-command reference lives in the [README](https://github.com/ymedlop/kuberoutectl#commands), and per-cloud
-walkthroughs are in the [provider guides](guides/index.md).
-
-## Architecture & Design Principles
-
-- **Provider-agnostic core**: provider-specific logic stays behind interfaces
-- **User-owned organization**: labels and collections survive discovery resyncs
-- **Cache first**: local inventory for fast access and organization
-- **No secret vault**: the cache stores inventory, not credentials
-- **Operator-focused UX**: answers practical questions quickly
-
-For deeper architectural details, see the main [README.md](https://github.com/ymedlop/kuberoutectl/blob/main/README.md) or [ARCHITECTURE.md](https://github.com/ymedlop/kuberoutectl/blob/main/ARCHITECTURE.md).
-
-
-## Getting Help
-
-- **New to kuberoutectl?** Start with the [Quick Start](#quick-start) and a provider guide for your cloud.
-- **Setting up a specific cloud?** Jump to [Azure](guides/azure.md), [AWS](guides/aws.md), [GCP](guides/gcp.md), or [kubeconfig](guides/kubeconfig.md).
-- **Understanding credential health?** See [Credential Health, Once](guides/index.md#credential-health-once).
-- **Advanced workflows?** See the [command reference](https://github.com/ymedlop/kuberoutectl#commands) in the README.
-
-## Contributing
-
-`kuberoutectl` is open source. For source code, building, and development workflow, see the main [README.md](https://github.com/ymedlop/kuberoutectl/blob/main/README.md) and [ARCHITECTURE.md](https://github.com/ymedlop/kuberoutectl/blob/main/ARCHITECTURE.md).
-
-## License
-
-Apache License 2.0. See [LICENSE](https://github.com/ymedlop/kuberoutectl/blob/main/LICENSE) for details.
+- **[Installation]({{ '/installation/' | relative_url }})** — every platform: Homebrew, apt, Scoop, packages, manual.
+- **[Provider guides]({{ '/guides/' | relative_url }})** — Azure · AWS · GCP · kubeconfig, step by step.
+- **[Organizing: labels & collections]({{ '/organizing/' | relative_url }})** — tag clusters and build selector-driven views.
+- **[Command reference](https://github.com/ymedlop/kuberoutectl#commands)** — the full command surface.
+- **[Concepts & architecture](https://github.com/ymedlop/kuberoutectl#core-concepts)** — the domain model and design principles ([ARCHITECTURE.md](https://github.com/ymedlop/kuberoutectl/blob/main/ARCHITECTURE.md) for depth).
+- **[Contributing](https://github.com/ymedlop/kuberoutectl)** — source, building, and development workflow.
