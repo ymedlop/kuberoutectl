@@ -61,21 +61,6 @@ description: >-
   <span style="display: block; margin-top: 0.6rem; font-size: 0.85rem; opacity: 0.7;">Discover → organize → route, across all four providers.</span>
 </div>
 
-<div class="terminal" markdown="0">
-  <span class="terminal__caption">example session</span>
-  <div class="terminal__bar"><span></span><span></span><span></span></div>
-  <pre class="terminal__body"><code><span class="term-prompt">$</span> kuberoutectl sync azure &amp;&amp; kuberoutectl sync aws
-<span class="term-ok">Synced provider: azure</span>  targets: 3
-<span class="term-ok">Synced provider: aws</span>    targets: 2
-
-<span class="term-prompt">$</span> kuberoutectl target list -l env=prod
-ALIAS               KIND  REGION        HEALTH
-aks-prod-weu        aks   westeurope    <span class="term-ok">valid</span>
-eks-prod-frankfurt  eks   eu-central-1  <span class="term-ok">valid</span>
-
-<span class="term-prompt">$</span> kuberoutectl target use aks-prod-weu   <span class="term-comment"># kubectl now points here</span></code></pre>
-</div>
-
 ## Why kuberoutectl
 
 `kuberoutectl` is built to solve a real operational problem: **managing Kubernetes access across multiple cloud providers is fragmented**.
