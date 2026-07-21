@@ -64,6 +64,9 @@ pretending coverage.
 ## Repo workflow
 
 - PRs target `development` (branch-protected); `main` is stable.
+- **Promoting `development` → `main`:** do NOT open a plain `development → main`
+  PR — squash merges leave `main` un-ancestored, so it 3-way-conflicts. Follow
+  the branch-off-`main` recipe in `RELEASING.md` (§Promoting development to main).
 - Read `README.md` and `ARCHITECTURE.md` before major changes; evolving
   implementation prompts live in `prompts/claude-code/`.
 - Report honestly: failing tests are reported with output, skipped steps are
