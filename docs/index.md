@@ -141,59 +141,11 @@ The guides reference a shared domain model that lets the same commands work iden
 - The credential health spectrum
 - The universal workflow loop
 
-## Common Commands
+## Commands
 
-Every inventory command supports `--output json` (`-o json`) for scripting.
-
-```bash
-# Setup and discovery
-kuberoutectl doctor                           # check required provider CLIs resolve
-kuberoutectl sync azure                       # discover Azure inventory
-kuberoutectl sync aws                         # discover AWS inventory
-kuberoutectl sync gcp                         # discover GCP inventory
-kuberoutectl sync kubeconfig                  # discover kubeconfig contexts
-kuberoutectl setup aws-sso --sso-session <name>   # write ~/.aws profiles for every SSO account
-
-# Inventory (read-only views of discovered state)
-kuberoutectl inventory providers              # registered providers + capabilities
-kuberoutectl inventory sources                # discovered access sources
-kuberoutectl inventory scopes                 # discovered subscriptions/accounts/projects
-
-# Credentials
-kuberoutectl credential list                  # list all credentials with health status
-kuberoutectl credential list --provider aws  # filter by provider
-kuberoutectl credential show <id>             # show credential details
-kuberoutectl credential renew <id>            # renew a credential if supported
-
-# Targets (aliases: clusters, cluster)
-kuberoutectl target list                      # list clusters with health
-kuberoutectl clusters list                    # same thing via the `clusters` alias
-kuberoutectl target list --provider aws       # filter by provider
-kuberoutectl target list -l env=prod          # filter by label selector
-kuberoutectl target inspect <alias|id|name>  # detailed cluster info
-kuberoutectl target use <alias|id|name>      # activate a cluster (update kubeconfig)
-kuberoutectl target delete <alias|id|name>   # drop one target from the cache (a resync re-adds it)
-kuberoutectl target clear                     # drop all targets (prompts; --yes to skip); a resync repopulates
-kuberoutectl target hide <alias|id|name>      # hide from the default list; persists across resyncs
-kuberoutectl target hide -l env=staging       # bulk-hide by selector
-kuberoutectl target unhide <alias|id|name>    # reveal a hidden target
-kuberoutectl target list --all                # include hidden (adds a HIDDEN column); -l hidden=true lists only hidden
-
-# Labels
-kuberoutectl target label add <id> env=prod           # add labels
-kuberoutectl target label remove <id> env             # remove labels
-kuberoutectl target label list <id>                   # list labels
-
-# Collections
-kuberoutectl collection create prod --selector env=prod            # save a labeled view
-kuberoutectl collection list                                       # list saved collections
-kuberoutectl collection show prod                                  # show collection members
-kuberoutectl collection use prod                                   # activate all targets in a collection
-
-# Status
-kuberoutectl current                          # what am I pointed at?
-kuberoutectl version                          # show version info
-```
+Every inventory command supports `--output json` (`-o json`). The full
+command reference lives in the [README](https://github.com/ymedlop/kuberoutectl#commands), and per-cloud
+walkthroughs are in the [provider guides](guides/index.md).
 
 ## Architecture & Design Principles
 
@@ -205,57 +157,13 @@ kuberoutectl version                          # show version info
 
 For deeper architectural details, see the main [README.md](https://github.com/ymedlop/kuberoutectl/blob/main/README.md) or [ARCHITECTURE.md](https://github.com/ymedlop/kuberoutectl/blob/main/ARCHITECTURE.md).
 
-## Example Workflow
-
-### Discover both Azure and AWS
-
-```console
-$ kuberoutectl sync azure && kuberoutectl sync aws
-Synced provider: azure
-  sources:     1
-  credentials: 1
-  scopes:      3
-  targets:     3
-Synced provider: aws
-  sources:     3
-  credentials: 3
-  scopes:      2
-  targets:     2
-```
-
-### Check credential health across clouds
-
-```console
-$ kuberoutectl credential list
-ID                                                            PROVIDER  IDENTITY                               HEALTH   ACTION
-azure:11111111-1111-1111-1111-111111111111:yeray@example.com  azure     yeray@example.com                      valid    use
-aws:default                                                   aws                                              expired  renew
-aws:legacy-static                                             aws       arn:aws:iam::222222222222:user/ci-bot  static   none
-aws:prod-sso                                                  aws       arn:aws:sts::111111111111:assumed-role/AWSReservedSSO_Platform/yeray  valid  use
-```
-
-### Organize with labels and collections
-
-```console
-$ kuberoutectl target label add <aks-cluster-id> env=prod
-$ kuberoutectl target label add <eks-cluster-id> env=prod
-
-$ kuberoutectl collection create production --selector env=prod
-Created collection: production
-
-$ kuberoutectl collection show production
-Collection: production
-Members: 2
-aks-prod-weu        aks  westeurope    valid
-eks-prod-frankfurt  eks  eu-central-1  valid
-```
 
 ## Getting Help
 
 - **New to kuberoutectl?** Start with the [Quick Start](#quick-start) and a provider guide for your cloud.
 - **Setting up a specific cloud?** Jump to [Azure](guides/azure.md), [AWS](guides/aws.md), [GCP](guides/gcp.md), or [kubeconfig](guides/kubeconfig.md).
 - **Understanding credential health?** See [Credential Health, Once](guides/index.md#credential-health-once).
-- **Advanced workflows?** Check the [Common Commands](#common-commands) section or the main [README](https://github.com/ymedlop/kuberoutectl/blob/main/README.md).
+- **Advanced workflows?** See the [command reference](https://github.com/ymedlop/kuberoutectl#commands) in the README.
 
 ## Contributing
 
