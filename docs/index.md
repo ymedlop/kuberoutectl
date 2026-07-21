@@ -53,6 +53,14 @@ description: >-
   </div>
 </div>
 
+<div class="demo" markdown="0" style="margin: 2.25rem 0; text-align: center;">
+  <img src="{{ '/assets/demo.gif' | relative_url }}"
+       alt="kuberoutectl in action — sync four providers, list targets, inspect credential health, label and collect, then route kubectl"
+       loading="lazy"
+       style="max-width: 100%; height: auto; border-radius: 10px; box-shadow: 0 6px 28px rgba(0, 0, 0, 0.18);" />
+  <span style="display: block; margin-top: 0.6rem; font-size: 0.85rem; opacity: 0.7;">Discover → organize → route, across all four providers.</span>
+</div>
+
 <div class="terminal" markdown="0">
   <span class="terminal__caption">example session</span>
   <div class="terminal__bar"><span></span><span></span><span></span></div>
