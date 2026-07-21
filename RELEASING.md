@@ -12,6 +12,44 @@ Every release covers Windows, Linux, and macOS on both amd64 and arm64.
 Neither kind is signed; integrity is provided by `checksums.txt` (SHA256). See
 [Verifying a download](#verifying-a-download).
 
+## Promoting `development` to `main`
+
+`main` is the stable branch — GitHub Pages builds the docs site from it, and
+stable `vX.Y.Z` tags are cut from it — so `development` has to be promoted to
+`main` periodically.
+
+**Do not open a plain `development → main` PR and expect a clean merge.** PRs in
+this repo are squash-merged, which discards merge ancestry: after a squash merge
+`main` is never an ancestor of `development`, so a direct promote does a 3-way
+merge against an old base and re-conflicts on any file both branches have touched
+(README, this file, `scripts/demo.sh`, …). Reconciling `main` back into
+`development` does **not** fix it — squashing the reconcile brings main's
+*content* but not its *ancestry*, so the next promote conflicts again. (This bit
+us across promotes #74/#75; #76 and #78 used the recipe below.)
+
+**Working recipe — branch off `main`, merge `development` in, resolve conflicts
+in development's favour** (development is the intended state):
+
+```bash
+git fetch origin main development
+
+# Sanity check — usually NO here, which is exactly why the direct PR conflicts.
+git merge-base --is-ancestor origin/main origin/development && echo clean || echo diverged
+
+git switch -c promote-to-main origin/main
+git merge origin/development                    # conflicts only on files both changed
+git checkout --theirs <conflicted-file>         # keep development's version, then: git add
+git commit
+
+git diff --stat origin/development              # MUST be empty: the branch == development
+```
+
+Then open the PR with base `main`, head `promote-to-main`. Because the branch is
+built on `main` and already contains the resolution, it merges cleanly regardless
+of squash. After it merges, the `pages` workflow rebuilds the docs site from
+`main`. `main` will again not be an ancestor of `development` — that's expected;
+just repeat this recipe next time rather than trying to reconcile.
+
 ## 1.0.0 / stable release checklist
 
 The explicit bar for cutting a stable tag — every item must be true first
