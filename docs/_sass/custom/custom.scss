@@ -335,3 +335,71 @@ code {
     &--unknown  { background: #f1f5f9; color: #475569; }
   }
 }
+
+// --- Documentation content polish ---------------------------------------------
+//
+// kubernetes.io-grade readability for the prose pages, WITHOUT touching the
+// landing components. Everything below is scoped with the child combinator
+// (`.main-content > …`) so it only hits the top-level rendered-markdown elements
+// (doc prose / headings / tables), never the hand-built hero, feature-grid, or
+// terminal blocks nested inside the same `.main-content`. Uses theme colour-
+// scheme variables so it adapts to both the light (kuberoute) and dark schemes.
+
+.main-content main {
+  // Comfortable vertical rhythm for body copy and lists.
+  > p,
+  > ul,
+  > ol {
+    line-height: 1.65;
+  }
+
+  > p,
+  > ul,
+  > ol {
+    margin-bottom: 1rem;
+  }
+
+  // Clear hierarchy with breathing room. A hairline rule under h2 is the classic
+  // docs-site cue (Docsy / kubernetes.io) that a new section begins.
+  > h2 {
+    margin-top: 2.25rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid $border-color;
+  }
+
+  > h3 {
+    margin-top: 1.75rem;
+  }
+
+  // Callout-style blockquotes: a brand-tinted left rail on a faint surface.
+  > blockquote {
+    margin: 1.25rem 0;
+    padding: 0.6rem 1rem;
+    border-left: 3px solid $link-color;
+    background: $sidebar-color;
+
+    > :last-child {
+      margin-bottom: 0;
+    }
+  }
+}
+
+// Fenced code blocks: a crisper "card" edge. Scoped to Rouge highlight wrappers,
+// so the hand-built .terminal demo (not a highlight block) is untouched.
+.main-content main .highlighter-rouge .highlight {
+  border: 1px solid $border-color;
+  border-radius: 8px;
+}
+
+// Tables: shaded header row + consistent borders (like the provider-model table).
+.main-content main table {
+  th {
+    background: $sidebar-color;
+    font-weight: 600;
+  }
+
+  th,
+  td {
+    border-color: $border-color;
+  }
+}
