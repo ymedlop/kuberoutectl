@@ -34,6 +34,12 @@ jobs:
       - name: Verify README + demo commands still exist
         run: bash scripts/verify-readme-commands.sh
 
+      - name: Command reference is up to date
+        run: |
+          go run ./cmd/gen-docs docs/reference
+          git diff --exit-code docs/reference \
+            || { echo "::error::docs/reference is stale — run 'make docs-reference' and commit."; exit 1; }
+
   # Validate the GoReleaser packaging config so a broken release setup fails the
   # PR instead of the tag push. `goreleaser check` only lints the YAML — it does
   # not build, publish, or need a Go toolchain.

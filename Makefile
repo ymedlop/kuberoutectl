@@ -17,7 +17,7 @@ LDFLAGS := -s -w \
 	-X $(PKG)/internal/buildinfo.Commit=$(COMMIT) \
 	-X $(PKG)/internal/buildinfo.Date=$(DATE)
 
-.PHONY: help build install run test vet fmt fmt-check tidy check clean dist snapshot demo verify-readme
+.PHONY: help build install run test vet fmt fmt-check tidy check clean dist snapshot demo verify-readme docs-reference
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -58,6 +58,9 @@ demo: ## Regenerate the README demo GIF (assets/demo.gif) from fixtures
 
 verify-readme: ## Check README + demo commands still exist in the CLI
 	bash scripts/verify-readme-commands.sh
+
+docs-reference: ## Regenerate the docs/ command reference from the CLI (Cobra)
+	go run ./cmd/gen-docs docs/reference
 
 # Cross-compile the snapshot deliverables for every shipped OS/arch pair.
 # Mirrors the GoReleaser matrix (windows/linux/darwin × amd64/arm64).

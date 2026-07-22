@@ -84,6 +84,6 @@ kuberoutectl target use <alias>          # route kubectl at the right cluster
 - **[Installation]({{ '/installation/' | relative_url }})** — every platform: Homebrew, apt, Scoop, packages, manual.
 - **[Provider guides]({{ '/guides/' | relative_url }})** — Azure · AWS · GCP · kubeconfig, step by step.
 - **[Organizing: labels & collections]({{ '/organizing/' | relative_url }})** — tag clusters and build selector-driven views.
-- **[Command reference](https://github.com/ymedlop/kuberoutectl#commands)** — the full command surface.
+- **[Command reference]({{ '/reference/' | relative_url }})** — every command and flag, generated from the CLI.
 - **[Concepts & architecture](https://github.com/ymedlop/kuberoutectl#core-concepts)** — the domain model and design principles ([ARCHITECTURE.md](https://github.com/ymedlop/kuberoutectl/blob/main/ARCHITECTURE.md) for depth).
 - **[Contributing](https://github.com/ymedlop/kuberoutectl)** — source, building, and development workflow.
