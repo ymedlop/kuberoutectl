@@ -1,5 +1,6 @@
 ---
 title: Azure (AKS)
+description: "Manage AKS clusters and Azure credentials with kuberoutectl — discover subscriptions, check credential health, and route kubectl via the Azure CLI."
 parent: Provider guides
 nav_order: 1
 ---

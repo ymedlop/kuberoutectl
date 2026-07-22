@@ -1,5 +1,6 @@
 ---
 title: GCP (GKE)
+description: "Manage GKE clusters with kuberoutectl — discover GCP projects, check credential health, and route kubectl via gcloud."
 parent: Provider guides
 nav_order: 3
 ---

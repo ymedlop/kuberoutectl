@@ -1,5 +1,6 @@
 ---
 title: "Organizing: labels & collections"
+description: "Organize Kubernetes clusters with kuberoutectl using labels and selector-driven collections that span Azure, AWS, GCP, and kubeconfig and survive every resync."
 layout: default
 nav_order: 3
 ---
