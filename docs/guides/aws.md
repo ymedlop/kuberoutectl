@@ -1,5 +1,6 @@
 ---
 title: AWS (EKS)
+description: "Manage EKS clusters across AWS accounts and profiles with kuberoutectl — including IAM Identity Center (SSO) sign-in, credential health, and kubectl routing."
 parent: Provider guides
 nav_order: 2
 ---
