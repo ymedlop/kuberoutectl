@@ -1,5 +1,6 @@
 ---
 title: kubeconfig
+description: "Use kuberoutectl with existing kubeconfig contexts — self-hosted, local, or handed-to-you clusters, with credential-health awareness and one-step kubectl routing."
 parent: Provider guides
 nav_order: 4
 ---

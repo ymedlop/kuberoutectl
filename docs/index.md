@@ -1,10 +1,11 @@
 ---
-title: Home
+title: kuberoutectl
 layout: default
 nav_order: 1
 description: >-
-  Discover, organize, and route Kubernetes access across Azure, AWS, GCP,
-  and kubeconfig — from one provider-agnostic CLI.
+  kuberoutectl is an open-source CLI that discovers, organizes, and routes
+  Kubernetes access across Azure (AKS), AWS (EKS), GCP (GKE), and kubeconfig —
+  one local inventory of your clusters and their credential health.
 ---
 
 <div class="hero" markdown="0">
