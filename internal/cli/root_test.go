@@ -25,6 +25,25 @@ func byName(cmds []*cobra.Command) map[string]*cobra.Command {
 	return m
 }
 
+// TestRootCommand exercises the exported RootCommand()/newApp() path — real
+// provider registration and its error returns — which cmd/gen-docs depends on.
+// The plain rootCmd() tests below bypass that wiring.
+func TestRootCommand(t *testing.T) {
+	root, err := RootCommand()
+	if err != nil {
+		t.Fatalf("RootCommand() error: %v", err)
+	}
+	if root == nil {
+		t.Fatal("RootCommand() returned nil")
+	}
+	if root.Name() != "kuberoutectl" {
+		t.Errorf("root name = %q, want kuberoutectl", root.Name())
+	}
+	if _, ok := byName(root.Commands())["sync"]; !ok {
+		t.Error("root is missing the sync command")
+	}
+}
+
 // TestRootCommandSurface locks the consolidated top-level command set: no
 // provider is special at root (provider/source/scope/aws are gone), and the
 // grouped `inventory`/`setup` parents are present.
