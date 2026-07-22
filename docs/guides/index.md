@@ -1,5 +1,6 @@
 ---
 title: Provider guides
+description: "Provider guides for kuberoutectl: discover clusters, read the credential-health spectrum, and route kubectl across Azure AKS, AWS EKS, GCP GKE, and kubeconfig."
 nav_order: 4
 has_children: true
 ---

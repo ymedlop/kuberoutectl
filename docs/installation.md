@@ -1,5 +1,6 @@
 ---
 title: Installation
+description: "Install kuberoutectl on macOS, Linux, or Windows — via Homebrew, an apt repository, Scoop, deb/rpm/apk packages, or a direct binary download."
 layout: default
 nav_order: 2
 ---

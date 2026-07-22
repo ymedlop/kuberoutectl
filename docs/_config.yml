@@ -10,9 +10,11 @@
 # match the repository name for assets and relative links to resolve.
 
 title: kuberoutectl
+tagline: Kubernetes access across Azure, AWS, GCP & kubeconfig
 description: >-
-  Discover, organize, and route Kubernetes access across Azure, AWS, GCP,
-  and kubeconfig — from one provider-agnostic CLI.
+  Discover, organize, and route Kubernetes access across Azure (AKS), AWS (EKS),
+  GCP (GKE), and kubeconfig from one provider-agnostic CLI — with a local
+  inventory, credential-health awareness, and one-step kubectl routing.
 url: "https://ymedlop.github.io"
 baseurl: "/kuberoutectl"
 
@@ -91,6 +93,7 @@ defaults:
       path: ""
     values:
       layout: default
+      image: https://ymedlop.github.io/kuberoutectl/assets/og-image.png
 
 plugins:
   - jekyll-relative-links   # keep in-repo .md links working on the site too
