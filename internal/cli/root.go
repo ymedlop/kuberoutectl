@@ -34,9 +34,10 @@ type app struct {
 	output outputFormat
 }
 
-// Execute builds the command tree and runs it. main.go calls this and nothing
-// else.
-func Execute() error {
+// newApp builds the fully-wired application: config, provider registry, binary
+// resolver. Shared by Execute (which runs it) and RootCommand (which hands the
+// command tree to tooling such as the docs generator).
+func newApp() (*app, error) {
 	cfg := config.Default()
 	a := &app{
 		cfg:            cfg,
@@ -51,26 +52,47 @@ func Execute() error {
 	// Providers register here — the single wiring point. Each provider also
 	// declares the CLI doctor should check for it.
 	if err := a.registry.Register(azure.New(a.resolver, runner)); err != nil {
-		return err
+		return nil, err
 	}
 	a.requiredBinary[string(azure.ProviderID)] = azure.BinaryName
 
 	if err := a.registry.Register(aws.New(a.resolver, runner)); err != nil {
-		return err
+		return nil, err
 	}
 	a.requiredBinary[string(aws.ProviderID)] = aws.BinaryName
 
 	if err := a.registry.Register(kubeconfig.New(a.resolver, runner)); err != nil {
-		return err
+		return nil, err
 	}
 	a.requiredBinary[string(kubeconfig.ProviderID)] = kubeconfig.BinaryName
 
 	if err := a.registry.Register(gcp.New(a.resolver, runner)); err != nil {
-		return err
+		return nil, err
 	}
 	a.requiredBinary[string(gcp.ProviderID)] = gcp.BinaryName
 
+	return a, nil
+}
+
+// Execute builds the command tree and runs it. main.go calls this and nothing
+// else.
+func Execute() error {
+	a, err := newApp()
+	if err != nil {
+		return err
+	}
 	return a.rootCmd().Execute()
+}
+
+// RootCommand returns the fully-wired root command for tooling that inspects the
+// command tree — e.g. the docs generator (cmd/gen-docs). It is not used by the
+// CLI entrypoint.
+func RootCommand() (*cobra.Command, error) {
+	a, err := newApp()
+	if err != nil {
+		return nil, err
+	}
+	return a.rootCmd(), nil
 }
 
 func (a *app) rootCmd() *cobra.Command {
