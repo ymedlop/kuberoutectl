@@ -52,6 +52,16 @@ jobs:
           version: "~> v2"
           args: release --snapshot --clean
 
+      # Fixed-name copies of the macOS archives. The versioned names embed the
+      # snapshot commit, so their download URLs change every push; a rolling
+      # Homebrew cask needs a stable URL. These copies give one — the `dist/*.tar.gz`
+      # glob below then uploads them alongside the versioned archives. See the
+      # kuberoutectl-snapshot cask in the ymedlop/homebrew-tap repo.
+      - name: Stage fixed-name macOS archives for the rolling brew cask
+        run: |
+          cp dist/kuberoutectl_*_darwin_arm64.tar.gz dist/kuberoutectl_snapshot_darwin_arm64.tar.gz
+          cp dist/kuberoutectl_*_darwin_amd64.tar.gz dist/kuberoutectl_snapshot_darwin_amd64.tar.gz
+
       - name: Publish rolling snapshot pre-release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
