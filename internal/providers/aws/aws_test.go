@@ -2,14 +2,24 @@ package aws
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ymedlop/kuberoutectl/internal/domain"
 	"github.com/ymedlop/kuberoutectl/internal/execx"
 	"github.com/ymedlop/kuberoutectl/internal/providers"
 )
+
+// testProgress captures Progress.Step calls so tests can assert on the
+// diagnostics discovery emits.
+type testProgress struct{ steps []string }
+
+func (p *testProgress) Step(format string, args ...any) {
+	p.steps = append(p.steps, fmt.Sprintf(format, args...))
+}
 
 func readFixture(t *testing.T, name string) []byte {
 	t.Helper()
@@ -109,6 +119,55 @@ func newFakeAWSProvider(t *testing.T) (*Provider, *execx.FakeRunner) {
 	r.Responses["aws configure list-profiles"] = execx.FakeResponse{Stdout: readFixture(t, "list-profiles.txt")}
 
 	return New(fakeResolver{path: "aws"}, r), r
+}
+
+// TestDiscover_AWSAuthFailureDiagnostic: an expired SSO profile emits a
+// diagnostic naming the profile and the remedy, a healthy profile emits none,
+// and the failing profile's credential is still recorded as expired/renew —
+// the resilient behavior must not regress.
+func TestDiscover_AWSAuthFailureDiagnostic(t *testing.T) {
+	p, _ := newFakeAWSProvider(t)
+	prog := &testProgress{}
+	res, err := p.Discover(context.Background(), providers.DiscoveryInput{Progress: prog})
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+
+	var gotDefaultHint bool
+	for _, s := range prog.steps {
+		if strings.Contains(s, `profile "default"`) && strings.Contains(s, "aws sso login") {
+			gotDefaultHint = true
+		}
+		if strings.Contains(s, `profile "prod-sso"`) && strings.Contains(s, "identity check failed") {
+			t.Errorf("healthy prod-sso should not get a failure hint: %q", s)
+		}
+	}
+	if !gotDefaultHint {
+		t.Errorf("expected auth-failure hint for expired 'default' profile; steps: %v", prog.steps)
+	}
+
+	byName := map[string]domain.Credential{}
+	for _, c := range res.Credentials {
+		byName[c.Name] = c
+	}
+	if got := byName["default"]; got.Health != domain.HealthExpired || got.ActionHint != domain.ActionRenew {
+		t.Errorf("default (SSO expired) = (%s,%s), want (expired,renew) — resilience regressed", got.Health, got.ActionHint)
+	}
+}
+
+// TestAuthFailureHint: SSO/role failures point to `aws sso login`; static and
+// unclassifiable failures point at the credentials instead.
+func TestAuthFailureHint(t *testing.T) {
+	for _, at := range []string{authSSO, authRole} {
+		if !strings.Contains(authFailureHint("dev", at), "aws sso login --profile dev") {
+			t.Errorf("%s hint should suggest sso login: %q", at, authFailureHint("dev", at))
+		}
+	}
+	for _, at := range []string{authStatic, authUnknown} {
+		if strings.Contains(authFailureHint("dev", at), "sso login") {
+			t.Errorf("%s hint must not suggest sso login: %q", at, authFailureHint("dev", at))
+		}
+	}
 }
 
 func TestDiscover_AWSFullInventory(t *testing.T) {

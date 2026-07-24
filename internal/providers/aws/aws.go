@@ -100,6 +100,11 @@ func (p *Provider) Discover(ctx context.Context, in providers.DiscoveryInput) (p
 
 		res.Credentials = append(res.Credentials, buildCredential(profile, identity, authType, health, action, now))
 
+		if stsErr != nil {
+			// Surface why this profile yields nothing — most often an expired
+			// token — instead of leaving the operator to guess from empty counts.
+			prog.Step("%s", authFailureHint(profile, authType))
+		}
 		if stsErr != nil || identity.Account == "" {
 			continue // unusable identity: no scope, no targets
 		}

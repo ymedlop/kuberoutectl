@@ -23,6 +23,7 @@ kuberoutectl target label remove <alias|id|name> <key> [flags]
 
 ```
   -o, --output string   output format: text|json (default "text")
+  -v, --verbose         trace external CLI commands, exit codes, and their stderr on failure
 ```
 
 ### SEE ALSO

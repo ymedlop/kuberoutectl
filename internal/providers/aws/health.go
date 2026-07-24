@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/ymedlop/kuberoutectl/internal/domain"
@@ -56,5 +57,20 @@ func mapAWSHealth(authType string, stsOK bool) (domain.AccessHealth, domain.Acti
 		return domain.HealthError, domain.ActionManual
 	default:
 		return domain.HealthUnknown, domain.ActionManual
+	}
+}
+
+// authFailureHint explains a failed identity check for a profile and points to
+// the right remedy: renewable auth (SSO/role) suggests re-login, everything
+// else points at the stored credentials. Discovery emits this as a diagnostic
+// so an expired token is visible on `sync` instead of silently yielding no
+// targets. A failed non-SSO profile classifies as authUnknown (classifyAuth
+// needs a working STS to detect static keys), so it lands in the neutral case.
+func authFailureHint(profile, authType string) string {
+	switch authType {
+	case authSSO, authRole:
+		return fmt.Sprintf("profile %q: identity check failed — token likely expired; run 'aws sso login --profile %s'", profile, profile)
+	default:
+		return fmt.Sprintf("profile %q: identity check failed — verify the profile's AWS credentials", profile)
 	}
 }

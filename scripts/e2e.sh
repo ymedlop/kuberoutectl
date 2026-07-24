@@ -65,7 +65,7 @@ cat > "$WORK/bin/aws" <<EOF
 SSO="https://my-sso.awsapps.com/start"
 case "\$*" in
   "configure list-profiles") printf 'default\nprod-sso\nlegacy-static\n' ;;
-  "sts get-caller-identity --profile default --output json") exit 1 ;;
+  "sts get-caller-identity --profile default --output json") echo "Error loading SSO Token: Token for default does not exist" >&2; exit 1 ;;
   "configure get sso_start_url --profile default") echo "\$SSO" ;;
   "sts get-caller-identity --profile legacy-static --output json") cat "$AWS_FIX/identity-static.json" ;;
   "configure get sso_start_url --profile legacy-static") exit 1 ;;
@@ -109,6 +109,17 @@ run sync azure
 run sync aws
 run sync kubeconfig
 run sync gcp
+
+echo; echo "==> aws: an expired-token profile is surfaced on sync (diagnostic), not silently dropped"
+sync_aws_diag="$("$BIN" sync aws 2>&1)"; echo "$sync_aws_diag"
+assert_contains "$sync_aws_diag" 'profile "default": identity check failed'  # expired SSO named, not swallowed
+assert_contains "$sync_aws_diag" 'aws sso login --profile default'           # actionable remedy
+
+echo; echo "==> aws --verbose: the raw cloud-CLI command and its stderr are traced"
+sync_aws_verbose="$("$BIN" sync aws --verbose 2>&1)"; echo "$sync_aws_verbose"
+assert_contains "$sync_aws_verbose" "[exec] "                                                    # trace format present
+assert_contains "$sync_aws_verbose" "sts get-caller-identity --profile default --output json"    # raw command traced
+assert_contains "$sync_aws_verbose" "Error loading SSO Token"                                    # underlying CLI stderr shown
 
 echo; echo "==> kubeconfig: unique contexts inventoried; a context duplicating a native EKS cluster (same endpoint) is suppressed"
 kc="$("$BIN" target list --provider kubeconfig)"; echo "$kc"

@@ -80,7 +80,10 @@ Synced provider: aws
 
 > **A profile can't authenticate?** That profile's credential is marked
 > `expired`/`renew` (SSO) and contributes no clusters, but the sync as a whole
-> still succeeds for the profiles that work.
+> still succeeds for the profiles that work. `sync` prints a diagnostic naming
+> the profile and the fix (e.g. `run 'aws sso login --profile default'`), so an
+> expired token is never silent. Add `--verbose` to also see the raw `aws …`
+> command that failed and its stderr.
 
 ```console
 $ kuberoutectl target list --provider aws
@@ -223,3 +226,6 @@ both AKS and EKS clusters.
   `~/.aws/credentials` or via `aws configure`. This is expected, not a bug.
 - **`aws` not found** — install AWS CLI v2 or set an explicit path in config;
   `kuberoutectl doctor` shows what it resolved.
+- **A `sync` returns fewer targets than expected** — re-run with `--verbose` to
+  see every `aws` command `kuberoutectl` issues, its exit code, and the CLI's
+  own stderr (an expired-token profile shows its failure inline).
