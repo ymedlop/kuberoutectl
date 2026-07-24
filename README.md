@@ -141,6 +141,10 @@ A fuller walkthrough lives in the docs under
 ## Commands
 
 Every inventory command supports `--output json` (`-o json`) for scripting.
+Add `-v` / `--verbose` to any command to trace the external cloud-CLI calls it
+makes — the command, its exit code, and the CLI's stderr on failure — printed to
+stderr so it never pollutes `-o json`. Reach for it when a `sync` returns fewer
+targets than expected (an expired token, say).
 
 ```bash
 kuberoutectl doctor                              # check required provider CLIs resolve

@@ -14,6 +14,7 @@ Discover, organize, and route Kubernetes access across providers
 ```
   -h, --help            help for kuberoutectl
   -o, --output string   output format: text|json (default "text")
+  -v, --verbose         trace external CLI commands, exit codes, and their stderr on failure
 ```
 
 ### SEE ALSO
