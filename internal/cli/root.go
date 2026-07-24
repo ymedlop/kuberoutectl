@@ -134,6 +134,7 @@ func (a *app) rootCmd() *cobra.Command {
 		a.inventoryCmd(),
 		a.setupCmd(),
 		a.doctorCmd(),
+		a.mcpCmd(),
 		a.versionCmd(),
 	)
 	return root
