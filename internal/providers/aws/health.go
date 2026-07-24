@@ -18,10 +18,11 @@ const (
 )
 
 // classifyAuth determines a profile's auth type. SSO configuration wins because
-// an SSO-backed role still presents an assumed-role ARN; the presence of an SSO
-// start URL is the reliable signal that it is renewable via `aws sso login`.
-func classifyAuth(ssoStartURL, arn string, stsOK bool) string {
-	if ssoStartURL != "" {
+// an SSO-backed role still presents an assumed-role ARN; an SSO start URL (legacy
+// format) or an sso_session reference (modern format) is the reliable signal
+// that the profile is renewable via `aws sso login`.
+func classifyAuth(ssoStartURL, ssoSession, arn string, stsOK bool) string {
+	if ssoStartURL != "" || ssoSession != "" {
 		return authSSO
 	}
 	if stsOK {

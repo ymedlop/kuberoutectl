@@ -94,8 +94,13 @@ func (p *Provider) Discover(ctx context.Context, in providers.DiscoveryInput) (p
 
 		prog.Step("validating identity for profile %q (%d/%d)", profile, i+1, len(profiles))
 		identity, stsErr := p.callerIdentity(ctx, awsBin, profile)
+		// SSO is signalled either by sso_start_url directly on the profile (legacy
+		// format) or by an sso_session reference (modern format, where the start
+		// URL lives under a separate [sso-session] section). Read both so an
+		// expired sso_session profile isn't misclassified as unknown.
 		ssoURL := p.configGet(ctx, awsBin, profile, "sso_start_url")
-		authType := classifyAuth(ssoURL, identity.Arn, stsErr == nil)
+		ssoSession := p.configGet(ctx, awsBin, profile, "sso_session")
+		authType := classifyAuth(ssoURL, ssoSession, identity.Arn, stsErr == nil)
 		health, action := mapAWSHealth(authType, stsErr == nil)
 
 		res.Credentials = append(res.Credentials, buildCredential(profile, identity, authType, health, action, now))
