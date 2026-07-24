@@ -58,6 +58,47 @@ func (s *CollectionService) Create(name, description string, sel domain.LabelSel
 	return col, nil
 }
 
+// Save upserts a collection: it creates the named collection, or updates the
+// existing one in place when the name already exists. Same validation as
+// Create (non-empty name; a selector or static members). This backs the MCP
+// create_or_update_collection tool, where Create's "already exists" error would
+// force an awkward delete-then-create round-trip.
+func (s *CollectionService) Save(name, description string, sel domain.LabelSelector, staticIDs []domain.TargetID) (domain.Collection, error) {
+	if name == "" {
+		return domain.Collection{}, fmt.Errorf("collection name must not be empty")
+	}
+	if sel.IsZero() && len(staticIDs) == 0 {
+		return domain.Collection{}, fmt.Errorf("collection %q needs a selector or static targets", name)
+	}
+	cols, err := s.store.LoadCollections()
+	if err != nil {
+		return domain.Collection{}, fmt.Errorf("load collections: %w", err)
+	}
+	col := domain.Collection{
+		ID:          domain.CollectionID(name),
+		Name:        name,
+		Description: description,
+		Selector:    sel,
+		StaticIDs:   staticIDs,
+	}
+	replaced := false
+	for i := range cols {
+		if cols[i].Name == name {
+			cols[i] = col
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		cols = append(cols, col)
+	}
+	sort.Slice(cols, func(i, j int) bool { return cols[i].Name < cols[j].Name })
+	if err := s.store.SaveCollections(cols); err != nil {
+		return domain.Collection{}, fmt.Errorf("save collections: %w", err)
+	}
+	return col, nil
+}
+
 // List returns all saved collections, sorted by name.
 func (s *CollectionService) List() ([]domain.Collection, error) {
 	return s.store.LoadCollections()
