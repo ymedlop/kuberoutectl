@@ -44,6 +44,37 @@ func TestCollection_CreateRejectsDuplicate(t *testing.T) {
 	}
 }
 
+func TestCollection_SaveUpserts(t *testing.T) {
+	svc := NewCollectionService(storeWithTargets(prodAndLab()...), nil)
+	prod := domain.LabelSelector{MatchLabels: map[string]string{"env": "prod"}}
+	lab := domain.LabelSelector{MatchLabels: map[string]string{"env": "lab"}}
+
+	if _, err := svc.Save("envs", "first", prod, nil); err != nil {
+		t.Fatalf("save (create): %v", err)
+	}
+	// Same name again must update in place, not error, and not duplicate.
+	if _, err := svc.Save("envs", "second", lab, nil); err != nil {
+		t.Fatalf("save (update): %v", err)
+	}
+	cols, err := svc.List()
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(cols) != 1 {
+		t.Fatalf("expected 1 collection after upsert, got %d", len(cols))
+	}
+	if cols[0].Description != "second" || cols[0].Selector.MatchLabels["env"] != "lab" {
+		t.Errorf("upsert did not replace definition: %+v", cols[0])
+	}
+}
+
+func TestCollection_SaveRequiresMembership(t *testing.T) {
+	svc := NewCollectionService(newMemStore(), nil)
+	if _, err := svc.Save("empty", "", domain.LabelSelector{}, nil); err == nil {
+		t.Fatal("expected error saving a collection with no selector and no static IDs")
+	}
+}
+
 func TestCollection_ResolveSelector(t *testing.T) {
 	store := storeWithTargets(prodAndLab()...)
 	svc := NewCollectionService(store, nil)
