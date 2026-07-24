@@ -72,6 +72,25 @@ func TestServer_RegistersFullToolSetAndRoundTrips(t *testing.T) {
 	}
 }
 
+// TestServer_ToolErrorSurfacesAsIsError proves a service error returned by a
+// handler reaches the client as an MCP tool error, not a transport failure and
+// not a successful-but-empty result (spec edge case 5).
+func TestServer_ToolErrorSurfacesAsIsError(t *testing.T) {
+	h := newTestHandler(t, seedTargets())
+	session := connect(t, New(h.d, false))
+
+	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "get_target",
+		Arguments: map[string]any{"ref": "does-not-exist"},
+	})
+	if err != nil {
+		t.Fatalf("CallTool transport error: %v", err)
+	}
+	if !res.IsError {
+		t.Errorf("expected IsError for an unknown target ref, got: %+v", res.Content)
+	}
+}
+
 func TestServer_ReadOnlyOmitsWriteTools(t *testing.T) {
 	h := newTestHandler(t, seedTargets())
 	session := connect(t, New(h.d, true))

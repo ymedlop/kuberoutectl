@@ -25,15 +25,10 @@ func NewCollectionService(store cache.CacheStore, engine *SelectorEngine) *Colle
 	return &CollectionService{store: store, engine: engine}
 }
 
-// Create saves a new collection. Name must be non-empty and unique, and the
-// definition must have at least one member source (selector or static IDs).
+// Create saves a new collection, erroring if the name already exists. Name must
+// be non-empty and the definition must have at least one member source. Use
+// Save to upsert (create-or-update) instead.
 func (s *CollectionService) Create(name, description string, sel domain.LabelSelector, staticIDs []domain.TargetID) (domain.Collection, error) {
-	if name == "" {
-		return domain.Collection{}, fmt.Errorf("collection name must not be empty")
-	}
-	if sel.IsZero() && len(staticIDs) == 0 {
-		return domain.Collection{}, fmt.Errorf("collection %q needs a selector or static targets", name)
-	}
 	cols, err := s.store.LoadCollections()
 	if err != nil {
 		return domain.Collection{}, fmt.Errorf("load collections: %w", err)
@@ -43,19 +38,8 @@ func (s *CollectionService) Create(name, description string, sel domain.LabelSel
 			return domain.Collection{}, fmt.Errorf("collection %q already exists", name)
 		}
 	}
-	col := domain.Collection{
-		ID:          domain.CollectionID(name),
-		Name:        name,
-		Description: description,
-		Selector:    sel,
-		StaticIDs:   staticIDs,
-	}
-	cols = append(cols, col)
-	sort.Slice(cols, func(i, j int) bool { return cols[i].Name < cols[j].Name })
-	if err := s.store.SaveCollections(cols); err != nil {
-		return domain.Collection{}, fmt.Errorf("save collections: %w", err)
-	}
-	return col, nil
+	// Validation and persistence are shared with Save, which upserts.
+	return s.Save(name, description, sel, staticIDs)
 }
 
 // Save upserts a collection: it creates the named collection, or updates the
