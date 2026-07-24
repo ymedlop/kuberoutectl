@@ -224,5 +224,22 @@ assert_contains "$cleared" "Cleared"
 assert_contains "$("$BIN" target list)" "No targets"          # every target gone
 assert_contains "$("$BIN" credential list)" "static"          # credentials untouched by clear
 
+echo; echo "==> mcp: the stdio server answers a real initialize + tools/list handshake"
+# Keep stdin open briefly (sleep) so the server flushes its responses before EOF.
+# The full typed round-trip is covered by the Go in-memory test; this proves the
+# shipped binary speaks MCP end to end.
+mcp_out="$( { printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"e2e","version":"0"}}}' \
+  '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'; sleep 0.5; } | "$BIN" mcp 2>/dev/null )"
+assert_contains "$mcp_out" '"list_targets"'                 # a read tool is registered
+assert_contains "$mcp_out" '"create_or_update_collection"'  # a safe-write tool is registered
+mcp_ro="$( { printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"e2e","version":"0"}}}' \
+  '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'; sleep 0.5; } | "$BIN" mcp --read-only 2>/dev/null )"
+echo "$mcp_ro" | grep -qF '"create_or_update_collection"' && fail "--read-only must not expose write tools"
+assert_contains "$mcp_ro" '"list_targets"'                  # read tools still present
+
 echo
-echo "E2E OK: cross-provider discovery, health spectrum, and label survival verified."
+echo "E2E OK: cross-provider discovery, health spectrum, label survival, and MCP handshake verified."

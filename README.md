@@ -191,8 +191,20 @@ kuberoutectl collection delete production
 kuberoutectl current                             # what am I pointed at, and how fresh is it?
 
 kuberoutectl setup aws-sso --sso-session <name>  # write ~/.aws/config profiles for every SSO account
+kuberoutectl mcp                                 # serve kuberoutectl as MCP tools over stdio (optional; --read-only available)
 kuberoutectl version
 ```
+
+## MCP server (optional)
+
+`kuberoutectl mcp` runs a [Model Context Protocol](https://modelcontextprotocol.io)
+server over stdio, so an MCP-compatible AI client can operate the safe core
+workflows — list inventory, inspect credential health, route targets, run a
+sync, and manage collections — as structured tools instead of scraping CLI text.
+It is opt-in (nothing listens unless you run the command), exposes **no secrets**
+and **no destructive actions**, and `--read-only` narrows it to inspection tools
+only. The tools map directly to the same services the CLI uses. See the
+[MCP guide](https://ymedlop.github.io/kuberoutectl/mcp/).
 
 ## Installation
 
