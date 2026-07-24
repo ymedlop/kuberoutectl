@@ -50,10 +50,7 @@ func (t traceRunner) Run(ctx context.Context, name string, args ...string) ([]by
 // command's own stderr when it failed. A successful command prints no stderr
 // block; a failure with empty stderr prints no stderr block either.
 func (t traceRunner) trace(name string, args []string, stderr []byte, err error) {
-	cmd := name
-	if len(args) > 0 {
-		cmd += " " + strings.Join(args, " ")
-	}
+	cmd := redactCommand(name, args)
 	if err == nil {
 		fmt.Fprintf(t.cfg.Writer, "[exec] %s → ok\n", cmd)
 		return
@@ -67,4 +64,47 @@ func (t traceRunner) trace(name string, args []string, stderr []byte, err error)
 	if s := strings.TrimSpace(string(stderr)); s != "" {
 		fmt.Fprintf(t.cfg.Writer, "       stderr: %s\n", s)
 	}
+}
+
+// redactCommand renders a command line for tracing with the values of
+// secret-bearing flags masked. Some cloud CLIs take credentials as arguments
+// (notably `aws sso list-accounts --access-token <token>`), which would
+// otherwise be printed verbatim under --verbose. Both `--flag value` and
+// `--flag=value` forms are masked. This is the trace's only defense: stdout is
+// never traced, and no known CLI echoes these tokens back on stderr.
+func redactCommand(name string, args []string) string {
+	parts := make([]string, 0, len(args)+1)
+	parts = append(parts, name)
+	maskNext := false
+	for _, a := range args {
+		switch {
+		case maskNext:
+			parts = append(parts, "***")
+			maskNext = false
+		case strings.HasPrefix(a, "-") && strings.Contains(a, "="):
+			flag, _, _ := strings.Cut(a, "=")
+			if isSecretFlag(flag) {
+				parts = append(parts, flag+"=***")
+			} else {
+				parts = append(parts, a)
+			}
+		case strings.HasPrefix(a, "-") && isSecretFlag(a):
+			parts = append(parts, a)
+			maskNext = true // the next arg is the secret value
+		default:
+			parts = append(parts, a)
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+// isSecretFlag reports whether a flag name denotes credential material whose
+// value must not be traced. Kept to a conservative substring set (token /
+// secret / password) so benign flags are never over-masked.
+func isSecretFlag(flag string) bool {
+	n := strings.ToLower(strings.TrimLeft(flag, "-"))
+	return strings.Contains(n, "token") ||
+		strings.Contains(n, "secret") ||
+		strings.Contains(n, "password") ||
+		strings.Contains(n, "passwd")
 }

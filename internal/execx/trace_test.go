@@ -75,6 +75,54 @@ func TestTraceRunner_FailureWithStderr(t *testing.T) {
 	}
 }
 
+// TestTraceRunner_RedactsSecretArgs: secret-bearing flag values (e.g. the AWS
+// SSO --access-token) must never appear in the trace, in either flag form.
+func TestTraceRunner_RedactsSecretArgs(t *testing.T) {
+	fake := NewFakeRunner()
+	const secret = "eyJ-super-secret-sso-token"
+	key := "aws sso list-accounts --access-token " + secret + " --region eu-west-1 --output json"
+	fake.Responses[key] = FakeResponse{Stdout: []byte("{}")}
+	var buf bytes.Buffer
+	r := NewTraceRunner(fake, &TraceConfig{Enabled: true, Writer: &buf})
+
+	if _, _, err := r.Run(context.Background(), "aws", "sso", "list-accounts",
+		"--access-token", secret, "--region", "eu-west-1", "--output", "json"); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	got := buf.String()
+	if strings.Contains(got, secret) {
+		t.Errorf("trace leaked the access token: %q", got)
+	}
+	if !strings.Contains(got, "--access-token ***") {
+		t.Errorf("expected masked token in trace: %q", got)
+	}
+	// Non-secret args around it must survive intact.
+	if !strings.Contains(got, "--region eu-west-1") {
+		t.Errorf("non-secret args should be preserved: %q", got)
+	}
+}
+
+// TestRedactCommand covers the pure redaction helper directly, including the
+// inline --flag=value form and that benign flags are left untouched.
+func TestRedactCommand(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"az", []string{"account", "list", "--output", "json"}, "az account list --output json"},
+		{"aws", []string{"sso", "list-accounts", "--access-token", "SEKRET"}, "aws sso list-accounts --access-token ***"},
+		{"aws", []string{"login", "--password=SEKRET"}, "aws login --password=***"},
+		{"aws", []string{"x", "--client-secret", "SEKRET", "--region", "eu"}, "aws x --client-secret *** --region eu"},
+		{"aws", []string{"configure", "get", "region", "--profile", "default"}, "aws configure get region --profile default"},
+	}
+	for _, c := range cases {
+		if got := redactCommand(c.name, c.args); got != c.want {
+			t.Errorf("redactCommand(%q, %v) = %q, want %q", c.name, c.args, got, c.want)
+		}
+	}
+}
+
 // TestTraceRunner_FailureEmptyStderr: a failure with empty stderr emits the
 // exit line but no stderr block (edge case 3).
 func TestTraceRunner_FailureEmptyStderr(t *testing.T) {
