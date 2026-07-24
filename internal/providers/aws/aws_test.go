@@ -48,19 +48,21 @@ func TestParseProfiles(t *testing.T) {
 
 func TestClassifyAuth(t *testing.T) {
 	cases := []struct {
-		name   string
-		sso    string
-		arn    string
-		stsOK  bool
-		expect string
+		name       string
+		sso        string
+		ssoSession string
+		arn        string
+		stsOK      bool
+		expect     string
 	}{
-		{"sso wins over arn", "https://x.awsapps.com/start", "arn:aws:sts::1:assumed-role/r/u", true, authSSO},
-		{"static user", "", "arn:aws:iam::1:user/ci", true, authStatic},
-		{"assumed role", "", "arn:aws:sts::1:assumed-role/r/u", true, authRole},
-		{"failed no sso", "", "", false, authUnknown},
+		{"sso start url wins over arn", "https://x.awsapps.com/start", "", "arn:aws:sts::1:assumed-role/r/u", true, authSSO},
+		{"sso_session (modern format) with failed sts", "", "my-sso", "", false, authSSO},
+		{"static user", "", "", "arn:aws:iam::1:user/ci", true, authStatic},
+		{"assumed role", "", "", "arn:aws:sts::1:assumed-role/r/u", true, authRole},
+		{"failed no sso", "", "", "", false, authUnknown},
 	}
 	for _, c := range cases {
-		if got := classifyAuth(c.sso, c.arn, c.stsOK); got != c.expect {
+		if got := classifyAuth(c.sso, c.ssoSession, c.arn, c.stsOK); got != c.expect {
 			t.Errorf("%s: classifyAuth = %q, want %q", c.name, got, c.expect)
 		}
 	}
@@ -222,6 +224,41 @@ func TestDiscover_AWSFullInventory(t *testing.T) {
 		if len(tg.UserLabels) != 0 {
 			t.Errorf("provider must not set user labels")
 		}
+	}
+}
+
+// TestDiscover_ModernSSOSessionExpired covers the sso_session config format
+// (profile references an [sso-session]; sso_start_url is not on the profile).
+// An expired such profile must classify as SSO → expired/renew, and the
+// diagnostic must point at `aws sso login`, not the generic credentials wording.
+func TestDiscover_ModernSSOSessionExpired(t *testing.T) {
+	r := execx.NewFakeRunner()
+	r.Responses["aws configure list-profiles"] = execx.FakeResponse{Stdout: []byte("sso-modern\n")}
+	r.Responses["aws sts get-caller-identity --profile sso-modern --output json"] = execx.FakeResponse{Err: failErr{}}
+	// Legacy key absent; modern sso_session present.
+	r.Responses["aws configure get sso_start_url --profile sso-modern"] = execx.FakeResponse{Err: failErr{}}
+	r.Responses["aws configure get sso_session --profile sso-modern"] = execx.FakeResponse{Stdout: []byte("my-sso\n")}
+
+	p := New(fakeResolver{path: "aws"}, r)
+	prog := &testProgress{}
+	res, err := p.Discover(context.Background(), providers.DiscoveryInput{Progress: prog})
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if len(res.Credentials) != 1 {
+		t.Fatalf("expected 1 credential, got %d", len(res.Credentials))
+	}
+	if got := res.Credentials[0]; got.Health != domain.HealthExpired || got.ActionHint != domain.ActionRenew {
+		t.Errorf("modern SSO expired = (%s,%s), want (expired,renew)", got.Health, got.ActionHint)
+	}
+	var hinted bool
+	for _, s := range prog.steps {
+		if strings.Contains(s, `profile "sso-modern"`) && strings.Contains(s, "aws sso login") {
+			hinted = true
+		}
+	}
+	if !hinted {
+		t.Errorf("expected an `aws sso login` hint for the modern SSO profile; steps: %v", prog.steps)
 	}
 }
 
