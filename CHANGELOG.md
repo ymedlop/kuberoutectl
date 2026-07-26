@@ -31,6 +31,15 @@ help text now tells the truth about which providers you can pass.
   cannot be derived, so a test now reads them by reflection and requires the
   listed ids to match the registry exactly. No schema or tool behaviour changed.
 
+### Verified
+- **Reproducible builds re-confirmed** for this tag: two consecutive
+  `make snapshot` runs produced an identical `dist/checksums.txt`, covering the
+  archives and the `.deb` / `.rpm` packages. This was skipped for 1.1.0; the
+  build configuration (`mod_timestamp` + `SOURCE_DATE_EPOCH`) is unchanged
+  between the two tags.
+- Unit tests, `make check`, and `scripts/e2e.sh` — the latter drives the shipped
+  binary through a real MCP stdio handshake.
+
 ## [1.1.0] — 2026-07-26
 
 The first feature release after 1.0.0. Everything here is **additive** — no
