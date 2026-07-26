@@ -40,7 +40,7 @@ func (a *app) targetListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List discovered Kubernetes targets",
 		Long: "List discovered Kubernetes targets.\n\n" +
-			"Filter with --provider (azure|aws) and/or --selector (repeatable),\n" +
+			"Filter with --provider (" + a.providerIDs() + ") and/or --selector (repeatable),\n" +
 			"e.g. `--selector env=prod` or `--selector \"region in [westeurope]\"`.\n" +
 			"Hidden targets are omitted by default; pass --all to include them, or\n" +
 			"`--selector hidden=true` to list only hidden ones.\n" +
@@ -103,7 +103,7 @@ func (a *app) targetListCmd() *cobra.Command {
 			return tw.Flush()
 		},
 	}
-	cmd.Flags().StringVarP(&provider, "provider", "p", "", "filter by provider (azure|aws)")
+	cmd.Flags().StringVarP(&provider, "provider", "p", "", "filter by provider ("+a.providerIDs()+")")
 	cmd.Flags().StringArrayVarP(&selectors, "selector", "l", nil, "filter by label selector (repeatable)")
 	cmd.Flags().BoolVarP(&wide, "wide", "w", false, "also show the full target ID")
 	cmd.Flags().BoolVarP(&all, "all", "a", false, "include hidden targets")

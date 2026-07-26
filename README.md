@@ -301,9 +301,10 @@ Post-1.0 work — additive, and it does not change the core workflow:
 
 ## Status
 
-**1.1.0 is the current release.** It adds the optional [MCP server](#mcp-server-optional)
-and `--verbose` provider tracing on top of 1.0.0 — additively, so nothing about
-the command surface changed.
+**Everything since 1.0.0 has been additive** — the optional
+[MCP server](#mcp-server-optional) and `--verbose` provider tracing joined
+without changing the shape of any existing command. The release badge above
+tracks the current version; [CHANGELOG.md](CHANGELOG.md) says what is in each.
 
 1.0.0 remains the reference point: it was the first stable public release and a
 **stability milestone, not a feature milestone**. The core discover → organize →

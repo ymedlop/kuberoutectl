@@ -13,7 +13,7 @@ List discovered Kubernetes targets
 
 List discovered Kubernetes targets.
 
-Filter with --provider (azure|aws) and/or --selector (repeatable),
+Filter with --provider (aws|azure|gcp|kubeconfig) and/or --selector (repeatable),
 e.g. `--selector env=prod` or `--selector "region in [westeurope]"`.
 Hidden targets are omitted by default; pass --all to include them, or
 `--selector hidden=true` to list only hidden ones.
@@ -29,7 +29,7 @@ kuberoutectl target list [flags]
 ```
   -a, --all                    include hidden targets
   -h, --help                   help for list
-  -p, --provider string        filter by provider (azure|aws)
+  -p, --provider string        filter by provider (aws|azure|gcp|kubeconfig)
   -l, --selector stringArray   filter by label selector (repeatable)
   -w, --wide                   also show the full target ID
 ```
