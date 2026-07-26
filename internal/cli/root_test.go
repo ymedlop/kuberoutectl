@@ -184,3 +184,60 @@ func TestVersionFlagRich(t *testing.T) {
 		t.Errorf("--version should include commit/date, got %q", buf.String())
 	}
 }
+
+// TestProviderFlagHelpListsEveryProvider guards against the `--provider` help
+// text going stale as providers are added. It shipped in v1.1.0 advertising
+// only "(azure|aws)" while gcp and kubeconfig were both registered and both
+// worked — the flag passes its value straight through with no whitelist, so the
+// text was the only thing wrong, and nothing failed when it drifted.
+//
+// The expected set is not hardcoded: `sync` builds one subcommand per
+// registered provider, so its children ARE the registry. Any provider added
+// later is therefore covered without touching this test.
+func TestProviderFlagHelpListsEveryProvider(t *testing.T) {
+	root, err := RootCommand()
+	if err != nil {
+		t.Fatalf("RootCommand() error: %v", err)
+	}
+	top := byName(root.Commands())
+
+	sync, ok := top["sync"]
+	if !ok {
+		t.Fatal("no sync command")
+	}
+	var providerIDs []string
+	for _, c := range sync.Commands() {
+		providerIDs = append(providerIDs, c.Name())
+	}
+	if len(providerIDs) < 2 {
+		t.Fatalf("expected several registered providers, got %v", providerIDs)
+	}
+
+	for _, path := range [][2]string{{"target", "list"}, {"credential", "list"}} {
+		parent, ok := top[path[0]]
+		if !ok {
+			t.Fatalf("no %s command", path[0])
+		}
+		leaf, ok := byName(parent.Commands())[path[1]]
+		if !ok {
+			t.Fatalf("no %s %s command", path[0], path[1])
+		}
+		flag := leaf.Flags().Lookup("provider")
+		if flag == nil {
+			t.Fatalf("%s %s has no --provider flag", path[0], path[1])
+		}
+		// Both the flag usage and the command's long help describe the filter;
+		// v1.1.0 had the stale list in both places on `target list`.
+		for _, text := range map[string]string{"flag usage": flag.Usage, "long help": leaf.Long} {
+			if !strings.Contains(text, "provider") {
+				continue // long help need not mention the filter at all
+			}
+			for _, id := range providerIDs {
+				if !strings.Contains(text, id) {
+					t.Errorf("%s %s: %q omits registered provider %q",
+						path[0], path[1], text, id)
+				}
+			}
+		}
+	}
+}

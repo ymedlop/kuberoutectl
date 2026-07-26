@@ -9,12 +9,15 @@ import (
 
 	"github.com/ymedlop/kuberoutectl/internal/cache/jsonstore"
 	"github.com/ymedlop/kuberoutectl/internal/domain"
+	"github.com/ymedlop/kuberoutectl/internal/providers"
 )
 
+// testApp mirrors rootTestApp: an empty-but-non-nil registry, which command
+// constructors may read at build time (e.g. --provider help enumerates it).
 func testApp(t *testing.T, targets ...domain.Target) *app {
 	t.Helper()
 	dir := t.TempDir()
-	a := &app{store: jsonstore.New(dir, dir), output: formatText}
+	a := &app{registry: providers.NewRegistry(), store: jsonstore.New(dir, dir), output: formatText}
 	if err := a.store.SaveSnapshot(domain.InventorySnapshot{Targets: targets}); err != nil {
 		t.Fatalf("seed: %v", err)
 	}
