@@ -17,7 +17,7 @@ kuberoutectl credential list [flags]
 
 ```
   -h, --help              help for list
-  -p, --provider string   filter by provider (azure|aws|gcp|kubeconfig)
+  -p, --provider string   filter by provider (aws|azure|gcp|kubeconfig)
 ```
 
 ### Options inherited from parent commands

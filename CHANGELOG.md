@@ -6,6 +6,40 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 This file is maintained by hand (GoReleaser's changelog generation is disabled).
 
+## [1.1.1] — 2026-07-26
+
+A documentation-accuracy patch. No runtime behaviour changed: every command,
+flag, and MCP tool works exactly as it did in 1.1.0 — what changed is that the
+help text now tells the truth about which providers you can pass.
+
+### Fixed
+- **`target list --provider` help advertised only two of the four providers.**
+  `kuberoutectl target list --help` said `filter by provider (azure|aws)` in both
+  the flag usage and the command's long help, while `gcp` and `kubeconfig` were
+  registered and the filter accepted them (it passes the value straight through —
+  there was never a whitelist). Only the text was wrong, so nothing failed when
+  it drifted. The list is now derived from the provider registry rather than
+  written by hand, so it cannot go stale again, and a test asserts every
+  registered provider appears in the help of both `target list` and
+  `credential list`.
+
+### Added
+- A regression guard for the MCP tools' `provider` **jsonschema descriptions**,
+  which carry the same hand-written provider list. They were already accurate —
+  nothing was broken — but nothing tied them to the registry, so they could
+  drift exactly as the CLI help did. Struct tags are compile-time constants and
+  cannot be derived, so a test now reads them by reflection and requires the
+  listed ids to match the registry exactly. No schema or tool behaviour changed.
+
+### Verified
+- **Reproducible builds re-confirmed** for this tag: two consecutive
+  `make snapshot` runs produced an identical `dist/checksums.txt`, covering the
+  archives and the `.deb` / `.rpm` packages. This was skipped for 1.1.0; the
+  build configuration (`mod_timestamp` + `SOURCE_DATE_EPOCH`) is unchanged
+  between the two tags.
+- Unit tests, `make check`, and `scripts/e2e.sh` — the latter drives the shipped
+  binary through a real MCP stdio handshake.
+
 ## [1.1.0] — 2026-07-26
 
 The first feature release after 1.0.0. Everything here is **additive** — no
@@ -93,5 +127,6 @@ the command surface is not expected to change in breaking ways.
 - Provider guides, an installation guide with a troubleshooting section, and a
   labels & collections guide, published to GitHub Pages.
 
+[1.1.1]: https://github.com/ymedlop/kuberoutectl/releases/tag/v1.1.1
 [1.1.0]: https://github.com/ymedlop/kuberoutectl/releases/tag/v1.1.0
 [1.0.0]: https://github.com/ymedlop/kuberoutectl/releases/tag/v1.0.0

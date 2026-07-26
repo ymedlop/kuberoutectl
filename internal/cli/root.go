@@ -5,6 +5,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -19,6 +20,20 @@ import (
 	"github.com/ymedlop/kuberoutectl/internal/providers/gcp"
 	"github.com/ymedlop/kuberoutectl/internal/providers/kubeconfig"
 )
+
+// providerIDs renders the registered provider ids as "azure|aws|gcp|kubeconfig"
+// for --provider help text. Derived from the registry rather than written out
+// by hand: the hardcoded list on `target list` shipped in v1.1.0 still claiming
+// "(azure|aws)" long after gcp and kubeconfig were registered and working.
+// Registry.List() is sorted by id, so the output is deterministic.
+func (a *app) providerIDs() string {
+	all := a.registry.List()
+	ids := make([]string, 0, len(all))
+	for _, p := range all {
+		ids = append(ids, string(p.ID()))
+	}
+	return strings.Join(ids, "|")
+}
 
 // app bundles the wired-up dependencies shared across commands. It is built
 // once in Execute and threaded through command constructors, keeping globals

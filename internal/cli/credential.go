@@ -40,7 +40,7 @@ func (a *app) credentialListCmd() *cobra.Command {
 			return tw.Flush()
 		},
 	}
-	cmd.Flags().StringVarP(&provider, "provider", "p", "", "filter by provider (azure|aws|gcp|kubeconfig)")
+	cmd.Flags().StringVarP(&provider, "provider", "p", "", "filter by provider ("+a.providerIDs()+")")
 	return cmd
 }
 
