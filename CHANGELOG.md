@@ -6,6 +6,19 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 This file is maintained by hand (GoReleaser's changelog generation is disabled).
 
+## [Unreleased]
+
+### Fixed
+- **`target list --provider` help advertised only two of the four providers.**
+  `kuberoutectl target list --help` said `filter by provider (azure|aws)` in both
+  the flag usage and the command's long help, while `gcp` and `kubeconfig` were
+  registered and the filter accepted them (it passes the value straight through —
+  there was never a whitelist). Only the text was wrong, so nothing failed when
+  it drifted. The list is now derived from the provider registry rather than
+  written by hand, so it cannot go stale again, and a test asserts every
+  registered provider appears in the help of both `target list` and
+  `credential list`.
+
 ## [1.1.0] — 2026-07-26
 
 The first feature release after 1.0.0. Everything here is **additive** — no
