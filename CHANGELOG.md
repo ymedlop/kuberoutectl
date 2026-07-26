@@ -6,7 +6,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 This file is maintained by hand (GoReleaser's changelog generation is disabled).
 
-## [Unreleased]
+## [1.1.1] — 2026-07-26
+
+A documentation-accuracy patch. No runtime behaviour changed: every command,
+flag, and MCP tool works exactly as it did in 1.1.0 — what changed is that the
+help text now tells the truth about which providers you can pass.
 
 ### Fixed
 - **`target list --provider` help advertised only two of the four providers.**
@@ -26,6 +30,15 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
   drift exactly as the CLI help did. Struct tags are compile-time constants and
   cannot be derived, so a test now reads them by reflection and requires the
   listed ids to match the registry exactly. No schema or tool behaviour changed.
+
+### Verified
+- **Reproducible builds re-confirmed** for this tag: two consecutive
+  `make snapshot` runs produced an identical `dist/checksums.txt`, covering the
+  archives and the `.deb` / `.rpm` packages. This was skipped for 1.1.0; the
+  build configuration (`mod_timestamp` + `SOURCE_DATE_EPOCH`) is unchanged
+  between the two tags.
+- Unit tests, `make check`, and `scripts/e2e.sh` — the latter drives the shipped
+  binary through a real MCP stdio handshake.
 
 ## [1.1.0] — 2026-07-26
 
@@ -114,5 +127,6 @@ the command surface is not expected to change in breaking ways.
 - Provider guides, an installation guide with a troubleshooting section, and a
   labels & collections guide, published to GitHub Pages.
 
+[1.1.1]: https://github.com/ymedlop/kuberoutectl/releases/tag/v1.1.1
 [1.1.0]: https://github.com/ymedlop/kuberoutectl/releases/tag/v1.1.0
 [1.0.0]: https://github.com/ymedlop/kuberoutectl/releases/tag/v1.0.0
