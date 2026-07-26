@@ -14,6 +14,7 @@ Discover, organize, and route Kubernetes access across providers
 ```
   -h, --help            help for kuberoutectl
   -o, --output string   output format: text|json (default "text")
+  -v, --verbose         trace external CLI commands, exit codes, and their stderr on failure
 ```
 
 ### SEE ALSO
@@ -23,6 +24,7 @@ Discover, organize, and route Kubernetes access across providers
 * [kuberoutectl current](kuberoutectl_current.md)	 - Show the currently selected target or collection
 * [kuberoutectl doctor](kuberoutectl_doctor.md)	 - Check local prerequisites (provider CLIs, resolution)
 * [kuberoutectl inventory](kuberoutectl_inventory.md)	 - Inspect discovered access sources, scopes, and providers
+* [kuberoutectl mcp](kuberoutectl_mcp.md)	 - Run an MCP server exposing kuberoutectl as tools (stdio)
 * [kuberoutectl setup](kuberoutectl_setup.md)	 - Prepare local provider configuration
 * [kuberoutectl sync](kuberoutectl_sync.md)	 - Discover inventory from a provider and update the local cache
 * [kuberoutectl target](kuberoutectl_target.md)	 - Inspect, label, and use Kubernetes targets

@@ -7,13 +7,21 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/ymedlop/kuberoutectl/internal/execx"
 	"github.com/ymedlop/kuberoutectl/internal/providers"
 )
 
-// testRoot builds the command tree with an empty-but-non-nil registry, enough
-// to construct every command (syncCmd lists the registry at build time).
+// rootTestApp builds a minimally-wired app: an empty-but-non-nil registry
+// (enough to construct every command, since syncCmd lists the registry at build
+// time) and a trace toggle (which PersistentPreRunE writes to, as newApp
+// guarantees).
+func rootTestApp() *app {
+	return &app{registry: providers.NewRegistry(), output: formatText, trace: &execx.TraceConfig{}}
+}
+
+// testRoot builds the command tree from a minimally-wired app.
 func testRoot() *cobra.Command {
-	return (&app{registry: providers.NewRegistry(), output: formatText}).rootCmd()
+	return rootTestApp().rootCmd()
 }
 
 // byName indexes a command's children by their name (first word of Use).
@@ -122,6 +130,42 @@ func TestCompletionHidden(t *testing.T) {
 	}
 	if !comp.Hidden {
 		t.Error("completion command should be hidden from the help/command list")
+	}
+}
+
+// TestVerboseFlagWiring confirms the global --verbose/-v flag exists and that
+// PersistentPreRunE flips the shared trace toggle: off by default, on (with a
+// writer) when the flag is set.
+func TestVerboseFlagWiring(t *testing.T) {
+	if testRoot().PersistentFlags().Lookup("verbose") == nil {
+		t.Fatal("root is missing the --verbose flag")
+	}
+
+	off := rootTestApp()
+	rootOff := off.rootCmd()
+	rootOff.SetOut(&bytes.Buffer{})
+	rootOff.SetErr(&bytes.Buffer{})
+	rootOff.SetArgs([]string{"version"})
+	if err := rootOff.Execute(); err != nil {
+		t.Fatalf("version: %v", err)
+	}
+	if off.trace.Enabled {
+		t.Error("tracing should be disabled without --verbose")
+	}
+
+	on := rootTestApp()
+	rootOn := on.rootCmd()
+	rootOn.SetOut(&bytes.Buffer{})
+	rootOn.SetErr(&bytes.Buffer{})
+	rootOn.SetArgs([]string{"--verbose", "version"})
+	if err := rootOn.Execute(); err != nil {
+		t.Fatalf("--verbose version: %v", err)
+	}
+	if !on.trace.Enabled {
+		t.Error("--verbose should enable tracing")
+	}
+	if on.trace.Writer == nil {
+		t.Error("--verbose should set the trace writer")
 	}
 }
 

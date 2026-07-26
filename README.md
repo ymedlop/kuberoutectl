@@ -141,6 +141,10 @@ A fuller walkthrough lives in the docs under
 ## Commands
 
 Every inventory command supports `--output json` (`-o json`) for scripting.
+Add `-v` / `--verbose` to any command to trace the external cloud-CLI calls it
+makes — the command, its exit code, and the CLI's stderr on failure — printed to
+stderr so it never pollutes `-o json`. Reach for it when a `sync` returns fewer
+targets than expected (an expired token, say).
 
 ```bash
 kuberoutectl doctor                              # check required provider CLIs resolve
@@ -191,8 +195,20 @@ kuberoutectl collection delete production
 kuberoutectl current                             # what am I pointed at, and how fresh is it?
 
 kuberoutectl setup aws-sso --sso-session <name>  # write ~/.aws/config profiles for every SSO account
+kuberoutectl mcp                                 # serve kuberoutectl as MCP tools over stdio (optional; --read-only available)
 kuberoutectl version
 ```
+
+## MCP server (optional)
+
+`kuberoutectl mcp` runs a [Model Context Protocol](https://modelcontextprotocol.io)
+server over stdio, so an MCP-compatible AI client can operate the safe core
+workflows — list inventory, inspect credential health, route targets, run a
+sync, and manage collections — as structured tools instead of scraping CLI text.
+It is opt-in (nothing listens unless you run the command), exposes **no secrets**
+and **no destructive actions**, and `--read-only` narrows it to inspection tools
+only. The tools map directly to the same services the CLI uses. See the
+[MCP guide](https://ymedlop.github.io/kuberoutectl/mcp/).
 
 ## Installation
 
@@ -281,20 +297,23 @@ so they can't silently drift after a rename.
 Post-1.0 work — additive, and it does not change the core workflow:
 
 - managed `kubectl` runtime with version compatibility + selection ([#37](https://github.com/ymedlop/kuberoutectl/issues/37)–[#42](https://github.com/ymedlop/kuberoutectl/issues/42))
-- an MCP server for `kuberoutectl` ([#44](https://github.com/ymedlop/kuberoutectl/issues/44))
 - richer health checks and improved collection selectors
 
 ## Status
 
-**1.0.0 is the first stable public release — a stability milestone, not a feature
-milestone.** The core discover → organize → route workflow is complete across the
-Azure, AWS, GCP, and kubeconfig providers, with a provider-agnostic core, a JSON
-local cache, user labels and collections that survive resync, credential-health
-awareness, and cross-platform package distribution (Homebrew, Scoop, deb/rpm/apk).
-The command surface is not expected to change in breaking ways. See
-[CHANGELOG.md](CHANGELOG.md) for the full 1.0.0 summary and
-[RELEASING.md](RELEASING.md) for the release process. `TODO.md` is the historical
-milestone-1 tracker, kept for reference.
+**1.1.0 is the current release.** It adds the optional [MCP server](#mcp-server-optional)
+and `--verbose` provider tracing on top of 1.0.0 — additively, so nothing about
+the command surface changed.
+
+1.0.0 remains the reference point: it was the first stable public release and a
+**stability milestone, not a feature milestone**. The core discover → organize →
+route workflow is complete across the Azure, AWS, GCP, and kubeconfig providers,
+with a provider-agnostic core, a JSON local cache, user labels and collections
+that survive resync, credential-health awareness, and cross-platform package
+distribution (Homebrew, Scoop, deb/rpm/apk). The command surface is not expected
+to change in breaking ways. See [CHANGELOG.md](CHANGELOG.md) for the full
+release history and [RELEASING.md](RELEASING.md) for the release process.
+`TODO.md` is the historical milestone-1 tracker, kept for reference.
 
 The architecture is shaped around real operator workflows first, not around
 generic abstractions for their own sake.
