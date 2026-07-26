@@ -297,20 +297,23 @@ so they can't silently drift after a rename.
 Post-1.0 work — additive, and it does not change the core workflow:
 
 - managed `kubectl` runtime with version compatibility + selection ([#37](https://github.com/ymedlop/kuberoutectl/issues/37)–[#42](https://github.com/ymedlop/kuberoutectl/issues/42))
-- an MCP server for `kuberoutectl` ([#44](https://github.com/ymedlop/kuberoutectl/issues/44))
 - richer health checks and improved collection selectors
 
 ## Status
 
-**1.0.0 is the first stable public release — a stability milestone, not a feature
-milestone.** The core discover → organize → route workflow is complete across the
-Azure, AWS, GCP, and kubeconfig providers, with a provider-agnostic core, a JSON
-local cache, user labels and collections that survive resync, credential-health
-awareness, and cross-platform package distribution (Homebrew, Scoop, deb/rpm/apk).
-The command surface is not expected to change in breaking ways. See
-[CHANGELOG.md](CHANGELOG.md) for the full 1.0.0 summary and
-[RELEASING.md](RELEASING.md) for the release process. `TODO.md` is the historical
-milestone-1 tracker, kept for reference.
+**1.1.0 is the current release.** It adds the optional [MCP server](#mcp-server-optional)
+and `--verbose` provider tracing on top of 1.0.0 — additively, so nothing about
+the command surface changed.
+
+1.0.0 remains the reference point: it was the first stable public release and a
+**stability milestone, not a feature milestone**. The core discover → organize →
+route workflow is complete across the Azure, AWS, GCP, and kubeconfig providers,
+with a provider-agnostic core, a JSON local cache, user labels and collections
+that survive resync, credential-health awareness, and cross-platform package
+distribution (Homebrew, Scoop, deb/rpm/apk). The command surface is not expected
+to change in breaking ways. See [CHANGELOG.md](CHANGELOG.md) for the full
+release history and [RELEASING.md](RELEASING.md) for the release process.
+`TODO.md` is the historical milestone-1 tracker, kept for reference.
 
 The architecture is shaped around real operator workflows first, not around
 generic abstractions for their own sake.

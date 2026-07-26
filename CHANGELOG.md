@@ -6,9 +6,54 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 This file is maintained by hand (GoReleaser's changelog generation is disabled).
 
-## [1.0.0] — first stable release
+## [1.1.0] — 2026-07-26
 
-_Date is set when the `v1.0.0` tag is cut; see [RELEASING.md](RELEASING.md)._
+The first feature release after 1.0.0. Everything here is **additive** — no
+existing command changes its shape, so upgrading is a drop-in replacement.
+
+### Added
+- **`kuberoutectl mcp`** — an optional [Model Context Protocol](https://modelcontextprotocol.io)
+  server over stdio, so an MCP-capable AI client can drive the safe core of the
+  inventory (list targets, inspect credential health, manage collections). The
+  server is opt-in: nothing runs unless you start it. `--read-only` exposes the
+  inspection tools only, with no sync / use / collection writes.
+  ([#98](https://github.com/ymedlop/kuberoutectl/pull/98), closes
+  [#44](https://github.com/ymedlop/kuberoutectl/issues/44))
+- **`--verbose` / `-v`** (global) — traces every external CLI invocation, its
+  exit code, and its stderr on failure. Turns "discovery found nothing" from a
+  guess into something you can read.
+  ([#99](https://github.com/ymedlop/kuberoutectl/pull/99))
+- A generated **command reference** on the docs site, produced from the Cobra
+  command tree so it cannot drift from the binary.
+  ([#94](https://github.com/ymedlop/kuberoutectl/pull/94))
+
+### Fixed
+- **AWS: modern `sso_session` profiles are now recognised as SSO.** A profile
+  using the `sso_session` form (rather than the legacy inline `sso_start_url`)
+  was classified as `unknown` health with no suggested action; it is now
+  reported as `expired` with a renew action, so `aws sso login` is actually
+  offered. ([#101](https://github.com/ymedlop/kuberoutectl/pull/101))
+- **AWS: expired-token diagnostic.** A failed identity check now says the token
+  has likely expired and names the exact `aws sso login --profile <name>` to
+  run, instead of silently yielding zero clusters.
+  ([#99](https://github.com/ymedlop/kuberoutectl/pull/99))
+
+### Changed
+- Snapshot builds publish fixed-name macOS archives, so the rolling Homebrew
+  cask for `development` keeps working across snapshots. Stable releases are
+  unaffected. ([#100](https://github.com/ymedlop/kuberoutectl/pull/100))
+
+### Verified / not verified
+- Verified: unit tests, `make check`, and `scripts/e2e.sh` — the latter drives
+  the **shipped binary** through a real MCP stdio handshake (`initialize` →
+  `notifications/initialized` → `tools/list`) and asserts `--read-only`
+  withholds the write tools.
+- Not verified: no **third-party MCP client** (Claude Desktop and friends) is
+  exercised by the test suite, and no provider tool is run against a real cloud
+  account — the provider flows are fixture-driven with fake
+  `az` / `aws` / `gcloud` / `kubectl`.
+
+## [1.0.0] — 2026-07-18
 
 The first **stable** public release. 1.0.0 is a **stability milestone**, not a
 feature milestone: the core discover → organize → route workflow is complete and
@@ -48,4 +93,5 @@ the command surface is not expected to change in breaking ways.
 - Provider guides, an installation guide with a troubleshooting section, and a
   labels & collections guide, published to GitHub Pages.
 
+[1.1.0]: https://github.com/ymedlop/kuberoutectl/releases/tag/v1.1.0
 [1.0.0]: https://github.com/ymedlop/kuberoutectl/releases/tag/v1.0.0
