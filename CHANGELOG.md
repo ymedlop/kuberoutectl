@@ -9,7 +9,7 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
 ## [1.1.0] — 2026-07-26
 
 The first feature release after 1.0.0. Everything here is **additive** — no
-command changes shape, so upgrading is a drop-in replacement.
+existing command changes its shape, so upgrading is a drop-in replacement.
 
 ### Added
 - **`kuberoutectl mcp`** — an optional [Model Context Protocol](https://modelcontextprotocol.io)
@@ -46,7 +46,8 @@ command changes shape, so upgrading is a drop-in replacement.
 ### Verified / not verified
 - Verified: unit tests, `make check`, and `scripts/e2e.sh` — the latter drives
   the **shipped binary** through a real MCP stdio handshake (`initialize` →
-  `tools/list`) and asserts `--read-only` withholds the write tools.
+  `notifications/initialized` → `tools/list`) and asserts `--read-only`
+  withholds the write tools.
 - Not verified: no **third-party MCP client** (Claude Desktop and friends) is
   exercised by the test suite, and no provider tool is run against a real cloud
   account — the provider flows are fixture-driven with fake
