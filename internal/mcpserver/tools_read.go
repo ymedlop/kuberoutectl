@@ -46,6 +46,9 @@ func (h *handler) listProviders(_ context.Context, _ *mcp.CallToolRequest, _ Lis
 
 // ---- list_targets ----
 
+// The provider list in the jsonschema tag is hand-written (struct tags are
+// compile-time constants) and is guarded by TestMCPSchemaListsEveryProvider in
+// internal/cli — update it when a provider is added.
 type ListTargetsInput struct {
 	Provider      string `json:"provider,omitempty" jsonschema:"filter to one provider id (azure|aws|gcp|kubeconfig); empty for all"`
 	Selector      string `json:"selector,omitempty" jsonschema:"label selector, e.g. env=prod or \"region in [eu-central-1]\""`

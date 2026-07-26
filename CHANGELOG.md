@@ -19,6 +19,14 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
   registered provider appears in the help of both `target list` and
   `credential list`.
 
+### Added
+- A regression guard for the MCP tools' `provider` **jsonschema descriptions**,
+  which carry the same hand-written provider list. They were already accurate —
+  nothing was broken — but nothing tied them to the registry, so they could
+  drift exactly as the CLI help did. Struct tags are compile-time constants and
+  cannot be derived, so a test now reads them by reflection and requires the
+  listed ids to match the registry exactly. No schema or tool behaviour changed.
+
 ## [1.1.0] — 2026-07-26
 
 The first feature release after 1.0.0. Everything here is **additive** — no
