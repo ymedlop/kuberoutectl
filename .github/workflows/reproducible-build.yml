@@ -1,0 +1,92 @@
+name: reproducible-build
+
+# Verifies the guarantee RELEASING.md makes: the same commit produces
+# byte-identical artifacts. It builds the full snapshot twice and diffs
+# `dist/checksums.txt`.
+#
+# Why this exists: the check was a manual checklist item, so it depended on
+# someone remembering to run `make snapshot` twice before cutting a tag. It was
+# skipped for v1.1.0, and the release notes had to admit the guarantee was
+# unproven for that tag. This job removes the human step.
+#
+# It deliberately runs `make snapshot` — the same command a maintainer runs
+# locally and the one RELEASING.md documents — rather than invoking GoReleaser
+# directly. If the Makefile target stops setting SOURCE_DATE_EPOCH, this job
+# must fail; a CI-specific invocation would hide exactly that regression.
+on:
+  # Run before cutting a tag. `release.yml` fires on the tag, which is too late
+  # to be a gate, so this is the pre-tag check a maintainer triggers by hand.
+  workflow_dispatch:
+
+  # Anything that can plausibly change build output.
+  pull_request:
+    paths:
+      - ".goreleaser.yaml"
+      - "Makefile"
+      - "go.mod"
+      - ".github/workflows/reproducible-build.yml"
+
+  # Reproducibility can break without the repo changing at all — a runner image
+  # bumping its Go toolchain is enough. Weekly catches that drift before a
+  # release does.
+  schedule:
+    - cron: "17 4 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reproducible-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # `make snapshot` reads the commit timestamp via `git log -1`, and
+          # GoReleaser's snapshot version template embeds the short commit.
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # install-only: the two builds are driven by `make snapshot` below, not by
+      # this action, so it only needs to put the binary on PATH. Version range
+      # matches release.yml and snapshot-release.yml.
+      - name: Install GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          install-only: true
+
+      - name: First build
+        run: make snapshot
+
+      # `make snapshot` runs `goreleaser release --snapshot --clean`, and
+      # --clean wipes dist/ at the start of the next run — so the first
+      # checksums file has to be copied out before building again.
+      - name: Stash the first checksums
+        run: cp dist/checksums.txt "${RUNNER_TEMP}/checksums-1.txt"
+
+      - name: Second build
+        run: make snapshot
+
+      - name: Compare
+        run: |
+          if diff -u "${RUNNER_TEMP}/checksums-1.txt" dist/checksums.txt; then
+            echo "Builds are reproducible: checksums.txt is byte-identical."
+            exit 0
+          fi
+
+          echo
+          echo "::error::Build is NOT reproducible — see the diff above."
+          echo "If only the .deb/.rpm lines differ, suspect SOURCE_DATE_EPOCH:"
+          echo "goreleaser's mod_timestamp does not cover the nfpms pipe, so the"
+          echo "Makefile's snapshot target must export it. See RELEASING.md."
+          exit 1

@@ -6,6 +6,17 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 This file is maintained by hand (GoReleaser's changelog generation is disabled).
 
+## [Unreleased]
+
+### Added
+- **CI now verifies reproducible builds.** A `reproducible-build` workflow
+  builds the full snapshot twice and diffs `dist/checksums.txt`, running on
+  demand (before cutting a tag), on pull requests that touch the build
+  configuration, and weekly — a runner image bumping its Go toolchain can break
+  reproducibility with no repo change at all. Until now this was a manual
+  checklist item, which is why it was skipped for 1.1.0 and that release's notes
+  had to record the guarantee as unproven for that tag.
+
 ## [1.1.1] — 2026-07-26
 
 A documentation-accuracy patch. No runtime behaviour changed: every command,
