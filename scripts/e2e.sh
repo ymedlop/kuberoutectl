@@ -65,7 +65,7 @@ cat > "$WORK/bin/aws" <<EOF
 SSO="https://my-sso.awsapps.com/start"
 case "\$*" in
   "configure list-profiles") printf 'default\nprod-sso\nlegacy-static\n' ;;
-  "sts get-caller-identity --profile default --output json") exit 1 ;;
+  "sts get-caller-identity --profile default --output json") echo "Error loading SSO Token: Token for default does not exist" >&2; exit 1 ;;
   "configure get sso_start_url --profile default") echo "\$SSO" ;;
   "sts get-caller-identity --profile legacy-static --output json") cat "$AWS_FIX/identity-static.json" ;;
   "configure get sso_start_url --profile legacy-static") exit 1 ;;
@@ -109,6 +109,17 @@ run sync azure
 run sync aws
 run sync kubeconfig
 run sync gcp
+
+echo; echo "==> aws: an expired-token profile is surfaced on sync (diagnostic), not silently dropped"
+sync_aws_diag="$("$BIN" sync aws 2>&1)"; echo "$sync_aws_diag"
+assert_contains "$sync_aws_diag" 'profile "default": identity check failed'  # expired SSO named, not swallowed
+assert_contains "$sync_aws_diag" 'aws sso login --profile default'           # actionable remedy
+
+echo; echo "==> aws --verbose: the raw cloud-CLI command and its stderr are traced"
+sync_aws_verbose="$("$BIN" sync aws --verbose 2>&1)"; echo "$sync_aws_verbose"
+assert_contains "$sync_aws_verbose" "[exec] "                                                    # trace format present
+assert_contains "$sync_aws_verbose" "sts get-caller-identity --profile default --output json"    # raw command traced
+assert_contains "$sync_aws_verbose" "Error loading SSO Token"                                    # underlying CLI stderr shown
 
 echo; echo "==> kubeconfig: unique contexts inventoried; a context duplicating a native EKS cluster (same endpoint) is suppressed"
 kc="$("$BIN" target list --provider kubeconfig)"; echo "$kc"
@@ -224,5 +235,22 @@ assert_contains "$cleared" "Cleared"
 assert_contains "$("$BIN" target list)" "No targets"          # every target gone
 assert_contains "$("$BIN" credential list)" "static"          # credentials untouched by clear
 
+echo; echo "==> mcp: the stdio server answers a real initialize + tools/list handshake"
+# Keep stdin open briefly (sleep) so the server flushes its responses before EOF.
+# The full typed round-trip is covered by the Go in-memory test; this proves the
+# shipped binary speaks MCP end to end.
+mcp_out="$( { printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"e2e","version":"0"}}}' \
+  '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'; sleep 0.5; } | "$BIN" mcp 2>/dev/null )"
+assert_contains "$mcp_out" '"list_targets"'                 # a read tool is registered
+assert_contains "$mcp_out" '"create_or_update_collection"'  # a safe-write tool is registered
+mcp_ro="$( { printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"e2e","version":"0"}}}' \
+  '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'; sleep 0.5; } | "$BIN" mcp --read-only 2>/dev/null )"
+echo "$mcp_ro" | grep -qF '"create_or_update_collection"' && fail "--read-only must not expose write tools"
+assert_contains "$mcp_ro" '"list_targets"'                  # read tools still present
+
 echo
-echo "E2E OK: cross-provider discovery, health spectrum, and label survival verified."
+echo "E2E OK: cross-provider discovery, health spectrum, label survival, and MCP handshake verified."

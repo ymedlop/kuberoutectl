@@ -32,6 +32,9 @@ type app struct {
 	requiredBinary map[string]string
 
 	output outputFormat
+	// trace is the shared verbose-tracing toggle read by the wrapped command
+	// runner; PersistentPreRunE flips it once --verbose is parsed.
+	trace *execx.TraceConfig
 }
 
 // newApp builds the fully-wired application: config, provider registry, binary
@@ -47,7 +50,10 @@ func newApp() (*app, error) {
 		output:         formatText,
 	}
 	a.resolver = execx.NewPathResolver(a.cfg.BinaryPaths, "")
-	runner := execx.NewExecRunner()
+	// The runner is built here, before flags are parsed, so verbose tracing is
+	// gated by a shared toggle the root command flips in PersistentPreRunE.
+	a.trace = &execx.TraceConfig{}
+	runner := execx.NewTraceRunner(execx.NewExecRunner(), a.trace)
 
 	// Providers register here — the single wiring point. Each provider also
 	// declares the CLI doctor should check for it.
@@ -97,18 +103,22 @@ func RootCommand() (*cobra.Command, error) {
 
 func (a *app) rootCmd() *cobra.Command {
 	var output string
+	var verbose bool
 	root := &cobra.Command{
 		Use:           "kuberoutectl",
 		Short:         "Discover, organize, and route Kubernetes access across providers",
 		Version:       buildinfo.Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 			f := outputFormat(output)
 			if !f.valid() {
 				return fmt.Errorf("invalid --output %q: want text or json", output)
 			}
 			a.output = f
+			// Verbose traces go to stderr so they never pollute --output json.
+			a.trace.Enabled = verbose
+			a.trace.Writer = cmd.ErrOrStderr()
 			return nil
 		},
 	}
@@ -119,6 +129,7 @@ func (a *app) rootCmd() *cobra.Command {
 	root.SetVersionTemplate("kuberoutectl " + buildinfo.String() + "\n")
 
 	root.PersistentFlags().StringVarP(&output, "output", "o", "text", "output format: text|json")
+	root.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "trace external CLI commands, exit codes, and their stderr on failure")
 
 	// Hide Cobra's auto-generated `completion` command from the help/command
 	// list without disabling it — `kuberoutectl completion <shell>` and the
@@ -134,6 +145,7 @@ func (a *app) rootCmd() *cobra.Command {
 		a.inventoryCmd(),
 		a.setupCmd(),
 		a.doctorCmd(),
+		a.mcpCmd(),
 		a.versionCmd(),
 	)
 	return root
