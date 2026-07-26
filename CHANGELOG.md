@@ -6,7 +6,11 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 This file is maintained by hand (GoReleaser's changelog generation is disabled).
 
-## [Unreleased]
+## [1.1.1] — 2026-07-26
+
+A documentation-accuracy patch. No runtime behaviour changed: every command,
+flag, and MCP tool works exactly as it did in 1.1.0 — what changed is that the
+help text now tells the truth about which providers you can pass.
 
 ### Fixed
 - **`target list --provider` help advertised only two of the four providers.**
@@ -114,5 +118,6 @@ the command surface is not expected to change in breaking ways.
 - Provider guides, an installation guide with a troubleshooting section, and a
   labels & collections guide, published to GitHub Pages.
 
+[1.1.1]: https://github.com/ymedlop/kuberoutectl/releases/tag/v1.1.1
 [1.1.0]: https://github.com/ymedlop/kuberoutectl/releases/tag/v1.1.0
 [1.0.0]: https://github.com/ymedlop/kuberoutectl/releases/tag/v1.0.0
