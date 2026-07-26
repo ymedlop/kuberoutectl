@@ -21,6 +21,9 @@ func (h *handler) registerWriteTools(s *mcp.Server) {
 
 // ---- sync_provider ----
 
+// The provider list in the jsonschema tag is hand-written (struct tags are
+// compile-time constants) and is guarded by TestMCPSchemaListsEveryProvider in
+// internal/cli — update it when a provider is added.
 type SyncProviderInput struct {
 	Provider string `json:"provider" jsonschema:"provider id to sync (azure|aws|gcp|kubeconfig)"`
 }

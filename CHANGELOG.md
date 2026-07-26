@@ -18,6 +18,12 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
   written by hand, so it cannot go stale again, and a test asserts every
   registered provider appears in the help of both `target list` and
   `credential list`.
+- The MCP tools' `provider` **jsonschema descriptions** carried the same
+  hand-written provider list. They were accurate, but nothing tied them to the
+  registry, so they could drift exactly as the CLI help did. Struct tags are
+  compile-time constants and cannot be derived, so they are now guarded by a
+  test that reads them by reflection and asserts every registered provider
+  appears. No schema or tool behaviour changed.
 
 ## [1.1.0] — 2026-07-26
 
