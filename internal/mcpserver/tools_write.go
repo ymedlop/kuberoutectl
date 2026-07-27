@@ -87,10 +87,15 @@ type UseTargetOutput struct {
 	// is the one with access inside the cluster.
 	Profile       string `json:"profile,omitempty"`
 	ProfileSource string `json:"profile_source,omitempty"`
-	// LostProfile names a profile this target was previously used through that
-	// the cache no longer offers. Set only when that happened, so a client can
-	// tell "you are back on the default" from "you were always on it".
-	LostProfile string `json:"lost_profile,omitempty"`
+	// LostCredentialID is the credential this target was previously used
+	// through that the cache no longer offers. Set only when that happened, so a
+	// client can tell "you are back on the default" from "you were always on
+	// it".
+	//
+	// An id, not a name, unlike Profile above — deliberately. The credential is
+	// gone from the snapshot, so there is no name left to resolve; naming the
+	// field for a profile would promise something this value cannot be.
+	LostCredentialID string `json:"lost_credential_id,omitempty"`
 }
 
 func (h *handler) useTarget(ctx context.Context, _ *mcp.CallToolRequest, in UseTargetInput) (*mcp.CallToolResult, UseTargetOutput, error) {
@@ -105,11 +110,11 @@ func (h *handler) useTarget(ctx context.Context, _ *mcp.CallToolRequest, in UseT
 		return nil, UseTargetOutput{}, err
 	}
 	return nil, UseTargetOutput{
-		Target:        res.Target,
-		Activated:     in.Activate,
-		Profile:       res.Credential.Name,
-		ProfileSource: res.CredentialSource.String(),
-		LostProfile:   string(res.LostCredentialID),
+		Target:           res.Target,
+		Activated:        in.Activate,
+		Profile:          res.Credential.Name,
+		ProfileSource:    res.CredentialSource.String(),
+		LostCredentialID: string(res.LostCredentialID),
 	}, nil
 }
 

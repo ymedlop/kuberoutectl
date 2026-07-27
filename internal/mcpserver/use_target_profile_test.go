@@ -5,10 +5,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/ymedlop/kuberoutectl/internal/cache/jsonstore"
-	"github.com/ymedlop/kuberoutectl/internal/services"
 
 	"github.com/ymedlop/kuberoutectl/internal/domain"
 	"github.com/ymedlop/kuberoutectl/internal/providers"
@@ -40,30 +38,13 @@ func multiCredentialSnapshot() domain.InventorySnapshot {
 	}
 }
 
-// newProfileHandler mirrors newTestHandler but keeps hold of the store, so a
-// test can rewrite the snapshot to simulate a resync.
 func newProfileHandler(t *testing.T) (*handler, *credentialFakeProvider, *jsonstore.Store) {
 	t.Helper()
 	prov := &credentialFakeProvider{fakeProvider: fakeProvider{
 		id:   "aws",
 		caps: domain.Capabilities{CanSwitchContext: true},
 	}}
-	dir := t.TempDir()
-	store := jsonstore.New(dir, dir)
-	if err := store.SaveSnapshot(multiCredentialSnapshot()); err != nil {
-		t.Fatalf("seed snapshot: %v", err)
-	}
-	reg := providers.NewRegistry()
-	if err := reg.Register(prov); err != nil {
-		t.Fatalf("register provider: %v", err)
-	}
-	now := func() time.Time { return time.Unix(0, 0).UTC() }
-	h := &handler{d: Deps{
-		Version:   "test",
-		Registry:  reg,
-		Targets:   services.NewTargetService(store),
-		Selection: services.NewSelectionService(store, reg, now),
-	}}
+	h, store := newTestHandlerWithStore(t, multiCredentialSnapshot(), prov)
 	return h, prov, store
 }
 
@@ -181,8 +162,8 @@ func TestMCPUseTarget_ReportsALostProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second useTarget: %v", err)
 	}
-	if out.LostProfile != "aws:dev" {
-		t.Errorf("LostProfile = %q, want aws:dev", out.LostProfile)
+	if out.LostCredentialID != "aws:dev" {
+		t.Errorf("LostCredentialID = %q, want aws:dev", out.LostCredentialID)
 	}
 	if out.Profile != "ops" {
 		t.Errorf("Profile = %q, want the fallback ops", out.Profile)
@@ -201,8 +182,8 @@ func TestMCPUseTarget_ExplicitSwitchIsNotALoss(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second useTarget: %v", err)
 	}
-	if out.LostProfile != "" {
-		t.Errorf("LostProfile = %q, want empty: dev is still there, the client just chose ops", out.LostProfile)
+	if out.LostCredentialID != "" {
+		t.Errorf("LostCredentialID = %q, want empty: dev is still there, the client just chose ops", out.LostCredentialID)
 	}
 	if out.ProfileSource != "flag" {
 		t.Errorf("ProfileSource = %q, want flag", out.ProfileSource)

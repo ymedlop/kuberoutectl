@@ -494,7 +494,7 @@ func describeCredentialChoice(res services.UseTargetResult) string {
 		// never had a choice. Staying silent here would move an operator off a
 		// deliberately-picked profile with no output at all.
 		if res.LostCredentialID != "" {
-			return " via " + name + " (" + string(res.LostCredentialID) + " is gone from the cache)"
+			return " via " + name + " (credential " + string(res.LostCredentialID) + " is gone from the cache)"
 		}
 		if len(res.Target.CredentialIDs) < 2 {
 			return "" // only one way in: nothing was chosen, so say nothing
