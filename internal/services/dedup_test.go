@@ -137,3 +137,39 @@ func TestSuppressOverlayDuplicates(t *testing.T) {
 		}
 	})
 }
+
+// Edge case 10: a folded multi-credential target is still ONE target with ONE
+// endpoint, so the kubeconfig context shadowing it is still suppressed.
+//
+// This is the property the rejected "one target per (cluster, profile)" model
+// would have broken: two native targets sharing an endpoint would have left
+// suppression picking one arbitrarily, or dropping the kubeconfig context
+// against a target the operator cannot reach. Asserted explicitly so a future
+// refactor cannot regress it unnoticed.
+func TestSuppressOverlayDuplicates_FoldedTargetStillShadowsItsContext(t *testing.T) {
+	const endpoint = "https://ABC123.gr7.eu-central-1.eks.amazonaws.com"
+	targets := []domain.Target{
+		{
+			ID: "arn:aws:eks:eu-central-1:1234:cluster/prod", ProviderID: "aws",
+			Name: "eks-prod", Endpoint: endpoint,
+			CredentialID:  "aws:ops",
+			CredentialIDs: []domain.CredentialID{"aws:ops", "aws:dev"},
+		},
+		{
+			ID: "kubeconfig:context:eks-prod", ProviderID: "kubeconfig",
+			Name: "eks-prod-ctx", Endpoint: endpoint,
+		},
+	}
+	isOverlay := func(id domain.ProviderID) bool { return id == "kubeconfig" }
+
+	got := suppressOverlayDuplicates(targets, isOverlay)
+	if len(got) != 1 {
+		t.Fatalf("got %d targets, want 1 — the overlay context must be suppressed", len(got))
+	}
+	if got[0].ProviderID != "aws" {
+		t.Errorf("survivor is %q, want the native aws target", got[0].ProviderID)
+	}
+	if len(got[0].CredentialIDs) != 2 {
+		t.Errorf("CredentialIDs = %v, want both access paths preserved through suppression", got[0].CredentialIDs)
+	}
+}

@@ -64,7 +64,7 @@ cat > "$WORK/bin/aws" <<EOF
 #!/usr/bin/env bash
 SSO="https://my-sso.awsapps.com/start"
 case "\$*" in
-  "configure list-profiles") printf 'default\nprod-sso\nlegacy-static\n' ;;
+  "configure list-profiles") printf 'default\nops\nprod-sso\nlegacy-static\n' ;;
   "sts get-caller-identity --profile default --output json") echo "Error loading SSO Token: Token for default does not exist" >&2; exit 1 ;;
   "configure get sso_start_url --profile default") echo "\$SSO" ;;
   "sts get-caller-identity --profile legacy-static --output json") cat "$AWS_FIX/identity-static.json" ;;
@@ -77,6 +77,15 @@ case "\$*" in
   "eks list-clusters --profile prod-sso --region eu-central-1 --output json") cat "$AWS_FIX/eks-list-prod.json" ;;
   "eks describe-cluster --profile prod-sso --region eu-central-1 --name eks-prod-frankfurt --output json") cat "$AWS_FIX/eks-describe-frankfurt.json" ;;
   "eks describe-cluster --profile prod-sso --region eu-central-1 --name eks-prod-ireland --output json") cat "$AWS_FIX/eks-describe-ireland.json" ;;
+  # ops: a second SSO profile into the SAME account. It sees frankfurt (so the
+  # two profiles' targets share an ARN and must fold into one), but IAM denies
+  # it describe on ireland — the no-pattern case this feature exists for.
+  "sts get-caller-identity --profile ops --output json") cat "$AWS_FIX/identity-ops.json" ;;
+  "configure get sso_start_url --profile ops") echo "\$SSO" ;;
+  "configure get region --profile ops") echo "eu-central-1" ;;
+  "eks list-clusters --profile ops --region eu-central-1 --output json") cat "$AWS_FIX/eks-list-prod.json" ;;
+  "eks describe-cluster --profile ops --region eu-central-1 --name eks-prod-frankfurt --output json") cat "$AWS_FIX/eks-describe-frankfurt.json" ;;
+  "eks describe-cluster --profile ops --region eu-central-1 --name eks-prod-ireland --output json") exit 1 ;;
   *) exit 1 ;;
 esac
 EOF
@@ -165,6 +174,40 @@ echo; echo "==> filter by provider"
 aws_only="$("$BIN" target list --provider aws)"; echo "$aws_only"
 assert_contains "$aws_only" "eks-prod-frankfurt"
 echo "$aws_only" | grep -qF "aks-prod-weu" && fail "--provider aws must exclude Azure targets"
+
+echo; echo "==> two AWS profiles into one account fold into a single target"
+# eks-prod-frankfurt is visible to both prod-sso and ops. Before the fold this
+# produced two targets sharing an ARN, indistinguishable in the listing and with
+# the second unreachable by any printed reference.
+aws_rows="$("$BIN" target list --provider aws)"; echo "$aws_rows"
+fra_count="$(echo "$aws_rows" | grep -c "eks-prod-frankfurt")"
+[ "$fra_count" -eq 1 ] || fail "expected exactly 1 frankfurt row, got $fra_count"
+assert_contains "$aws_rows" "PROFILES"
+assert_contains "$aws_rows" "ops"
+
+echo; echo "==> a cluster only one profile can describe records only that profile"
+# ops is denied describe on ireland, so ireland must not offer it as a way in.
+ireland="$("$BIN" target inspect eks-prod-ireland)"; echo "$ireland"
+echo "$ireland" | grep -qE '^profile[[:space:]]+ops' && fail "ireland must not list the denied profile"
+
+echo; echo "==> sync reports which profile was denied on which cluster"
+denials="$("$BIN" sync aws 2>&1)"; echo "$denials" | grep -F "cannot describe" || true
+assert_contains "$denials" "eks-prod-ireland"
+
+echo; echo "==> target use --profile picks the access path, and it is remembered"
+default_use="$("$BIN" target use eks-prod-frankfurt --no-kubeconfig 2>&1)"; echo "$default_use"
+assert_contains "$default_use" "default"          # an unprompted default says so
+chosen="$("$BIN" target use eks-prod-frankfurt --profile prod-sso --no-kubeconfig 2>&1)"; echo "$chosen"
+assert_contains "$chosen" "via prod-sso"
+echo "$chosen" | grep -qF "default" && fail "an explicit choice must not read as a default"
+assert_contains "$("$BIN" current)" "prod-sso"    # persisted, and reported
+again="$("$BIN" target use eks-prod-frankfurt --no-kubeconfig 2>&1)"; echo "$again"
+assert_contains "$again" "remembered"
+
+echo; echo "==> an unreachable profile is rejected, naming the ones that work"
+bad="$("$BIN" target use eks-prod-frankfurt --profile nope --no-kubeconfig 2>&1)" && fail "expected failure"
+echo "$bad"
+assert_contains "$bad" "ops"
 
 echo; echo "==> --wide shows the full ID"
 assert_contains "$("$BIN" target list --wide)" "$AKS_WEU"

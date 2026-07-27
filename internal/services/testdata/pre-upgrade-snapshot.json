@@ -1,0 +1,65 @@
+{
+  "sources": [
+    {
+      "id": "aws:prod-sso",
+      "provider_id": "aws",
+      "name": "prod-sso",
+      "kind": "profile",
+      "location": "~/.aws/config"
+    }
+  ],
+  "credentials": [
+    {
+      "id": "aws:prod-sso",
+      "provider_id": "aws",
+      "source_id": "aws:prod-sso",
+      "name": "prod-sso",
+      "identity": "arn:aws:sts::111111111111:assumed-role/AWSReservedSSO_Platform/yeray",
+      "health": "valid",
+      "action_hint": "use",
+      "metadata": {
+        "profile": "prod-sso",
+        "account": "111111111111",
+        "auth_type": "sso"
+      }
+    }
+  ],
+  "scopes": [
+    {
+      "id": "aws:account:111111111111",
+      "provider_id": "aws",
+      "name": "111111111111",
+      "kind": "account"
+    }
+  ],
+  "targets": [
+    {
+      "id": "arn:aws:eks:eu-central-1:111111111111:cluster/eks-prod-frankfurt",
+      "provider_id": "aws",
+      "source_id": "aws:prod-sso",
+      "credential_id": "aws:prod-sso",
+      "scope_id": "aws:account:111111111111",
+      "kind": "eks",
+      "name": "eks-prod-frankfurt",
+      "endpoint": "https://ABC123.gr7.eu-central-1.eks.amazonaws.com",
+      "region": "eu-central-1",
+      "platform": "eks",
+      "health": "valid",
+      "action_hint": "use",
+      "kubernetes_version": "1.29",
+      "system_labels": {
+        "kuberoutectl.io/provider": "aws",
+        "kuberoutectl.io/source": "aws:prod-sso",
+        "kuberoutectl.io/platform": "eks",
+        "kuberoutectl.io/health": "valid",
+        "kuberoutectl.io/region": "eu-central-1"
+      },
+      "metadata": {
+        "profile": "prod-sso",
+        "account": "111111111111",
+        "status": "ACTIVE"
+      }
+    }
+  ],
+  "synced_at": "2026-07-18T16:01:20Z"
+}
