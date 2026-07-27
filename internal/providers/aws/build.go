@@ -105,6 +105,12 @@ func credentialRank(h domain.AccessHealth) int {
 // target.
 //
 // Input order is preserved for the surviving targets; only duplicates collapse.
+//
+// Maintenance note: the returned target shares its SystemLabels and Metadata
+// maps with the input candidate, because copying a Go struct copies map fields
+// by reference. Never write into those maps here — reassign the whole map if a
+// value must change, or the mutation is also visible through the caller's
+// slice.
 func foldTargetsByID(targets []domain.Target) []domain.Target {
 	groups := map[domain.TargetID][]domain.Target{}
 	var order []domain.TargetID

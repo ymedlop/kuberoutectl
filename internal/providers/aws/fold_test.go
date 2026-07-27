@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"maps"
 	"reflect"
 	"testing"
 	"time"
@@ -124,13 +125,23 @@ func TestFoldKeepsPrimarySystemLabelsIntact(t *testing.T) {
 		foldCandidate("dev", sharedARN, domain.HealthExpired, domain.ActionRenew),
 		primary,
 	}
+	// Snapshot before the call. Copying a Go struct copies its map fields by
+	// reference, so `primary.SystemLabels` and the fold's result are the same
+	// map object — comparing against it afterwards reports equal no matter what
+	// the fold wrote into it. (Verified: with an in-place mutation injected into
+	// foldTargetsByID, the un-cloned comparison stayed silent and only the
+	// cross-check below fired.) Cloning first makes this assertion carry its own
+	// weight instead of leaning on the next one.
+	wantLabels := maps.Clone(primary.SystemLabels)
+	wantMetadata := maps.Clone(primary.Metadata)
+
 	got := foldTargetsByID(in)[0]
 
-	if !reflect.DeepEqual(got.SystemLabels, primary.SystemLabels) {
-		t.Errorf("SystemLabels = %v, want the primary's %v", got.SystemLabels, primary.SystemLabels)
+	if !reflect.DeepEqual(got.SystemLabels, wantLabels) {
+		t.Errorf("SystemLabels = %v, want the primary's %v", got.SystemLabels, wantLabels)
 	}
-	if !reflect.DeepEqual(got.Metadata, primary.Metadata) {
-		t.Errorf("Metadata = %v, want the primary's %v", got.Metadata, primary.Metadata)
+	if !reflect.DeepEqual(got.Metadata, wantMetadata) {
+		t.Errorf("Metadata = %v, want the primary's %v", got.Metadata, wantMetadata)
 	}
 	// The two health views a selector can reach must agree with each other.
 	labels := got.SelectionLabels()
