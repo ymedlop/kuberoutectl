@@ -153,6 +153,11 @@ func (p *Provider) discoverClusters(ctx context.Context, awsBin, profile, region
 	}
 	names, err := parseEKSList(listOut)
 	if err != nil {
+		// Resilient like the command failure above — one profile's unreadable
+		// listing must not sink the whole sync — but never silent. The command
+		// succeeded, so `--verbose` shows nothing wrong either, and without this
+		// an aws CLI output-format change reads as "you have no clusters".
+		prog.Step("could not parse the cluster list for profile %q in %s (%v) — possible aws CLI format change; skipping this profile", profile, region, err)
 		return nil
 	}
 	var targets []domain.Target
@@ -164,6 +169,11 @@ func (p *Provider) discoverClusters(ctx context.Context, awsBin, profile, region
 		}
 		cluster, perr := parseEKSDescribe(descOut)
 		if perr != nil {
+			// Deliberately worded differently from the access denial above: that
+			// one is routine in a fleet with uneven permissions, this one is a
+			// format regression worth investigating. Same wording for both would
+			// bury the rare case in the common one.
+			prog.Step("could not parse the description of cluster %q for profile %q (%v) — possible aws CLI format change; skipping this cluster", name, profile, perr)
 			continue
 		}
 		targets = append(targets, buildTarget(profile, region, identity, cluster, health, action, now))
