@@ -56,10 +56,16 @@ func (a *app) targetListCmd() *cobra.Command {
 				}
 				filter.Selector = &sel
 			}
-			svc := services.NewTargetService(a.store)
-			targets, err := svc.List(filter)
+			// One call, one snapshot read: deriving the rows and the profile
+			// names from the same result keeps them from describing two
+			// different generations if a `sync` lands mid-command.
+			rows, err := services.NewTargetService(a.store).ListWithCredentials(filter)
 			if err != nil {
 				return err
+			}
+			targets := make([]domain.Target, 0, len(rows))
+			for _, r := range rows {
+				targets = append(targets, r.Target)
 			}
 			out := cmd.OutOrStdout()
 			if a.output == formatJSON {
@@ -81,21 +87,13 @@ func (a *app) targetListCmd() *cobra.Command {
 			// Same rule for PROFILES: only worth a column when some target really
 			// has a choice of access path. The names come from a live join, not
 			// from a denormalized field on the target.
-			profiles := map[domain.TargetID][]string{}
+			profiles := make(map[domain.TargetID][]string, len(rows))
 			anyMulti := false
-			for _, t := range targets {
-				if len(t.CredentialIDs) > 1 {
+			for _, r := range rows {
+				names := r.CredentialNames()
+				profiles[r.Target.ID] = names
+				if len(names) > 1 {
 					anyMulti = true
-					break
-				}
-			}
-			if anyMulti {
-				rows, err := svc.ListWithCredentials(filter)
-				if err != nil {
-					return err
-				}
-				for _, r := range rows {
-					profiles[r.Target.ID] = r.CredentialNames()
 				}
 			}
 			tw := newTabWriter(out)
@@ -447,7 +445,12 @@ func (a *app) targetUseCmd() *cobra.Command {
 			target := res.Target
 			out := cmd.OutOrStdout()
 			if a.output == formatJSON {
-				return renderJSON(out, res)
+				// The bare target, as this command has always rendered. Wrapping
+				// it to add the credential would break the shape for anything
+				// already parsing it — the same reasoning applied to `target
+				// inspect`. Which credential was used is reported by
+				// `current -o json`, whose selection object carries it.
+				return renderJSON(out, target)
 			}
 			via := describeCredentialChoice(res)
 			if activate {
@@ -486,6 +489,13 @@ func describeCredentialChoice(res services.UseTargetResult) string {
 	case services.CredentialFromMemory:
 		return " via " + name + " (remembered)"
 	default:
+		// A previous choice that the cache no longer offers must be reported
+		// even though the target now has a single access path and looks like it
+		// never had a choice. Staying silent here would move an operator off a
+		// deliberately-picked profile with no output at all.
+		if res.LostCredentialID != "" {
+			return " via " + name + " (" + string(res.LostCredentialID) + " is gone from the cache)"
+		}
 		if len(res.Target.CredentialIDs) < 2 {
 			return "" // only one way in: nothing was chosen, so say nothing
 		}

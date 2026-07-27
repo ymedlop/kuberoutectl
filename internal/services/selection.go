@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -61,13 +62,41 @@ const (
 	CredentialFromMemory
 )
 
+// String renders the source for display and for the wire. Both the CLI and the
+// MCP server go through this, so the two surfaces cannot describe the same
+// decision differently — and an iota int never reaches a JSON consumer, where
+// it would mean nothing without reading this file.
+func (s CredentialSource) String() string {
+	switch s {
+	case CredentialFromFlag:
+		return "flag"
+	case CredentialFromMemory:
+		return "remembered"
+	default:
+		return "default"
+	}
+}
+
+// MarshalJSON keeps the semantic name in any JSON rendering of this type.
+func (s CredentialSource) MarshalJSON() ([]byte, error) { return json.Marshal(s.String()) }
+
 // UseTargetResult is what a selection resolved to.
 type UseTargetResult struct {
-	Target domain.Target
+	Target domain.Target `json:"target"`
 	// Credential is the access path used. It is the zero value only when the
 	// target names a credential the snapshot no longer holds.
-	Credential       domain.Credential
-	CredentialSource CredentialSource
+	Credential       domain.Credential `json:"credential"`
+	CredentialSource CredentialSource  `json:"credential_source"`
+	// LostCredentialID names a credential this target was previously used
+	// through that the cache no longer offers, so the caller fell back to the
+	// default. Empty when nothing was lost.
+	//
+	// This is not derivable from the result alone: once the fold drops the
+	// vanished credential, the target has one access path again and looks
+	// exactly like a target that never had a choice. Without this field the
+	// operator who deliberately picked a break-glass profile gets moved back to
+	// the default with no output at all.
+	LostCredentialID domain.CredentialID `json:"lost_credential_id,omitempty"`
 }
 
 // UseTarget records a target selection after resolving ref (a full ID, alias,
@@ -107,6 +136,10 @@ func (s *SelectionService) UseTarget(ctx context.Context, ref string, opts UseTa
 	if err != nil {
 		return UseTargetResult{}, err
 	}
+	lost := domain.CredentialID("")
+	if remembered != "" && cred.ID != remembered {
+		lost = remembered
+	}
 
 	if opts.Activate {
 		if err := s.activate(ctx, found, cred, source); err != nil {
@@ -118,7 +151,9 @@ func (s *SelectionService) UseTarget(ctx context.Context, ref string, opts UseTa
 	if err := s.store.SaveSelection(sel); err != nil {
 		return UseTargetResult{}, err
 	}
-	return UseTargetResult{Target: found, Credential: cred, CredentialSource: source}, nil
+	return UseTargetResult{
+		Target: found, Credential: cred, CredentialSource: source, LostCredentialID: lost,
+	}, nil
 }
 
 // credentialsFor returns the credentials that can reach a target, primary

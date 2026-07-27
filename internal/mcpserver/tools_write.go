@@ -87,6 +87,10 @@ type UseTargetOutput struct {
 	// is the one with access inside the cluster.
 	Profile       string `json:"profile,omitempty"`
 	ProfileSource string `json:"profile_source,omitempty"`
+	// LostProfile names a profile this target was previously used through that
+	// the cache no longer offers. Set only when that happened, so a client can
+	// tell "you are back on the default" from "you were always on it".
+	LostProfile string `json:"lost_profile,omitempty"`
 }
 
 func (h *handler) useTarget(ctx context.Context, _ *mcp.CallToolRequest, in UseTargetInput) (*mcp.CallToolResult, UseTargetOutput, error) {
@@ -104,20 +108,9 @@ func (h *handler) useTarget(ctx context.Context, _ *mcp.CallToolRequest, in UseT
 		Target:        res.Target,
 		Activated:     in.Activate,
 		Profile:       res.Credential.Name,
-		ProfileSource: credentialSourceName(res.CredentialSource),
+		ProfileSource: res.CredentialSource.String(),
+		LostProfile:   string(res.LostCredentialID),
 	}, nil
-}
-
-// credentialSourceName renders services.CredentialSource for the wire.
-func credentialSourceName(s services.CredentialSource) string {
-	switch s {
-	case services.CredentialFromFlag:
-		return "flag"
-	case services.CredentialFromMemory:
-		return "remembered"
-	default:
-		return "default"
-	}
 }
 
 // ---- create_or_update_collection ----

@@ -128,6 +128,14 @@ func (s *TargetService) all() ([]domain.Target, error) {
 	if err != nil {
 		return nil, err
 	}
+	return s.decorate(snap)
+}
+
+// decorate turns a loaded snapshot's targets into the read-time view: a fresh
+// copy with aliases and visibility applied. Split out of all() so callers that
+// need the snapshot's credentials too can share one read with it rather than
+// loading the file again.
+func (s *TargetService) decorate(snap domain.InventorySnapshot) ([]domain.Target, error) {
 	targets := make([]domain.Target, len(snap.Targets))
 	copy(targets, snap.Targets)
 	AssignAliases(targets)
@@ -147,6 +155,13 @@ func (s *TargetService) List(f TargetFilter) ([]domain.Target, error) {
 	if err != nil {
 		return nil, err
 	}
+	targets = applyTargetFilter(targets, f)
+	return targets, nil
+}
+
+// applyTargetFilter narrows a decorated target set. Shared by List and
+// ListWithCredentials so the two can never disagree about what a filter means.
+func applyTargetFilter(targets []domain.Target, f TargetFilter) []domain.Target {
 	if f.Provider != "" {
 		kept := make([]domain.Target, 0, len(targets))
 		for _, t := range targets {
@@ -168,7 +183,7 @@ func (s *TargetService) List(f TargetFilter) ([]domain.Target, error) {
 		}
 		targets = kept
 	}
-	return targets, nil
+	return targets
 }
 
 // selectorConstrainsVisibility reports whether the selector already filters on a
@@ -223,12 +238,21 @@ func (t TargetWithCredentials) CredentialNames() []string {
 
 // ResolveWithCredentials resolves a target reference and joins in every
 // credential that can reach it.
+//
+// The snapshot is read once and both halves derive from it. Loading separately
+// for the target and for the credentials would let a concurrent `sync` land
+// between the two reads, joining one generation's targets against another's
+// credentials.
 func (s *TargetService) ResolveWithCredentials(ref string) (TargetWithCredentials, error) {
 	snap, err := s.store.LoadSnapshot()
 	if err != nil {
 		return TargetWithCredentials{}, err
 	}
-	t, err := s.Resolve(ref)
+	targets, err := s.decorate(snap)
+	if err != nil {
+		return TargetWithCredentials{}, err
+	}
+	t, err := ResolveTargetRef(targets, ref)
 	if err != nil {
 		return TargetWithCredentials{}, err
 	}
@@ -236,17 +260,19 @@ func (s *TargetService) ResolveWithCredentials(ref string) (TargetWithCredential
 }
 
 // ListWithCredentials is List plus the credential join, for callers that need
-// to show how each target is reached. The snapshot is loaded once for the whole
-// page rather than per target.
+// to show how each target is reached. Same single-read rule as
+// ResolveWithCredentials.
 func (s *TargetService) ListWithCredentials(f TargetFilter) ([]TargetWithCredentials, error) {
 	snap, err := s.store.LoadSnapshot()
 	if err != nil {
 		return nil, err
 	}
-	targets, err := s.List(f)
+	targets, err := s.decorate(snap)
 	if err != nil {
 		return nil, err
 	}
+	targets = applyTargetFilter(targets, f)
+
 	out := make([]TargetWithCredentials, 0, len(targets))
 	for _, t := range targets {
 		out = append(out, TargetWithCredentials{Target: t, Credentials: credentialsFor(t, snap.Credentials)})

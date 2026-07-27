@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -225,5 +226,61 @@ func TestCurrent_ReportsProfileAndFlagsAVanishedOne(t *testing.T) {
 	}
 	if !strings.Contains(out, "no longer in the cache") {
 		t.Errorf("current must flag a profile the cache no longer holds, got:\n%s", out)
+	}
+}
+
+// `target use -o json` must keep rendering the bare target. Wrapping it to also
+// report the credential would break the shape for anything already parsing it —
+// the same rule `target inspect` follows. Which credential was used is
+// available from `current -o json`.
+func TestTargetUseJSON_KeepsBareTargetShape(t *testing.T) {
+	a := profileTestApp(t)
+	a.output = formatJSON
+	out, err := runCmd(a.targetUseCmd(), "", "eks-prod", "--no-kubeconfig")
+	if err != nil {
+		t.Fatalf("target use -o json: %v", err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("output is not a JSON object: %v\n%s", err, out)
+	}
+	for _, forbidden := range []string{"Target", "Credential", "CredentialSource", "target", "credential_source"} {
+		if _, ok := got[forbidden]; ok {
+			t.Errorf("key %q must not be at the top level; output should be the bare target:\n%s", forbidden, out)
+		}
+	}
+	if _, ok := got["id"]; !ok {
+		t.Errorf("expected the bare target's own fields at the top level, got:\n%s", out)
+	}
+}
+
+// A remembered profile that a resync removed must be reported. Once the fold
+// drops it the target has one access path again and looks exactly like one that
+// never had a choice — so without an explicit signal the operator who picked a
+// break-glass profile is moved back to the default with no output at all.
+func TestTargetUse_ReportsAProfileThatVanished(t *testing.T) {
+	a := profileTestApp(t)
+	if _, err := runCmd(a.targetUseCmd(), "", "eks-prod", "--profile", "dev", "--no-kubeconfig"); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	snap, err := a.store.LoadSnapshot()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	snap.Credentials = snap.Credentials[:1]                          // dev is gone from ~/.aws/config
+	snap.Targets[0].CredentialIDs = []domain.CredentialID{"aws:ops"} // and from the fold
+	if err := a.store.SaveSnapshot(snap); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	out, err := runCmd(a.targetUseCmd(), "", "eks-prod", "--no-kubeconfig")
+	if err != nil {
+		t.Fatalf("target use: %v", err)
+	}
+	if !strings.Contains(out, "dev") {
+		t.Errorf("must name the profile that disappeared, got:\n%s", out)
+	}
+	if !strings.Contains(out, "ops") {
+		t.Errorf("must name the profile now in use, got:\n%s", out)
 	}
 }
