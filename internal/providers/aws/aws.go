@@ -123,8 +123,13 @@ func (p *Provider) Discover(ctx context.Context, in providers.DiscoveryInput) (p
 			continue // cannot list regional EKS without a region
 		}
 		prog.Step("listing EKS clusters for profile %q in %s", profile, region)
-		res.Targets = append(res.Targets, p.discoverClusters(ctx, awsBin, profile, region, identity, health, action, now)...)
+		res.Targets = append(res.Targets, p.discoverClusters(ctx, awsBin, profile, region, identity, health, action, now, prog)...)
 	}
+
+	// Several profiles into one account see the same cluster, and an EKS ARN is
+	// account-scoped — so the per-profile targets above can share an ID. Fold
+	// them into one target per cluster before anything downstream sees them.
+	res.Targets = foldTargetsByID(res.Targets)
 
 	sort.Slice(res.Targets, func(i, j int) bool { return res.Targets[i].ID < res.Targets[j].ID })
 	prog.Step("discovered %d cluster(s)", len(res.Targets))
@@ -132,7 +137,16 @@ func (p *Provider) Discover(ctx context.Context, in providers.DiscoveryInput) (p
 }
 
 // discoverClusters lists and describes EKS clusters for one profile/region.
-func (p *Provider) discoverClusters(ctx context.Context, awsBin, profile, region string, identity awsIdentity, health domain.AccessHealth, action domain.ActionHint, now time.Time) []domain.Target {
+//
+// The two calls fail for different reasons, and the difference is the whole
+// reason reachability is knowable: eks:ListClusters takes no cluster in its
+// request, so IAM cannot scope it below account/region, while
+// eks:DescribeCluster names the cluster in its resource ARN and IAM does scope
+// it per cluster. So a profile that lists everything may still be denied on
+// individual clusters — which is exactly how a fleet with no documented access
+// pattern gets mapped. Each denial is reported through prog rather than
+// silently skipped: that step output is the access map.
+func (p *Provider) discoverClusters(ctx context.Context, awsBin, profile, region string, identity awsIdentity, health domain.AccessHealth, action domain.ActionHint, now time.Time, prog providers.Progress) []domain.Target {
 	listOut, _, err := p.runner.Run(ctx, awsBin, "eks", "list-clusters", "--profile", profile, "--region", region, "--output", "json")
 	if err != nil {
 		return nil
@@ -145,6 +159,7 @@ func (p *Provider) discoverClusters(ctx context.Context, awsBin, profile, region
 	for _, name := range names {
 		descOut, _, derr := p.runner.Run(ctx, awsBin, "eks", "describe-cluster", "--profile", profile, "--region", region, "--name", name, "--output", "json")
 		if derr != nil {
+			prog.Step("profile %q cannot describe cluster %q in %s — skipping it for this profile", profile, name, region)
 			continue
 		}
 		cluster, perr := parseEKSDescribe(descOut)

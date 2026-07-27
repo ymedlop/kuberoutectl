@@ -68,6 +68,8 @@ func buildTarget(cx kcNamedContext, server string, health domain.AccessHealth, a
 		domain.LabelSource:   string(sourceID()),
 		domain.LabelPlatform: "kubeconfig",
 		domain.LabelHealth:   string(health),
+		// Set in every provider — see the note in the azure adapter.
+		domain.LabelCredential: cx.Context.User,
 	}
 	return domain.Target{
 		ID:           targetID(cx.Name),
