@@ -73,6 +73,8 @@ func buildTarget(account string, p gcpProject, c gcpCluster, health domain.Acces
 		domain.LabelSource:   string(sourceID()),
 		domain.LabelPlatform: "gke",
 		domain.LabelHealth:   string(health),
+		// Set in every provider — see the note in the azure adapter.
+		domain.LabelCredential: account,
 	}
 	if c.Location != "" {
 		sys[domain.LabelRegion] = c.Location
