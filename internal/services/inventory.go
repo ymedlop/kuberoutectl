@@ -203,6 +203,57 @@ func (s *TargetService) Resolve(ref string) (domain.Target, error) {
 	return ResolveTargetRef(targets, ref)
 }
 
+// TargetWithCredentials pairs a target with the credentials that can reach it,
+// primary first. Health per credential is joined from the snapshot on read
+// rather than copied onto the target, so there is no second copy to drift —
+// the same rule the target's own Health follows.
+type TargetWithCredentials struct {
+	Target      domain.Target       `json:"target"`
+	Credentials []domain.Credential `json:"credentials"`
+}
+
+// CredentialNames renders the reaching credentials for display, primary first.
+func (t TargetWithCredentials) CredentialNames() []string {
+	out := make([]string, 0, len(t.Credentials))
+	for _, c := range t.Credentials {
+		out = append(out, c.Name)
+	}
+	return out
+}
+
+// ResolveWithCredentials resolves a target reference and joins in every
+// credential that can reach it.
+func (s *TargetService) ResolveWithCredentials(ref string) (TargetWithCredentials, error) {
+	snap, err := s.store.LoadSnapshot()
+	if err != nil {
+		return TargetWithCredentials{}, err
+	}
+	t, err := s.Resolve(ref)
+	if err != nil {
+		return TargetWithCredentials{}, err
+	}
+	return TargetWithCredentials{Target: t, Credentials: credentialsFor(t, snap.Credentials)}, nil
+}
+
+// ListWithCredentials is List plus the credential join, for callers that need
+// to show how each target is reached. The snapshot is loaded once for the whole
+// page rather than per target.
+func (s *TargetService) ListWithCredentials(f TargetFilter) ([]TargetWithCredentials, error) {
+	snap, err := s.store.LoadSnapshot()
+	if err != nil {
+		return nil, err
+	}
+	targets, err := s.List(f)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]TargetWithCredentials, 0, len(targets))
+	for _, t := range targets {
+		out = append(out, TargetWithCredentials{Target: t, Credentials: credentialsFor(t, snap.Credentials)})
+	}
+	return out, nil
+}
+
 // Delete removes the target matching ref (id, alias, or name) from the cached
 // snapshot and persists, returning the removed target. Only the target is
 // dropped — its scope, credential, and source are left in place. This is a cache

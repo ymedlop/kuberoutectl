@@ -69,6 +69,27 @@ type ContextActivator interface {
 	Activate(ctx context.Context, target domain.Target) error
 }
 
+// CredentialActivator is an optional refinement of ContextActivator for
+// providers where several credentials can reach the same target (AWS profiles
+// sharing an account), so the operator can choose which one to go in through.
+//
+// It is a separate interface rather than an extra parameter on Activate for two
+// reasons. Adding the parameter would force azure, gcp and kubeconfig to accept
+// a concept they have no use for — one target, one way in. And the alternative
+// of letting the service rewrite provider-specific metadata on the target to
+// steer activation would put knowledge of an adapter's internals in the
+// provider-agnostic core, which AGENTS.md forbids.
+//
+// Services reach it with a type assertion, like ContextActivator. A provider
+// that does not implement it can only be activated through the target's
+// primary credential, and callers must reject an explicit choice rather than
+// silently activating something else.
+type CredentialActivator interface {
+	// ActivateAs fetches the target's credentials into the user's kubeconfig
+	// using the given credential rather than the target's recorded primary.
+	ActivateAs(ctx context.Context, target domain.Target, cred domain.Credential) error
+}
+
 // Provider is the full contract a backend implements. It is small on purpose:
 // discover state, and optionally renew a credential. Everything else
 // (organization, persistence, selection) is core concern, not provider concern.

@@ -50,7 +50,7 @@ func TestUseTarget_ActivatesByDefault(t *testing.T) {
 	_ = reg.Register(prov)
 
 	svc := NewSelectionService(store, reg, fixedNow)
-	if _, err := svc.UseTarget(context.Background(), "t1", true); err != nil {
+	if _, err := svc.UseTarget(context.Background(), "t1", UseTargetOptions{Activate: true}); err != nil {
 		t.Fatalf("UseTarget: %v", err)
 	}
 	if prov.activated == nil || prov.activated.ID != "t1" {
@@ -68,7 +68,7 @@ func TestUseTarget_NoKubeconfigSkipsActivation(t *testing.T) {
 	_ = reg.Register(prov)
 
 	svc := NewSelectionService(store, reg, fixedNow)
-	if _, err := svc.UseTarget(context.Background(), "t1", false); err != nil {
+	if _, err := svc.UseTarget(context.Background(), "t1", UseTargetOptions{}); err != nil {
 		t.Fatalf("UseTarget: %v", err)
 	}
 	if prov.activated != nil {
@@ -154,7 +154,7 @@ func TestUseTarget_ActivateUnsupportedErrors(t *testing.T) {
 	_ = reg.Register(prov)
 
 	svc := NewSelectionService(store, reg, fixedNow)
-	if _, err := svc.UseTarget(context.Background(), "t1", true); err == nil {
+	if _, err := svc.UseTarget(context.Background(), "t1", UseTargetOptions{Activate: true}); err == nil {
 		t.Fatal("expected error activating a provider that cannot switch context")
 	}
 	// Selection must NOT be recorded when a requested activation fails.
@@ -170,7 +170,7 @@ func TestUseTarget_ActivationFailureDoesNotRecord(t *testing.T) {
 	_ = reg.Register(prov)
 
 	svc := NewSelectionService(store, reg, fixedNow)
-	if _, err := svc.UseTarget(context.Background(), "t1", true); err == nil {
+	if _, err := svc.UseTarget(context.Background(), "t1", UseTargetOptions{Activate: true}); err == nil {
 		t.Fatal("expected activation error to propagate")
 	}
 	if store.selection.TargetID != "" {

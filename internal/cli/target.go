@@ -56,7 +56,8 @@ func (a *app) targetListCmd() *cobra.Command {
 				}
 				filter.Selector = &sel
 			}
-			targets, err := services.NewTargetService(a.store).List(filter)
+			svc := services.NewTargetService(a.store)
+			targets, err := svc.List(filter)
 			if err != nil {
 				return err
 			}
@@ -77,8 +78,31 @@ func (a *app) targetListCmd() *cobra.Command {
 					break
 				}
 			}
+			// Same rule for PROFILES: only worth a column when some target really
+			// has a choice of access path. The names come from a live join, not
+			// from a denormalized field on the target.
+			profiles := map[domain.TargetID][]string{}
+			anyMulti := false
+			for _, t := range targets {
+				if len(t.CredentialIDs) > 1 {
+					anyMulti = true
+					break
+				}
+			}
+			if anyMulti {
+				rows, err := svc.ListWithCredentials(filter)
+				if err != nil {
+					return err
+				}
+				for _, r := range rows {
+					profiles[r.Target.ID] = r.CredentialNames()
+				}
+			}
 			tw := newTabWriter(out)
 			header := "ALIAS\tPLATFORM\tREGION\tHEALTH\tPROVIDER"
+			if anyMulti {
+				header += "\tPROFILES"
+			}
 			if anyHidden {
 				header += "\tHIDDEN"
 			}
@@ -88,6 +112,9 @@ func (a *app) targetListCmd() *cobra.Command {
 			fprintln(tw, header)
 			for _, t := range targets {
 				row := t.Alias + "\t" + t.Platform + "\t" + t.Region + "\t" + string(t.Health) + "\t" + string(t.ProviderID)
+				if anyMulti {
+					row += "\t" + strings.Join(profiles[t.ID], ",")
+				}
 				if anyHidden {
 					mark := ""
 					if t.Hidden {
@@ -116,12 +143,17 @@ func (a *app) targetInspectCmd() *cobra.Command {
 		Short: "Show a single target in detail, including labels",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			target, err := services.NewTargetService(a.store).Resolve(args[0])
+			joined, err := services.NewTargetService(a.store).ResolveWithCredentials(args[0])
 			if err != nil {
 				return err
 			}
+			target := joined.Target
 			out := cmd.OutOrStdout()
 			if a.output == formatJSON {
+				// Deliberately the bare target, not the join: wrapping it would
+				// change this command's JSON shape for anything already parsing
+				// it. credential_ids is additive and ships; per-credential health
+				// is available from `credential list`.
 				return renderJSON(out, target)
 			}
 			tw := newTabWriter(out)
@@ -142,6 +174,19 @@ func (a *app) targetInspectCmd() *cobra.Command {
 			fprintln(tw, "Action\t"+string(target.ActionHint))
 			fprintln(tw, "Scope\t"+string(target.ScopeID))
 			fprintln(tw, "Credential\t"+string(target.CredentialID))
+			// Only worth listing when there is a choice. Health per credential is
+			// joined live from the snapshot, so an expired alternative shows as
+			// expired here even though the target itself reports the primary's
+			// health.
+			if len(joined.Credentials) > 1 {
+				for i, c := range joined.Credentials {
+					mark := ""
+					if i == 0 {
+						mark = "  (primary)"
+					}
+					fprintln(tw, "profile\t"+c.Name+"  "+string(c.Health)+"  "+string(c.ActionHint)+mark)
+				}
+			}
 			for k, v := range target.SystemLabels {
 				fprintln(tw, "system-label\t"+k+"="+v)
 			}
@@ -373,7 +418,10 @@ func (a *app) toggleVisibility(cmd *cobra.Command, args, selectors []string, hid
 }
 
 func (a *app) targetUseCmd() *cobra.Command {
-	var noKubeconfig bool
+	var (
+		noKubeconfig bool
+		profile      string
+	)
 	cmd := &cobra.Command{
 		Use:   "use <alias|id|name>",
 		Short: "Select a target and fetch its credentials into ~/.kube/config",
@@ -388,20 +436,25 @@ func (a *app) targetUseCmd() *cobra.Command {
 			if activate {
 				fprintln(cmd.ErrOrStderr(), "Fetching credentials into ~/.kube/config ...")
 			}
-			target, err := services.NewSelectionService(a.store, a.registry, nil).
-				UseTarget(cmd.Context(), args[0], activate)
+			res, err := services.NewSelectionService(a.store, a.registry, nil).
+				UseTarget(cmd.Context(), args[0], services.UseTargetOptions{
+					Activate:       activate,
+					CredentialName: profile,
+				})
 			if err != nil {
 				return err
 			}
+			target := res.Target
 			out := cmd.OutOrStdout()
 			if a.output == formatJSON {
-				return renderJSON(out, target)
+				return renderJSON(out, res)
 			}
+			via := describeCredentialChoice(res)
 			if activate {
-				fprintln(out, "Now using target:", target.Alias, "("+target.Name+")")
+				fprintln(out, "Now using target:", target.Alias, "("+target.Name+")"+via)
 				fprintln(out, "kubeconfig updated and set as the current context.")
 			} else {
-				fprintln(out, "Recorded selection:", target.Alias, "("+target.Name+") — kubeconfig unchanged.")
+				fprintln(out, "Recorded selection:", target.Alias, "("+target.Name+")"+via+" — kubeconfig unchanged.")
 			}
 			if target.ActionHint == domain.ActionRenew {
 				fprintln(out, "Note: this target's credential needs renewal — run `kuberoutectl credential renew`.")
@@ -410,5 +463,32 @@ func (a *app) targetUseCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&noKubeconfig, "no-kubeconfig", false, "record the selection only; do not modify ~/.kube/config")
+	cmd.Flags().StringVar(&profile, "profile", "", "go in through this credential (an AWS profile name) when several reach the target")
 	return cmd
+}
+
+// describeCredentialChoice renders how the access path was picked, or "" when
+// the target has only one and there was nothing to pick.
+//
+// The default case is worded differently on purpose. For a cluster several
+// profiles can reach, the primary is only the healthiest one — kuberoutectl
+// cannot see EKS access entries, so being able to authenticate is not evidence
+// of being able to operate. Presenting that guess in the same words as an
+// explicit choice would hide the one fact the operator needs to act on.
+func describeCredentialChoice(res services.UseTargetResult) string {
+	name := res.Credential.Name
+	if name == "" {
+		return ""
+	}
+	switch res.CredentialSource {
+	case services.CredentialFromFlag:
+		return " via " + name
+	case services.CredentialFromMemory:
+		return " via " + name + " (remembered)"
+	default:
+		if len(res.Target.CredentialIDs) < 2 {
+			return "" // only one way in: nothing was chosen, so say nothing
+		}
+		return " via " + name + " (default — pass --profile to pick another)"
+	}
 }

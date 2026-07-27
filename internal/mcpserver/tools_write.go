@@ -75,21 +75,49 @@ func (h *handler) syncProvider(ctx context.Context, _ *mcp.CallToolRequest, in S
 type UseTargetInput struct {
 	Ref      string `json:"ref" jsonschema:"target reference: full id, alias, or name"`
 	Activate bool   `json:"activate,omitempty" jsonschema:"also merge the target's context into ~/.kube/config and make it current (default false)"`
+	Profile  string `json:"profile,omitempty" jsonschema:"credential to go in through (an AWS profile name) when several reach the target; omit to use the target's default"`
 }
 type UseTargetOutput struct {
 	Target    domain.Target `json:"target"`
 	Activated bool          `json:"activated"`
+	// Profile is the credential the target was activated through, and
+	// ProfileSource says how it was picked — "flag", "remembered", or
+	// "default". A client must be able to tell a choice from a guess: the
+	// default is only the healthiest credential, which is not evidence that it
+	// is the one with access inside the cluster.
+	Profile       string `json:"profile,omitempty"`
+	ProfileSource string `json:"profile_source,omitempty"`
 }
 
 func (h *handler) useTarget(ctx context.Context, _ *mcp.CallToolRequest, in UseTargetInput) (*mcp.CallToolResult, UseTargetOutput, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	t, err := h.d.Selection.UseTarget(ctx, in.Ref, in.Activate)
+	res, err := h.d.Selection.UseTarget(ctx, in.Ref, services.UseTargetOptions{
+		Activate:       in.Activate,
+		CredentialName: in.Profile,
+	})
 	if err != nil {
 		return nil, UseTargetOutput{}, err
 	}
-	return nil, UseTargetOutput{Target: t, Activated: in.Activate}, nil
+	return nil, UseTargetOutput{
+		Target:        res.Target,
+		Activated:     in.Activate,
+		Profile:       res.Credential.Name,
+		ProfileSource: credentialSourceName(res.CredentialSource),
+	}, nil
+}
+
+// credentialSourceName renders services.CredentialSource for the wire.
+func credentialSourceName(s services.CredentialSource) string {
+	switch s {
+	case services.CredentialFromFlag:
+		return "flag"
+	case services.CredentialFromMemory:
+		return "remembered"
+	default:
+		return "default"
+	}
 }
 
 // ---- create_or_update_collection ----

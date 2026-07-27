@@ -36,6 +36,16 @@ func (a *app) currentCmd() *cobra.Command {
 			case st.Target != nil:
 				fprintln(tw, "Target\t"+st.Target.Alias+" ("+st.Target.Name+")")
 				fprintln(tw, "Provider\t"+string(st.Target.ProviderID))
+				// Which access path the kubeconfig was actually written with.
+				// Reported whenever one was recorded, so a break-glass profile is
+				// never invisible; flagged when a resync dropped it, so a stale
+				// selection is not rendered as if nothing changed.
+				switch {
+				case st.Credential != nil:
+					fprintln(tw, "Profile\t"+st.Credential.Name)
+				case st.CredentialMissing:
+					fprintln(tw, "Profile\t"+string(st.Selection.CredentialID)+" — no longer in the cache; `target use` will fall back to the default")
+				}
 				fprintln(tw, "Health\t"+string(st.Target.Health))
 				fprintln(tw, "Action\t"+string(st.Target.ActionHint))
 			case st.Selection.TargetID != "":
