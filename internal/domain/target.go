@@ -23,9 +23,22 @@ type Target struct {
 	ProviderID   ProviderID   `json:"provider_id"`
 	SourceID     SourceID     `json:"source_id"`
 	CredentialID CredentialID `json:"credential_id"`
-	ScopeID      ScopeID      `json:"scope_id"`
-	Kind         string       `json:"kind"`
-	Name         string       `json:"name"`
+
+	// CredentialIDs lists every credential that can reach this target, primary
+	// first, for providers where several identities see the same cluster (AWS
+	// profiles sharing an account). CredentialID always equals CredentialIDs[0]
+	// when this is set; both exist so readers written before multi-credential
+	// targets keep working.
+	//
+	// Providers exposing exactly one way in leave it nil, and a snapshot written
+	// before this field existed decodes to nil — so nil means "just the one in
+	// CredentialID", not "unreachable". That is what makes the upgrade need no
+	// migration step.
+	CredentialIDs []CredentialID `json:"credential_ids,omitempty"`
+
+	ScopeID ScopeID `json:"scope_id"`
+	Kind    string  `json:"kind"`
+	Name    string  `json:"name"`
 	// Alias is a short, stable, human-friendly handle for the target, usable
 	// anywhere the full ID is (use/inspect/label). It is derived from the name
 	// and made unique across the fleet, so it is a presentation/service concern
