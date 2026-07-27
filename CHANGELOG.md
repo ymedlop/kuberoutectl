@@ -8,6 +8,42 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
 
 ## [Unreleased]
 
+### Fixed
+- **A cluster reachable by several AWS profiles was listed twice, and one copy
+  was unreachable.** An EKS ARN identifies the account, not the profile, so two
+  profiles authenticating into the same account produced two targets with an
+  **identical id**. Aliases are disambiguated by hashing the id, so both rows
+  also got the same alias, and reference resolution returns the first match —
+  leaving the second silently unreachable by anything the CLI prints. Such
+  clusters now fold into one target that records every profile reaching it.
+  ([#109](https://github.com/ymedlop/kuberoutectl/pull/109))
+
+### Added
+- **`target use <ref> --profile <name>`** — choose which credential to go in
+  through when several reach a target, instead of always taking the default. The
+  choice is remembered, so a later bare `target use` reuses it, and `current`
+  reports the profile your kubeconfig was actually written with. A profile that
+  cannot reach the target is rejected before anything runs, naming the ones that
+  would work. The same argument is available on the MCP `use_target` tool, so an
+  AI client is not restricted to the default.
+- **`target list` gains a `PROFILES` column** and `target inspect` a per-profile
+  health breakdown, both shown only when a target actually has a choice.
+- **Per-cluster access denials are reported during `sync aws`.** `eks:ListClusters`
+  cannot be scoped below account/region while `eks:DescribeCluster` is evaluated
+  per cluster, so a profile that lists everything may still be denied on
+  individual ones. That used to be skipped silently; naming it turns an
+  undocumented access map into ordinary sync output.
+- New `kuberoutectl.io/credential` system label on every provider's targets,
+  naming the target's default credential so it can be selected on.
+
+### Known limitation
+- Profile reachability is resolved at the **IAM** layer (`eks:DescribeCluster`).
+  Operating inside a cluster additionally requires an EKS **access entry**, which
+  is a Kubernetes-side mechanism kuberoutectl does not read. Where profiles
+  differ only at that layer, the chosen default is a guess — which is why it is
+  labelled `(default — pass --profile to pick another)` rather than presented as
+  a decision.
+
 ### Added
 - **CI now verifies reproducible builds.** A `reproducible-build` workflow
   builds the full snapshot twice and diffs `dist/checksums.txt`, running on

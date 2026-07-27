@@ -75,21 +75,47 @@ func (h *handler) syncProvider(ctx context.Context, _ *mcp.CallToolRequest, in S
 type UseTargetInput struct {
 	Ref      string `json:"ref" jsonschema:"target reference: full id, alias, or name"`
 	Activate bool   `json:"activate,omitempty" jsonschema:"also merge the target's context into ~/.kube/config and make it current (default false)"`
+	Profile  string `json:"profile,omitempty" jsonschema:"credential to go in through (an AWS profile name) when several reach the target; omit to use the target's default"`
 }
 type UseTargetOutput struct {
 	Target    domain.Target `json:"target"`
 	Activated bool          `json:"activated"`
+	// Profile is the credential the target was activated through, and
+	// ProfileSource says how it was picked — "flag", "remembered", or
+	// "default". A client must be able to tell a choice from a guess: the
+	// default is only the healthiest credential, which is not evidence that it
+	// is the one with access inside the cluster.
+	Profile       string `json:"profile,omitempty"`
+	ProfileSource string `json:"profile_source,omitempty"`
+	// LostCredentialID is the credential this target was previously used
+	// through that the cache no longer offers. Set only when that happened, so a
+	// client can tell "you are back on the default" from "you were always on
+	// it".
+	//
+	// An id, not a name, unlike Profile above — deliberately. The credential is
+	// gone from the snapshot, so there is no name left to resolve; naming the
+	// field for a profile would promise something this value cannot be.
+	LostCredentialID string `json:"lost_credential_id,omitempty"`
 }
 
 func (h *handler) useTarget(ctx context.Context, _ *mcp.CallToolRequest, in UseTargetInput) (*mcp.CallToolResult, UseTargetOutput, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	t, err := h.d.Selection.UseTarget(ctx, in.Ref, in.Activate)
+	res, err := h.d.Selection.UseTarget(ctx, in.Ref, services.UseTargetOptions{
+		Activate:       in.Activate,
+		CredentialName: in.Profile,
+	})
 	if err != nil {
 		return nil, UseTargetOutput{}, err
 	}
-	return nil, UseTargetOutput{Target: t, Activated: in.Activate}, nil
+	return nil, UseTargetOutput{
+		Target:           res.Target,
+		Activated:        in.Activate,
+		Profile:          res.Credential.Name,
+		ProfileSource:    res.CredentialSource.String(),
+		LostCredentialID: string(res.LostCredentialID),
+	}, nil
 }
 
 // ---- create_or_update_collection ----

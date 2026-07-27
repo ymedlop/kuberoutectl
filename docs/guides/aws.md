@@ -157,6 +157,68 @@ kubectl config current-context
 kubectl get nodes
 ```
 
+### When several profiles reach the same cluster
+
+An EKS cluster ARN identifies the **account**, not the profile. So if two
+profiles authenticate into the same account and both can describe a cluster, they
+are two ways into one cluster — not two clusters. `kuberoutectl` lists it once
+and records every profile that reaches it:
+
+```console
+$ kuberoutectl target list --provider aws
+ALIAS               PLATFORM  REGION        HEALTH  PROVIDER  PROFILES
+eks-prod-frankfurt  eks       eu-central-1  valid   aws       ops,prod-sso
+eks-prod-ireland    eks       eu-central-1  valid   aws       prod-sso
+```
+
+The `PROFILES` column appears only when some cluster has a choice. `target
+inspect` breaks down the health of each one, so an expired alternative is
+visible even though the target itself reports the healthiest:
+
+```console
+$ kuberoutectl target inspect eks-prod-frankfurt
+...
+profile  ops       valid    use      (primary)
+profile  prod-sso  expired  renew
+```
+
+Pick one with `--profile`. The choice is remembered, so a later bare
+`target use` reuses it:
+
+```console
+$ kuberoutectl target use eks-prod-frankfurt --profile prod-sso
+Now using target: eks-prod-frankfurt (eks-prod-frankfurt) via prod-sso
+kubeconfig updated and set as the current context.
+
+$ kuberoutectl current
+Target   eks-prod-frankfurt (eks-prod-frankfurt)
+Provider aws
+Profile  prod-sso
+```
+
+A profile that cannot reach the cluster is rejected before anything runs, naming
+the ones that would work.
+
+**Which clusters a profile reaches is discovered, not assumed.** `eks:ListClusters`
+cannot be scoped below account/region, but `eks:DescribeCluster` is evaluated per
+cluster — so a profile that lists everything may still be denied on individual
+clusters. Each denial is reported during sync, which turns an undocumented access
+map into ordinary output:
+
+```console
+$ kuberoutectl sync aws
+  → profile "ops" cannot describe cluster "eks-prod-ireland" in eu-central-1 — skipping it for this profile
+```
+
+> **Limit worth knowing.** This reflects **IAM** reachability. Operating inside a
+> cluster also requires an EKS **access entry** (formerly the `aws-auth`
+> ConfigMap), which is a Kubernetes-side mechanism kuberoutectl does not read. If
+> your profiles differ at that layer, a profile can describe a cluster, be chosen
+> as the default, activate cleanly, and still get `Forbidden` from `kubectl`. That
+> is why an unprompted default says `(default — pass --profile to pick another)`
+> rather than presenting itself as a decision: verify with
+> `kubectl auth can-i`, and pin the working profile with `--profile`.
+
 ## 6. Corporate SSO: discover every account you can reach (Entra / IAM Identity Center)
 
 If your company federates AWS through **myapplications.microsoft.com** (Microsoft
