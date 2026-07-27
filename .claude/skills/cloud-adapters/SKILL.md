@@ -57,9 +57,12 @@ If a change needs more than that outside the package, the design is wrong.
   successful command* is a wrapped hard error
   (`fmt.Errorf("<provider>: parse <cmd>: %w", err)`) — swallowing it makes a
   format regression masquerade as "not logged in". (Caught by review in the
-  first GCP implementation.) Exception: per-item failures inside a loop over
-  projects/profiles stay silent-and-skipped so one bad item doesn't sink the
-  whole sync.
+  first GCP implementation.) Exception: per-item parse failures inside a loop
+  over projects/profiles/clusters are **skipped, not fatal** — one bad item must
+  not sink the whole sync — but they are **never silent**: emit a `prog.Step`
+  naming the item and flagging a possible CLI format change. The command
+  succeeded, so `--verbose` shows nothing wrong, and a bare `continue` makes a
+  format regression read as "you have no clusters".
 - **Never coerce static credentials into a renew lifecycle.** AWS static keys
   are `static`/`none` (failing ones `error`/`manual`); kubeconfig users never
   map to renew. Capabilities gate the menu; per-credential health picks the

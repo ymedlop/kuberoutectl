@@ -10,9 +10,10 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
 
 ### Fixed
 - **A malformed provider response no longer looks like an empty account.** When
-  `aws eks list-clusters` / `describe-cluster` or `gcloud container clusters list`
-  **succeeded** but returned output that could not be parsed, the cluster (or the
-  whole profile/project) was skipped in complete silence — and because the
+  `az aks list`, `aws eks list-clusters` / `describe-cluster`, or
+  `gcloud container clusters list` **succeeded** but returned output that could
+  not be parsed, the cluster (or the
+  whole subscription/profile/project) was skipped in complete silence — and because the
   command itself succeeded, `--verbose` showed nothing wrong either. An output
   format change from a provider CLI therefore read as "you have no clusters".
   These cases are still skipped rather than failing the sync, since one bad
