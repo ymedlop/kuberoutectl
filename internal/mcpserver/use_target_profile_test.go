@@ -5,6 +5,10 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/ymedlop/kuberoutectl/internal/cache/jsonstore"
+	"github.com/ymedlop/kuberoutectl/internal/services"
 
 	"github.com/ymedlop/kuberoutectl/internal/domain"
 	"github.com/ymedlop/kuberoutectl/internal/providers"
@@ -36,20 +40,38 @@ func multiCredentialSnapshot() domain.InventorySnapshot {
 	}
 }
 
-func newProfileHandler(t *testing.T) (*handler, *credentialFakeProvider) {
+// newProfileHandler mirrors newTestHandler but keeps hold of the store, so a
+// test can rewrite the snapshot to simulate a resync.
+func newProfileHandler(t *testing.T) (*handler, *credentialFakeProvider, *jsonstore.Store) {
 	t.Helper()
 	prov := &credentialFakeProvider{fakeProvider: fakeProvider{
 		id:   "aws",
 		caps: domain.Capabilities{CanSwitchContext: true},
 	}}
-	return newTestHandler(t, multiCredentialSnapshot(), prov), prov
+	dir := t.TempDir()
+	store := jsonstore.New(dir, dir)
+	if err := store.SaveSnapshot(multiCredentialSnapshot()); err != nil {
+		t.Fatalf("seed snapshot: %v", err)
+	}
+	reg := providers.NewRegistry()
+	if err := reg.Register(prov); err != nil {
+		t.Fatalf("register provider: %v", err)
+	}
+	now := func() time.Time { return time.Unix(0, 0).UTC() }
+	h := &handler{d: Deps{
+		Version:   "test",
+		Registry:  reg,
+		Targets:   services.NewTargetService(store),
+		Selection: services.NewSelectionService(store, reg, now),
+	}}
+	return h, prov, store
 }
 
 // An MCP client must be able to choose the access path, or it is stuck on the
 // primary while the CLI is not — the same surface asymmetry that produced the
 // v1.1.1 fix.
 func TestMCPUseTarget_HonoursProfile(t *testing.T) {
-	h, prov := newProfileHandler(t)
+	h, prov, _ := newProfileHandler(t)
 
 	_, out, err := h.useTarget(context.Background(), nil, UseTargetInput{Ref: "eks-prod", Activate: true, Profile: "dev"})
 	if err != nil {
@@ -71,7 +93,7 @@ func TestMCPUseTarget_HonoursProfile(t *testing.T) {
 // primary is only the healthiest credential, not the one known to have access
 // inside the cluster.
 func TestMCPUseTarget_ReportsDefaultAsDefault(t *testing.T) {
-	h, _ := newProfileHandler(t)
+	h, _, _ := newProfileHandler(t)
 
 	_, out, err := h.useTarget(context.Background(), nil, UseTargetInput{Ref: "eks-prod", Activate: true})
 	if err != nil {
@@ -85,7 +107,7 @@ func TestMCPUseTarget_ReportsDefaultAsDefault(t *testing.T) {
 // An unusable profile fails the tool call rather than silently activating
 // something else.
 func TestMCPUseTarget_RejectsUnreachableProfile(t *testing.T) {
-	h, prov := newProfileHandler(t)
+	h, prov, _ := newProfileHandler(t)
 
 	_, _, err := h.useTarget(context.Background(), nil, UseTargetInput{Ref: "eks-prod", Activate: true, Profile: "nope"})
 	if err == nil {
@@ -103,7 +125,7 @@ func TestMCPUseTarget_RejectsUnreachableProfile(t *testing.T) {
 // same persisted selection. A divergence here is the class of bug that makes
 // documentation say "the schema is the reliable source".
 func TestMCPUseTarget_PersistsSameSelectionAsCLIPath(t *testing.T) {
-	h, _ := newProfileHandler(t)
+	h, _, _ := newProfileHandler(t)
 
 	if _, _, err := h.useTarget(context.Background(), nil, UseTargetInput{Ref: "eks-prod", Activate: true, Profile: "dev"}); err != nil {
 		t.Fatalf("useTarget: %v", err)
@@ -138,3 +160,51 @@ func TestMCPUseTargetInput_ProfileIsDocumented(t *testing.T) {
 }
 
 var _ providers.CredentialActivator = (*credentialFakeProvider)(nil)
+
+// The MCP surface must report a lost profile too. This field had no test on
+// either surface, which is exactly how a false positive shipped in it once.
+func TestMCPUseTarget_ReportsALostProfile(t *testing.T) {
+	h, _, store := newProfileHandler(t)
+
+	if _, _, err := h.useTarget(context.Background(), nil, UseTargetInput{Ref: "eks-prod", Activate: true, Profile: "dev"}); err != nil {
+		t.Fatalf("first useTarget: %v", err)
+	}
+	// A resync drops dev from the cache, and the fold with it.
+	snap := multiCredentialSnapshot()
+	snap.Credentials = snap.Credentials[:1]
+	snap.Targets[0].CredentialIDs = []domain.CredentialID{"aws:ops"}
+	if err := store.SaveSnapshot(snap); err != nil {
+		t.Fatalf("resync: %v", err)
+	}
+
+	_, out, err := h.useTarget(context.Background(), nil, UseTargetInput{Ref: "eks-prod", Activate: true})
+	if err != nil {
+		t.Fatalf("second useTarget: %v", err)
+	}
+	if out.LostProfile != "aws:dev" {
+		t.Errorf("LostProfile = %q, want aws:dev", out.LostProfile)
+	}
+	if out.Profile != "ops" {
+		t.Errorf("Profile = %q, want the fallback ops", out.Profile)
+	}
+}
+
+// Switching deliberately between two live profiles is not a loss. Without the
+// source gate this reported lost_profile on an ordinary workflow.
+func TestMCPUseTarget_ExplicitSwitchIsNotALoss(t *testing.T) {
+	h, _, _ := newProfileHandler(t)
+
+	if _, _, err := h.useTarget(context.Background(), nil, UseTargetInput{Ref: "eks-prod", Activate: true, Profile: "dev"}); err != nil {
+		t.Fatalf("first useTarget: %v", err)
+	}
+	_, out, err := h.useTarget(context.Background(), nil, UseTargetInput{Ref: "eks-prod", Activate: true, Profile: "ops"})
+	if err != nil {
+		t.Fatalf("second useTarget: %v", err)
+	}
+	if out.LostProfile != "" {
+		t.Errorf("LostProfile = %q, want empty: dev is still there, the client just chose ops", out.LostProfile)
+	}
+	if out.ProfileSource != "flag" {
+		t.Errorf("ProfileSource = %q, want flag", out.ProfileSource)
+	}
+}

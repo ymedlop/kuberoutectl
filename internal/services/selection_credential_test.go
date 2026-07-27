@@ -260,3 +260,65 @@ func TestStatus_FlagsVanishedCredential(t *testing.T) {
 		t.Error("CredentialMissing must be true so `current` can say the profile is gone")
 	}
 }
+
+// A deliberate switch between two live profiles is not a loss. The chosen
+// credential differs from the remembered one by definition, so a check on the
+// difference alone raises a false alarm on an ordinary workflow.
+func TestUseTarget_ExplicitSwitchIsNotReportedAsALoss(t *testing.T) {
+	_, _, svc := multiCredentialSetup()
+
+	if _, err := svc.UseTarget(context.Background(), "t1", UseTargetOptions{Activate: true, CredentialName: "dev"}); err != nil {
+		t.Fatalf("first UseTarget: %v", err)
+	}
+	res, err := svc.UseTarget(context.Background(), "t1", UseTargetOptions{Activate: true, CredentialName: "ops"})
+	if err != nil {
+		t.Fatalf("second UseTarget: %v", err)
+	}
+	if res.LostCredentialID != "" {
+		t.Errorf("LostCredentialID = %q, want empty: dev is still present, the operator simply chose ops",
+			res.LostCredentialID)
+	}
+	if res.CredentialSource != CredentialFromFlag {
+		t.Errorf("CredentialSource = %v, want CredentialFromFlag", res.CredentialSource)
+	}
+}
+
+// The genuine case: the remembered credential is gone from the snapshot, so the
+// fallback to the default must be attributable.
+func TestUseTarget_VanishedRememberedCredentialIsReportedAsALoss(t *testing.T) {
+	store, _, svc := multiCredentialSetup()
+
+	if _, err := svc.UseTarget(context.Background(), "t1", UseTargetOptions{Activate: true, CredentialName: "dev"}); err != nil {
+		t.Fatalf("first UseTarget: %v", err)
+	}
+	// A resync drops dev from ~/.aws/config, and the fold with it.
+	store.snap.Credentials = store.snap.Credentials[:1]
+	store.snap.Targets[0].CredentialIDs = []domain.CredentialID{"aws:ops"}
+
+	res, err := svc.UseTarget(context.Background(), "t1", UseTargetOptions{Activate: true})
+	if err != nil {
+		t.Fatalf("second UseTarget: %v", err)
+	}
+	if res.LostCredentialID != "aws:dev" {
+		t.Errorf("LostCredentialID = %q, want aws:dev", res.LostCredentialID)
+	}
+	if res.Credential.ID != "aws:ops" {
+		t.Errorf("credential = %q, want a fallback to aws:ops", res.Credential.ID)
+	}
+}
+
+// Reusing a remembered credential that is still there is not a loss either.
+func TestUseTarget_RememberedAndStillPresentIsNotALoss(t *testing.T) {
+	_, _, svc := multiCredentialSetup()
+
+	if _, err := svc.UseTarget(context.Background(), "t1", UseTargetOptions{Activate: true, CredentialName: "dev"}); err != nil {
+		t.Fatalf("first UseTarget: %v", err)
+	}
+	res, err := svc.UseTarget(context.Background(), "t1", UseTargetOptions{Activate: true})
+	if err != nil {
+		t.Fatalf("second UseTarget: %v", err)
+	}
+	if res.LostCredentialID != "" {
+		t.Errorf("LostCredentialID = %q, want empty: dev was reused, not lost", res.LostCredentialID)
+	}
+}

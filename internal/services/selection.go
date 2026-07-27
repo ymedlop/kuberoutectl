@@ -136,8 +136,13 @@ func (s *SelectionService) UseTarget(ctx context.Context, ref string, opts UseTa
 	if err != nil {
 		return UseTargetResult{}, err
 	}
+	// A loss is a credential that went away, not merely one that differs from
+	// what was remembered. An explicit choice deviates from the remembered value
+	// by definition — reporting that as a loss would raise a false alarm on the
+	// ordinary act of switching profiles. Gate on the reason for the difference,
+	// not on the difference existing.
 	lost := domain.CredentialID("")
-	if remembered != "" && cred.ID != remembered {
+	if remembered != "" && cred.ID != remembered && source != CredentialFromFlag {
 		lost = remembered
 	}
 
