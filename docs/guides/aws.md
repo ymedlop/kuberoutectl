@@ -87,8 +87,8 @@ Synced provider: aws
 
 ```console
 $ kuberoutectl target list --provider aws
-ALIAS               PLATFORM  REGION        HEALTH  PROVIDER
-eks-prod-frankfurt  eks       eu-central-1  valid   aws
+ALIAS               PLATFORM  VERSION  REGION        HEALTH  PROVIDER
+eks-prod-frankfurt  eks       1.29     eu-central-1  valid   aws
 ```
 
 The **ALIAS** is a short, stable handle you can pass to `target use`,
@@ -166,13 +166,16 @@ and records every profile that reaches it:
 
 ```console
 $ kuberoutectl target list --provider aws
-ALIAS               PLATFORM  REGION        HEALTH  PROVIDER  PROFILES      OPERABLE
-eks-prod-frankfurt  eks       eu-central-1  valid   aws       ops,prod-sso  ops
-eks-prod-ireland    eks       eu-central-1  valid   aws       prod-sso      unknown
+ALIAS               PLATFORM  VERSION  REGION        HEALTH  PROVIDER  PROFILES
+eks-prod-frankfurt  eks       1.29     eu-central-1  valid   aws       ops,prod-sso
+eks-prod-ireland    eks       1.30     eu-central-1  valid   aws       prod-sso
 ```
 
-The `PROFILES` and `OPERABLE` columns appear only when some cluster has a
-choice. `target inspect` breaks down each profile's health *and* whether the
+The `PROFILES` column appears only when some cluster has a choice. The
+operability verdict is **not** in the listing: the access-entry check only runs
+for clusters more than one profile reaches, so in a fleet where each cluster has
+a single way in the column would read `unknown` on nearly every row. It lives in
+`target inspect`, which breaks down each profile's health *and* whether the
 cluster admits it — two different questions, answered separately:
 
 ```console

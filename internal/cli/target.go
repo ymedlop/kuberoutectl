@@ -96,14 +96,10 @@ func (a *app) targetListCmd() *cobra.Command {
 					anyMulti = true
 				}
 			}
-			operable := make(map[domain.TargetID]string, len(rows))
-			for _, r := range rows {
-				operable[r.Target.ID] = operableCell(r)
-			}
 			tw := newTabWriter(out)
-			header := "ALIAS\tPLATFORM\tREGION\tHEALTH\tPROVIDER"
+			header := "ALIAS\tPLATFORM\tVERSION\tREGION\tHEALTH\tPROVIDER"
 			if anyMulti {
-				header += "\tPROFILES\tOPERABLE"
+				header += "\tPROFILES"
 			}
 			if anyHidden {
 				header += "\tHIDDEN"
@@ -113,9 +109,16 @@ func (a *app) targetListCmd() *cobra.Command {
 			}
 			fprintln(tw, header)
 			for _, t := range targets {
-				row := t.Alias + "\t" + t.Platform + "\t" + t.Region + "\t" + string(t.Health) + "\t" + string(t.ProviderID)
+				// Same fallback `inspect` uses: a target cached before versions were
+				// tracked has an empty field, and a blank cell in a table reads as a
+				// value rather than as an absence.
+				version := t.KubernetesVersion
+				if version == "" {
+					version = domain.VersionUnknown
+				}
+				row := t.Alias + "\t" + t.Platform + "\t" + version + "\t" + t.Region + "\t" + string(t.Health) + "\t" + string(t.ProviderID)
 				if anyMulti {
-					row += "\t" + strings.Join(profiles[t.ID], ",") + "\t" + operable[t.ID]
+					row += "\t" + strings.Join(profiles[t.ID], ",")
 				}
 				if anyHidden {
 					mark := ""
@@ -488,35 +491,6 @@ func (a *app) targetUseCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&noKubeconfig, "no-kubeconfig", false, "record the selection only; do not modify ~/.kube/config")
 	cmd.Flags().StringVar(&profile, "profile", "", "go in through this credential (an AWS profile name) when several reach the target")
 	return cmd
-}
-
-// operableCell renders the OPERABLE column for one row: the profiles the
-// cluster is confirmed to admit, else why there is nothing to name.
-//
-// It never returns an empty string. A blank cell reads as "no", and the whole
-// point of this column is that "we could not tell" and "you will be refused"
-// are different answers — the first is the common one, since clusters created
-// through the API, the SDKs or CloudFormation authenticate through the aws-auth
-// ConfigMap, which kuberoutectl deliberately does not read.
-func operableCell(r services.TargetWithCredentials) string {
-	var admitted []string
-	anyUnknown := false
-	for _, c := range r.Credentials {
-		switch r.Target.CredentialAccess(c.ID) {
-		case domain.AccessOperable:
-			admitted = append(admitted, c.Name)
-		case domain.AccessUnknown:
-			anyUnknown = true
-		}
-	}
-	switch {
-	case len(admitted) > 0:
-		return strings.Join(admitted, ",")
-	case anyUnknown:
-		return string(domain.AccessUnknown)
-	default:
-		return "none"
-	}
 }
 
 // describeAccessCheck explains a mode in the terms that matter to the reader:

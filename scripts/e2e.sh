@@ -240,39 +240,21 @@ assert_contains "$again" "remembered"
 echo; echo "==> access entries decide who can actually operate, not just authenticate"
 # Both profiles can describe frankfurt — that is IAM. Only ops holds an EKS
 # access entry, which is the Kubernetes-side layer that decides whether kubectl
-# works at all. The OPERABLE column is the difference between the two.
-assert_contains "$aws_rows" "OPERABLE"
-# The cells are read positionally, not with a substring match on the whole row.
-# PROFILES sits immediately left of OPERABLE and holds the same profile names, so
-# `assert_contains "$row" "ops"` is satisfied by the PROFILES cell and passes even
-# when the OPERABLE cell is wrong — verified: it stayed green with operableCell
-# stubbed to a constant.
-[ "$(echo "$aws_rows" | head -1 | awk '{print $NF}')" = "OPERABLE" ] ||
-  fail "OPERABLE is no longer the last column; the \$NF reads below would take the wrong cell"
-# $NF is the last whitespace-separated token, so this holds only while every
-# OPERABLE value is a single token (`ops`, `unknown`, `none`, or a comma-joined
-# name list). If the cell ever renders a multi-word value — as `target inspect`
-# already does with "not operable" — $NF would quietly return just the last word
-# instead of failing, so change this reader at the same time as that format.
-operable_cell() { echo "$aws_rows" | grep "$1" | awk '{print $NF}'; }
+# works at all. That verdict lives in `target inspect`, not in the listing: in a
+# fleet where each cluster is reached by one profile the check never runs, so a
+# column would have said `unknown` on nearly every row.
+echo "$aws_rows" | grep -q "OPERABLE" && fail "the listing must not carry an OPERABLE column"
 
-fra_operable="$(operable_cell eks-prod-frankfurt)"
-echo "frankfurt OPERABLE=$fra_operable"
-[ "$fra_operable" = "ops" ] || fail "frankfurt OPERABLE is '$fra_operable', want exactly 'ops' (prod-sso holds no entry)"
+# The listing shows the server version instead — already discovered, costs
+# nothing, and it is the first thing you look at when picking a cluster.
+assert_contains "$aws_rows" "VERSION"
+ver_col="$(echo "$aws_rows" | head -1 | tr -s ' ' '\n' | grep -n '^VERSION$' | cut -d: -f1)"
+[ -n "$ver_col" ] || fail "no VERSION column in the header"
+fra_version="$(echo "$aws_rows" | grep 'eks-prod-frankfurt' | awk -v c="$ver_col" '{print $c}')"
+echo "frankfurt VERSION=$fra_version"
+[ "$fra_version" = "1.29" ] || fail "frankfurt VERSION is '$fra_version', want '1.29' (from discovery)"
 
-# Ireland was never checked — only one profile reaches it, so there was nothing
-# to disambiguate. Madrid was checked and found to be CONFIG_MAP, where access
-# entries do not apply. Different paths, same honest answer: neither may render
-# blank, because a blank cell reads as "no" and neither of these is a "no".
-ire_operable="$(operable_cell eks-prod-ireland)"
-echo "ireland OPERABLE=$ire_operable (never checked: single profile)"
-[ "$ire_operable" = "unknown" ] || fail "ireland OPERABLE is '$ire_operable', want 'unknown'"
-
-mad_operable="$(operable_cell eks-prod-madrid)"
-echo "madrid OPERABLE=$mad_operable (checked: CONFIG_MAP)"
-[ "$mad_operable" = "unknown" ] || fail "madrid OPERABLE is '$mad_operable', want 'unknown' — CONFIG_MAP can never yield a refusal"
-
-# And the CONFIG_MAP cluster must cost nothing: the mode is readable from the
+# The CONFIG_MAP cluster must cost nothing: the mode is readable from the
 # describe response already in hand, so no access-entry call is warranted.
 madrid_sync="$("$BIN" sync aws 2>&1)"
 assert_contains "$madrid_sync" "eks-prod-madrid"

@@ -37,11 +37,11 @@ kuberoutectl target use <alias>  # fetch credentials into ~/.kube/config and swi
 
 ```console
 $ kuberoutectl target list
-ALIAS               PLATFORM    REGION          HEALTH  PROVIDER
-aks-prod-weu        aks         westeurope      valid   azure
-eks-prod-frankfurt  eks         eu-central-1    valid   aws
-gke-prod-euw1       gke         europe-west1    valid   gcp
-homelab             kubeconfig                  static  kubeconfig
+ALIAS               PLATFORM    VERSION  REGION          HEALTH  PROVIDER
+aks-prod-weu        aks         1.29     westeurope      valid   azure
+eks-prod-frankfurt  eks         1.29     eu-central-1    valid   aws
+gke-prod-euw1       gke         1.30     europe-west1    valid   gcp
+homelab             kubeconfig  unknown                  static  kubeconfig
 ```
 
 The demo above shows the fuller flow — credential-health inspection, labels, and
