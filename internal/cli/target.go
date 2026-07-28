@@ -96,10 +96,14 @@ func (a *app) targetListCmd() *cobra.Command {
 					anyMulti = true
 				}
 			}
+			operable := make(map[domain.TargetID]string, len(rows))
+			for _, r := range rows {
+				operable[r.Target.ID] = operableCell(r)
+			}
 			tw := newTabWriter(out)
 			header := "ALIAS\tPLATFORM\tREGION\tHEALTH\tPROVIDER"
 			if anyMulti {
-				header += "\tPROFILES"
+				header += "\tPROFILES\tOPERABLE"
 			}
 			if anyHidden {
 				header += "\tHIDDEN"
@@ -111,7 +115,7 @@ func (a *app) targetListCmd() *cobra.Command {
 			for _, t := range targets {
 				row := t.Alias + "\t" + t.Platform + "\t" + t.Region + "\t" + string(t.Health) + "\t" + string(t.ProviderID)
 				if anyMulti {
-					row += "\t" + strings.Join(profiles[t.ID], ",")
+					row += "\t" + strings.Join(profiles[t.ID], ",") + "\t" + operable[t.ID]
 				}
 				if anyHidden {
 					mark := ""
@@ -176,13 +180,22 @@ func (a *app) targetInspectCmd() *cobra.Command {
 			// joined live from the snapshot, so an expired alternative shows as
 			// expired here even though the target itself reports the primary's
 			// health.
+			// Only printed when a check actually ran, so a target nobody had to
+			// disambiguate reads exactly as it did before this existed.
+			if target.AccessCheck != "" {
+				fprintln(tw, "Access check\t"+describeAccessCheck(target.AccessCheck))
+			}
 			if len(joined.Credentials) > 1 {
 				for i, c := range joined.Credentials {
 					mark := ""
 					if i == 0 {
 						mark = "  (primary)"
 					}
-					fprintln(tw, "profile\t"+c.Name+"  "+string(c.Health)+"  "+string(c.ActionHint)+mark)
+					// The verdict sits next to health because they answer different
+					// questions — health is whether the profile can authenticate to
+					// AWS at all, operability whether the cluster admits it.
+					verdict := "  " + string(target.CredentialAccess(c.ID))
+					fprintln(tw, "profile\t"+c.Name+"  "+string(c.Health)+"  "+string(c.ActionHint)+verdict+mark)
 				}
 			}
 			for k, v := range target.SystemLabels {
@@ -444,6 +457,13 @@ func (a *app) targetUseCmd() *cobra.Command {
 			}
 			target := res.Target
 			out := cmd.OutOrStdout()
+			// On stderr, and ahead of the JSON branch, so it reaches the operator
+			// whether or not stdout is being piped into something. It warns rather
+			// than blocks: the verdict is from the last sync and may be stale, and
+			// entering a cluster to diagnose exactly this is legitimate.
+			if res.AccessWarning != "" {
+				fprintln(cmd.ErrOrStderr(), "Warning:", res.AccessWarning)
+			}
 			if a.output == formatJSON {
 				// The bare target, as this command has always rendered. Wrapping
 				// it to add the credential would break the shape for anything
@@ -468,6 +488,52 @@ func (a *app) targetUseCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&noKubeconfig, "no-kubeconfig", false, "record the selection only; do not modify ~/.kube/config")
 	cmd.Flags().StringVar(&profile, "profile", "", "go in through this credential (an AWS profile name) when several reach the target")
 	return cmd
+}
+
+// operableCell renders the OPERABLE column for one row: the profiles the
+// cluster is confirmed to admit, else why there is nothing to name.
+//
+// It never returns an empty string. A blank cell reads as "no", and the whole
+// point of this column is that "we could not tell" and "you will be refused"
+// are different answers — the first is the common one, since clusters created
+// through the API, the SDKs or CloudFormation authenticate through the aws-auth
+// ConfigMap, which kuberoutectl deliberately does not read.
+func operableCell(r services.TargetWithCredentials) string {
+	var admitted []string
+	anyUnknown := false
+	for _, c := range r.Credentials {
+		switch r.Target.CredentialAccess(c.ID) {
+		case domain.AccessOperable:
+			admitted = append(admitted, c.Name)
+		case domain.AccessUnknown:
+			anyUnknown = true
+		}
+	}
+	switch {
+	case len(admitted) > 0:
+		return strings.Join(admitted, ",")
+	case anyUnknown:
+		return string(domain.AccessUnknown)
+	default:
+		return "none"
+	}
+}
+
+// describeAccessCheck explains a mode in the terms that matter to the reader:
+// not what it is called, but whether an absence means anything.
+func describeAccessCheck(m domain.AccessCheckMode) string {
+	switch m {
+	case domain.AccessCheckAPI:
+		return string(m) + " (a profile absent from the list will be refused)"
+	case domain.AccessCheckAPIAndConfigMap:
+		return string(m) + " (aws-auth may also grant access, so only a listed profile is confirmed)"
+	case domain.AccessCheckConfigMap:
+		return string(m) + " (access entries do not apply to this cluster)"
+	case domain.AccessCheckUnavailable:
+		return string(m) + " (the check could not run — likely no eks:ListAccessEntries)"
+	default:
+		return string(m)
+	}
 }
 
 // describeCredentialChoice renders how the access path was picked, or "" when

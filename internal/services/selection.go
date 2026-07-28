@@ -97,6 +97,36 @@ type UseTargetResult struct {
 	// operator who deliberately picked a break-glass profile gets moved back to
 	// the default with no output at all.
 	LostCredentialID domain.CredentialID `json:"lost_credential_id,omitempty"`
+
+	// AccessWarning is set only when the credential in use is *confirmed* to
+	// hold no access entry on this target — never when operability is merely
+	// unknown. Most clusters authenticate through the aws-auth ConfigMap, where
+	// nothing can be established, so warning on unknown would fire constantly on
+	// no evidence and train the operator to ignore the one case that matters.
+	AccessWarning string `json:"access_warning,omitempty"`
+}
+
+// accessWarning renders the caution for a credential the target is known to
+// refuse, naming a credential that would work when one exists.
+//
+// It reports rather than blocks: the verdict comes from the last sync and may
+// be stale, and going into a cluster to diagnose exactly this is a legitimate
+// thing to do.
+func accessWarning(t domain.Target, used domain.Credential, reaching []domain.Credential) string {
+	if t.CredentialAccess(used.ID) != domain.AccessNotOperable {
+		return ""
+	}
+	var alternatives []string
+	for _, c := range reaching {
+		if t.CredentialAccess(c.ID) == domain.AccessOperable {
+			alternatives = append(alternatives, c.Name)
+		}
+	}
+	msg := used.Name + " had no access entry on this cluster at the last sync; kubectl may return Forbidden."
+	if len(alternatives) > 0 {
+		msg += " " + strings.Join(alternatives, ", ") + " did have one."
+	}
+	return msg
 }
 
 // UseTarget records a target selection after resolving ref (a full ID, alias,
@@ -158,6 +188,7 @@ func (s *SelectionService) UseTarget(ctx context.Context, ref string, opts UseTa
 	}
 	return UseTargetResult{
 		Target: found, Credential: cred, CredentialSource: source, LostCredentialID: lost,
+		AccessWarning: accessWarning(found, cred, credentialsFor(found, snap.Credentials)),
 	}, nil
 }
 
