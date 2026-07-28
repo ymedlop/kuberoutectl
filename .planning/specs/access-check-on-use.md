@@ -107,6 +107,25 @@ Verifiable:
    cluster they may well have access to, at exactly the moment they are trying to
    diagnose it. Failure is reported, the activation proceeds.
 
+   **`CheckAccess` must therefore never return a non-nil error for a command
+   failure or a parse failure.** It downgrades both internally and reports them
+   as data. The `error` return is reserved for a caller mistake — a target this
+   provider does not own — which is a bug, not a runtime condition.
+
+   This has to be stated because the natural implementation is the wrong one:
+   `parseAccessEntries` returns a hard error by design (#112), and
+   `SelectionService.UseTarget` propagates every internal `err` straight up. An
+   implementation that pattern-matched the surrounding code would satisfy every
+   other requirement here and still block activations.
+
+   **And a format regression must not be phrased like a routine unknown.**
+   `CONFIG_MAP`, absence under `API_AND_CONFIG_MAP`, a pre-#112 snapshot and a
+   missing ARN all produce a benign "unknown" for expected reasons. If an
+   unparseable response renders identically, a real CLI format change hides
+   behind the common case indefinitely — the failure `CLAUDE.md`'s convention
+   exists to prevent. Its reason must name a possible CLI format change, the same
+   wording rule the discovery-loop exception already carries.
+
 4. **Both directions are reported**, on stderr:
 
    | Verdict | Output |
@@ -132,15 +151,36 @@ Verifiable:
    render the same verdict from the same service call and cannot drift, the
    property #112 already relies on for its warning.
 
-   That means MCP `get_target` also goes live, because it renders the same join.
-   Named as a decision rather than a side effect: it puts one cloud call behind a
-   read-only MCP tool, which previously made none. The alternative — CLI live,
-   MCP cached — was rejected because a client and a human looking at the same
-   cluster would be told different things, and every past instance of that
-   asymmetry in this repo has turned into a bug. An agent polling `get_target` in
-   a loop will make one call per poll; that is a real cost, and the mitigation if
-   it bites is a `refresh` argument defaulting to false, deferred until there is
-   evidence it is needed.
+   That means MCP `get_target` can also produce a live verdict. Named as a
+   decision rather than a side effect: it puts a cloud call behind a read-only
+   MCP tool, which today makes none — every tool in `registerReadTools` is a pure
+   cache projection, which is also why reads are left unlocked. CLI-live /
+   MCP-cached was rejected: a client and a human looking at the same cluster
+   would be told different things, and every instance of that asymmetry in this
+   repo has become a bug.
+
+   **`get_target` takes a `refresh` argument defaulting to `false`; `inspect`
+   checks by default.** Both surfaces can produce a live verdict through the
+   identical service call, so capability stays symmetric and only the default
+   differs — a human runs `inspect` once, an agent may poll `get_target` in a
+   loop, which is a cost this spec's own user story invites.
+
+   *An earlier revision deferred this mitigation "until there is evidence it is
+   needed". That is precisely the posture that produced the bug this spec exists
+   to fix: #112 shipped a bound based on an assumption about real fleets and was
+   wrong. Deferring a cheap, already-designed mitigation for want of evidence
+   repeats it in the opposite direction — too many calls instead of too few.*
+
+7. **The label commands must not gain a live check.** `get_target` calls
+   `TargetService.Resolve`, **not** `ResolveWithCredentials` — and `Resolve` is
+   shared with `target label add`, `label remove` and `label list`. Extending
+   `Resolve` would silently make three label commands issue AWS calls, which is
+   outside this spec's goal entirely.
+
+   So `get_target` must be rewired onto the credential-joining path, and
+   `Resolve` must stay exactly as it is. Stated as a requirement because the
+   natural implementation — extend the method the handler already calls — is the
+   wrong one, and nothing else in the spec would have caught it.
 
 ### Nice to have
 
@@ -150,10 +190,8 @@ Verifiable:
 
 ### Out of scope
 
-- **Changing `sync aws`.** Its check still drives primary selection for
-  multi-profile clusters, which is the one thing a live check at `use` time
-  cannot do — by then the primary has already been chosen. The two are
-  complementary, and this spec adds nothing to discovery.
+- **Changing `sync aws`** — *provisionally*, and this is the one item that should
+  be settled before Gate 2 rather than assumed. See the open decision below.
 - **`target list`.** It renders a fleet; going live there would mean one call per
   target on every listing, which is exactly the cost the `OPERABLE` column was
   removed to avoid. It keeps showing what the last sync knew, which for that
@@ -164,6 +202,35 @@ Verifiable:
 - **Reading `aws-auth`**, `kubectl auth can-i` probing, or creating entries — all
   rejected in #112's spec for reasons that have not changed.
 - Extending any of this to Azure, GCP or kubeconfig.
+
+## Open decision: is fleet-wide visibility being given up?
+
+`sync aws` checks only multi-profile clusters, and #116 removed the `OPERABLE`
+column from `target list`. If this spec ships with `sync` untouched, the combined
+result is that **no fleet-wide view of operability exists at all** — not even a
+stale one. "Which of my 50 clusters will lock me out?" becomes 50 `inspect` runs.
+
+Two arguments say the sync bound should be widened rather than kept:
+
+- **The staleness argument is inconsistent as written.** This spec accepts a
+  stale `authentication_mode` (requirement 5) and a stale `Credential.Identity`
+  (requirement 1) from the last sync. If sync-era data is good enough for two of
+  the three inputs, it is not obviously unacceptable for the derived verdict.
+- **The cost argument was aimed at the wrong target.** Rejecting a live check in
+  `target list` is right: that cost multiplies with every *display*. Widening
+  `sync`'s bound is a one-off *data-gathering* cost — one `list-access-entries`
+  per distinct cluster, alongside the `describe-cluster` discovery already makes
+  per cluster. Roughly +50% on that phase, not a multiplier.
+
+Against widening: the operator explicitly chose to drop the `OPERABLE` column
+rather than pay for it, having seen it read `unknown` on nearly every row. But
+that reading is a *consequence* of the bound — widen it and the column becomes
+informative, which may change the answer.
+
+The two are not exclusive. Widening `sync` restores bulk visibility; the
+per-command check adds freshness where it matters. **This decision is the
+operator's**, and the plan should not proceed on the assumption that `sync` stays
+as it is.
 
 ## Data model
 
@@ -341,12 +408,24 @@ unvalidated assumption, but the live path here is fixture-driven.
 - `internal/services.TargetService.ResolveWithCredentials` — extended, and this
   is the one real cost of bringing `inspect` in scope: `TargetService` is
   `struct{ store }` today and has **no registry**, so it must gain one.
-  `NewTargetService(` appears at **36 call sites** across `internal/cli`,
-  `internal/mcpserver` and seven test files. The churn is mechanical but wide,
-  and the plan should decide whether to change the constructor or add a
-  `WithProviders` builder — the same choice #114 faced with `DoctorService`,
-  where the builder kept every existing call site untouched and turned out to be
-  the better answer.
+  `NewTargetService(` appears at **36 call sites**, of which only two are
+  production code (`internal/cli/target.go`, `internal/cli/mcp.go`); the rest are
+  tests. The churn is mechanical and low-risk.
+
+  **The precedent points at a positional constructor argument**, not a builder:
+  `NewSelectionService(store, registry, now)` and
+  `NewCredentialService(store, reg)` both take the registry that way, and there
+  is **no `With…` builder anywhere in this codebase** (`grep -rn "func (.*) With[A-Z]"`
+  returns nothing outside tests). Match the existing services.
+
+  *An earlier revision of this spec justified a builder by citing #114, claiming
+  `DoctorService` faced the same choice and that a builder "turned out to be the
+  better answer". That is false: `git show 2ba0db3 -- internal/services/doctor.go`
+  is +5 lines, a doc comment. #114 considered a `WithUpdateCheck` builder and
+  **rejected** it, composing the row in the CLI instead. The citation described a
+  design that was never built, as evidence for a recommendation. Corrected here
+  rather than deleted, because inventing supporting precedent is a worse failure
+  than picking the wrong pattern.*
 - `domain.Credential.Identity` — the ARN discovery already stored, which is what
   makes the live check cost one call instead of one plus N.
 - No new module, no new external binary, no new persisted state.
@@ -395,4 +474,32 @@ call. They need the same call with the same inputs; two entry points is how the
 `use` and `inspect` verdicts would eventually stop agreeing. Deciding it needs
 the plan's view of where the credential join already happens.
 
-**Gate 1: PASSED**
+**Blocking before Gate 2**: the open decision above — whether `sync aws`'s
+`len(group) > 1` bound is widened alongside this, or bulk fleet visibility is
+given up permanently. Everything else here is settled; this one changes what gets
+built.
+
+**Gate 1: PASSED, pending that decision.**
+
+### Review corrections (2026-07-28)
+
+Independent Gate 1 review returned NEEDS CHANGES. Six items, all folded in above:
+
+1. `get_target` calls `Resolve`, not `ResolveWithCredentials`, and `Resolve` is
+   shared with three `target label` commands — extending it would have given them
+   live AWS calls. Now an explicit requirement (7).
+2. `CheckAccess`'s error contract was ambiguous; the natural implementation would
+   have violated requirement 3. Pinned down, plus a distinct-phrasing rule so a
+   format regression cannot hide behind a routine `unknown`.
+3. The `DoctorService` precedent cited for a builder was **fabricated** — #114
+   rejected that design. Corrected, and the real precedent points the other way.
+4. The bulk-visibility consequence was unstated, and the staleness argument was
+   inconsistent. Now an explicit open decision.
+5. Deferring the MCP `refresh` mitigation repeated the posture that caused #112's
+   bug. It ships now.
+6. The branch predated #116, so a premise contradicted the code. Rebased.
+
+Verified independently before folding in: `Credential.Identity` **is** populated
+for every credential that reaches a target (a profile whose STS call fails
+`continue`s before `discoverClusters`), so edge case 14 is a genuine corner and
+the one-call cost argument holds.
