@@ -59,7 +59,12 @@ Verifiable:
    command's primary job untouched and says it could not tell.
 6. An **azure, gcp or kubeconfig** target performs no check and no extra call —
    asserted with a runner that fails the test if invoked.
-7. `sync aws` and `target list` behaviour are unchanged.
+7. `sync aws` checks **every** AWS cluster whose authentication mode permits a
+   conclusion, not only those reached by more than one profile — while a
+   single-credential target still serializes `credential_ids` as absent, so the
+   no-migration property from #109 survives.
+8. `target list -l operable=true` filters the fleet by the verdict, and
+   `target list`'s columns are unchanged.
 
 ## User stories
 
@@ -190,8 +195,12 @@ Verifiable:
 
 ### Out of scope
 
-- **Changing `sync aws`** — *provisionally*, and this is the one item that should
-  be settled before Gate 2 rather than assumed. See the open decision below.
+- **A restored `OPERABLE` column.** Bulk visibility comes back as a selector, not
+  a column — see "How bulk visibility is surfaced".
+- **Live checking in `target list`.** Its cost multiplies with every display,
+  which is different in kind from a one-off gathering cost during `sync`. It
+  renders what the last sync established, which for a fleet view is the right
+  granularity.
 - **`target list`.** It renders a fleet; going live there would mean one call per
   target on every listing, which is exactly the cost the `OPERABLE` column was
   removed to avoid. It keeps showing what the last sync knew, which for that
@@ -203,7 +212,27 @@ Verifiable:
   rejected in #112's spec for reasons that have not changed.
 - Extending any of this to Azure, GCP or kubeconfig.
 
-## Open decision: is fleet-wide visibility being given up?
+## Decided: `sync aws` widens its bound too
+
+**Resolved 2026-07-28 by the operator: widen it.** `sync aws` checks every AWS
+cluster whose mode permits a conclusion, not only those reached by more than one
+profile. The reasoning below is kept because it is why.
+
+Two consequences the plan must handle, both of which break something that
+currently holds:
+
+- **`foldGroup` returns single-element groups untouched** (`if len(group) == 1 {
+  return group[0] }`), which is exactly what keeps `CredentialIDs` **nil** for a
+  single-credential target — the property that made #109 need no migration and
+  is asserted by `TestFoldLeavesSingleCredentialTargetsAlone`. Widening means
+  those groups now carry `AccessCheck` and `OperableCredentialIDs` while
+  `CredentialIDs` must stay nil. The two must be separated deliberately; the
+  obvious edit (drop the early return) breaks the migration property silently.
+- **Cost moves from "clusters with a choice" to "clusters in a conclusive mode".**
+  Still zero for `CONFIG_MAP`, since the mode is read from the `describe-cluster`
+  response already in hand. `sync` should say how many clusters it checked.
+
+### Why (the argument that settled it)
 
 `sync aws` checks only multi-profile clusters, and #116 removed the `OPERABLE`
 column from `target list`. If this spec ships with `sync` untouched, the combined
@@ -227,10 +256,30 @@ rather than pay for it, having seen it read `unknown` on nearly every row. But
 that reading is a *consequence* of the bound — widen it and the column becomes
 informative, which may change the answer.
 
-The two are not exclusive. Widening `sync` restores bulk visibility; the
-per-command check adds freshness where it matters. **This decision is the
-operator's**, and the plan should not proceed on the assumption that `sync` stays
-as it is.
+The two are not exclusive, and that is how it is resolved: widening `sync`
+restores bulk visibility, the per-command check adds freshness where a single
+cluster is being entered.
+
+### How bulk visibility is surfaced
+
+With every target carrying a verdict, the natural surface is **not** a restored
+`OPERABLE` column — the table already gained `VERSION` in #116 and columns are
+scarce. It is a **selector**, which this repo already treats as first class:
+
+```bash
+kuberoutectl target list -l operable=true      # the ones I am admitted to
+kuberoutectl target list -l operable=unknown   # the ones nothing could be told about
+```
+
+That requires exposing the verdict in `Target.SelectionLabels()` — where
+`region`, `platform`, `provider` and `health` already live as bare ergonomic keys
+— computed per target from its **primary** credential, since a selector matches a
+target rather than a (target, credential) pair. `-o json` continues to carry the
+full per-credential data for anything that needs it.
+
+This is a smaller change than a column, answers the fleet question better
+("which 3 of my 50" rather than reading 50 rows), and composes with the existing
+selector grammar including collections.
 
 ## Data model
 
@@ -364,6 +413,15 @@ profile  prod-sso  valid  use  operable
 14. **A credential with no `Identity` ARN in the snapshot** — cannot be matched,
     so `unknown` for that profile alone; the others still get their verdict. A
     single unusable credential must not blank out the whole result.
+15. **A single-credential target after the widened sync** — carries `AccessCheck`
+    and `OperableCredentialIDs`, and **still** serializes without
+    `credential_ids`. The pre-upgrade fixture test must keep passing untouched;
+    if it needs editing, the migration property has been broken rather than
+    preserved.
+16. **A selector on a target nothing was concluded about** — `operable=unknown`
+    matches it, and `operable=false` does not. A target with no verdict must
+    never satisfy a query for confirmed refusals, which is the selector-level
+    form of the rule that only `API` mode may say no.
 
 ## Testing criteria
 
@@ -383,6 +441,14 @@ profile  prod-sso  valid  use  operable
   whole justification for the interface taking every credential is that N
   profiles cost one call; an implementation that loops would satisfy every other
   assertion in this spec.
+- **The widened sync checks single-profile clusters** and still emits no
+  `credential_ids` for them — the existing `TestFoldLeavesSingleCredentialTargetsAlone`
+  and the hand-written pre-upgrade fixture must both pass **unmodified**. That is
+  the proof the migration property survived; if either needs editing, it did not.
+- **Selector cases**: `operable=true` on a confirmed target, `operable=unknown`
+  on an unchecked one, and `operable=false` matching **only** confirmed refusals
+  — asserted together, since a naive implementation that maps "not in the
+  operable set" to `false` passes the first two and inverts the third.
 - The verdict derivation is **not** re-tested here; it is `domain`'s table from
   #112 and duplicating it would let the two drift.
 - CLI: the three renderings, and that a refusal goes to **stderr** while the
@@ -474,12 +540,18 @@ call. They need the same call with the same inputs; two entry points is how the
 `use` and `inspect` verdicts would eventually stop agreeing. Deciding it needs
 the plan's view of where the credential join already happens.
 
-**Blocking before Gate 2**: the open decision above — whether `sync aws`'s
-`len(group) > 1` bound is widened alongside this, or bulk fleet visibility is
-given up permanently. Everything else here is settled; this one changes what gets
-built.
+**Gate 1: PASSED.** The blocking decision — whether to widen `sync aws`'s bound —
+was resolved by the operator: widen it, with bulk visibility surfaced through a
+selector rather than a restored column.
 
-**Gate 1: PASSED, pending that decision.**
+Two invariants the plan must not break while doing it, both currently guaranteed
+by code this change touches:
+
+- `CredentialIDs` stays **nil** for a single-credential target (`#109`'s
+  no-migration property, asserted by `TestFoldLeavesSingleCredentialTargetsAlone`)
+  even though such targets now carry `AccessCheck` and `OperableCredentialIDs`.
+- `Resolve` keeps making no external call, so the three `target label` commands
+  are unaffected (requirement 7).
 
 ### Review corrections (2026-07-28)
 
