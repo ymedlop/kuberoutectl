@@ -1,4 +1,4 @@
-# Spec: live access check on `target use`
+# Spec: live access check on `target use` and `target inspect`
 
 **Created**: 2026-07-28
 **Status**: draft
@@ -41,23 +41,25 @@ no check was ever attempted.
 
 ## Goal
 
-`target use` tells the operator whether the credential it is about to use is
-admitted by the cluster — for any AWS target, not only ones with a choice of
-profile — and never blocks an activation over it.
+The two commands that ask about **one** cluster — `target use` and
+`target inspect` — answer from a live check rather than from what a fleet-wide
+sync happened to establish, for any AWS target, and never block on it.
 
 Verifiable:
 
 1. `target use <aws-target>` performs one `list-access-entries` call for that
    cluster and reports the verdict, including for a single-profile target.
-2. A **confirmed refusal** warns on stderr, names an admitted profile when one is
-   known, and still writes the kubeconfig.
-3. A **confirmed admission** is reported too — the operator asked "can I operate
+2. `target inspect <aws-target>` performs the same single call and renders a
+   verdict **per profile**, replacing the cached one.
+3. A **confirmed refusal** on `use` warns on stderr, names an admitted profile
+   when one is known, and still writes the kubeconfig.
+4. A **confirmed admission** is reported too — the operator asked "can I operate
    here", and silence is not an answer to that.
-4. A check that fails (no `eks:ListAccessEntries`, throttled, offline) leaves the
-   activation untouched and says it could not tell.
-5. An **azure, gcp or kubeconfig** target performs no check and no extra call —
+5. A check that fails (no `eks:ListAccessEntries`, throttled, offline) leaves the
+   command's primary job untouched and says it could not tell.
+6. An **azure, gcp or kubeconfig** target performs no check and no extra call —
    asserted with a runner that fails the test if invoked.
-6. `sync aws` behaviour is unchanged.
+7. `sync aws` and `target list` behaviour are unchanged.
 
 ## User stories
 
@@ -74,9 +76,23 @@ Verifiable:
 
 ### Must have
 
-1. **The check runs on every `target use` against an AWS target**, with or
-   without `--profile`, and with or without `--no-kubeconfig` — the selection is
-   being recorded either way, so the question applies either way.
+1. **The check runs on every `target use` and `target inspect` against an AWS
+   target.** On `use`, with or without `--profile` and with or without
+   `--no-kubeconfig` — the selection is recorded either way, so the question
+   applies either way. On `inspect`, always: it is the command whose entire job
+   is to tell you the truth about one cluster, and it is now the only surface
+   carrying the verdict at all since `target list` dropped the column.
+
+   **One call answers for every profile.** The entry list names all principals,
+   so a single `list-access-entries` covers the whole cluster, and each reaching
+   credential is matched locally against it. `inspect` therefore costs exactly
+   what `use` costs, regardless of how many profiles reach the target.
+
+   Matching uses each credential's `Identity` ARN, already in the snapshot from
+   discovery — **no `sts get-caller-identity` is re-run**. That ARN is as fresh
+   as the last sync; if a profile has since been repointed at a different role
+   the match is stale, which is accepted and stated rather than paid for with N
+   extra calls.
 
 2. **AWS only.** Access entries are an EKS mechanism. Azure and GCP have their
    own authorization models which kuberoutectl does not read, and kubeconfig
@@ -111,9 +127,20 @@ Verifiable:
    cluster would double the cost to refine an answer that is `unknown` either
    way.
 
-6. **The result rides on `UseTargetResult`**, so the CLI and the MCP
-   `use_target` tool render the same verdict from the same service call and
-   cannot drift — the property #112 already relies on for its warning.
+6. **The result rides on the service result types** — `UseTargetResult` for
+   `use`, `TargetWithCredentials` for `inspect` — so the CLI and the MCP tools
+   render the same verdict from the same service call and cannot drift, the
+   property #112 already relies on for its warning.
+
+   That means MCP `get_target` also goes live, because it renders the same join.
+   Named as a decision rather than a side effect: it puts one cloud call behind a
+   read-only MCP tool, which previously made none. The alternative — CLI live,
+   MCP cached — was rejected because a client and a human looking at the same
+   cluster would be told different things, and every past instance of that
+   asymmetry in this repo has turned into a bug. An agent polling `get_target` in
+   a loop will make one call per poll; that is a real cost, and the mitigation if
+   it bites is a `refresh` argument defaulting to false, deferred until there is
+   evidence it is needed.
 
 ### Nice to have
 
@@ -127,6 +154,10 @@ Verifiable:
   multi-profile clusters, which is the one thing a live check at `use` time
   cannot do — by then the primary has already been chosen. The two are
   complementary, and this spec adds nothing to discovery.
+- **`target list`.** It renders a fleet; going live there would mean one call per
+  target on every listing, which is exactly the cost the `OPERABLE` column was
+  removed to avoid. It keeps showing what the last sync knew, which for that
+  command is the right granularity.
 - **Updating the cache from `target use`.** Discovery owns the snapshot;
   write-on-read introduces concurrency questions this feature does not need.
   Listed as nice-to-have above instead.
@@ -163,24 +194,35 @@ to the cache.
 New optional provider interface, beside `ContextActivator` / `CredentialActivator`:
 
 ```go
-// AccessChecker is implemented by providers that can tell whether a credential
-// is admitted *inside* a target, as opposed to able to authenticate to the
-// provider. Optional: a provider without a Kubernetes-side authorization layer
-// it can read simply does not implement it.
+// AccessChecker is implemented by providers that can tell which credentials are
+// admitted *inside* a target, as opposed to able to authenticate to the provider
+// about it. Optional: a provider with no Kubernetes-side authorization layer it
+// can read simply does not implement it, and the services layer type-asserts.
 type AccessChecker interface {
-    CheckAccess(ctx context.Context, t domain.Target, cred domain.Credential) (AccessCheck, error)
+    CheckAccess(ctx context.Context, t domain.Target, creds []domain.Credential) (AccessCheck, error)
 }
 
+// AccessCheck is what one live lookup established. Operable is a subset of the
+// credentials passed in.
 type AccessCheck struct {
-    Mode   domain.AccessCheckMode
-    Listed bool
+    Mode     domain.AccessCheckMode
+    Operable []domain.CredentialID
 }
 ```
 
-The verdict is derived by the service via `domain.AccessVerdictFor(Listed, Mode)`,
-so the provider reports facts and the domain owns the rule.
+Taking **all** the reaching credentials rather than one is what makes a single
+call serve both commands: `use` reads its own credential out of the result,
+`inspect` renders every one. The alternative — a per-credential call — would have
+made `inspect` cost N calls to answer a question the API answers once.
 
-CLI: no new flags, no output shape change — one extra stderr line.
+The verdict stays derived, never returned: the service calls
+`domain.AccessVerdictFor(listed, Mode)` per credential. The provider reports
+facts, the domain owns the rule, and the three-mode truth table exists in exactly
+one place.
+
+CLI: no new flags, no output shape change — one extra stderr line on `use`, and
+`inspect`'s existing per-profile lines now carry a live verdict instead of a
+cached one.
 
 MCP `use_target` output, additive:
 
@@ -191,7 +233,8 @@ MCP `use_target` output, additive:
 ```
 
 `access_warning` keeps its current meaning (set only on a confirmed refusal), so
-existing consumers are unaffected.
+existing consumers are unaffected. `get_target` renders `domain.Target` plus the
+join, so the live verdict reaches it without a shape change.
 
 ## UI changes
 
@@ -210,6 +253,17 @@ Now using target: eks-prod-frankfurt (eks-prod-frankfurt) via prod-sso
 $ kuberoutectl target use eks-prod-madrid
 Could not check access entries (profile ops may lack eks:ListAccessEntries).
 Now using target: eks-prod-madrid (eks-prod-madrid)
+```
+
+`inspect` renders the same verdict per profile, now from a live call rather than
+from the last sync — which for a single-profile cluster is the difference
+between an answer and `unknown`:
+
+```console
+$ kuberoutectl target inspect eks-prod-ireland
+...
+Access check  api_and_config_map (aws-auth may also grant access, so only a listed profile is confirmed)
+profile  prod-sso  valid  use  operable
 ```
 
 ## Edge cases
@@ -235,6 +289,14 @@ Now using target: eks-prod-madrid (eks-prod-madrid)
     unreadable: no call, `unknown`, with a line saying a `sync` would refresh it.
 11. **The check is slow** — bounded by the provider CLI's own behaviour, as every
     other call in this tool is. No new timeout policy is invented here.
+12. **`inspect` on a multi-profile target** — one call, a verdict per profile,
+    and it must **override** the cached `OperableCredentialIDs` rather than
+    merging with them. Two sources for one answer is how they drift.
+13. **`inspect` on a non-AWS target** — renders exactly as today, no `Access
+    check` line, no call.
+14. **A credential with no `Identity` ARN in the snapshot** — cannot be matched,
+    so `unknown` for that profile alone; the others still get their verdict. A
+    single unusable credential must not blank out the whole result.
 
 ## Testing criteria
 
@@ -247,9 +309,13 @@ Now using target: eks-prod-madrid (eks-prod-madrid)
 
 **Edge cases**
 
-- One FakeRunner test per case 1–10, with case 4 asserting on `runner.Calls`
-  rather than on output — a result-level assertion passes just as well when the
-  call was made and discarded.
+- One FakeRunner test per case 1–14, with cases 4 and 13 asserting on
+  `runner.Calls` rather than on output — a result-level assertion passes just as
+  well when the call was made and its answer discarded.
+- **A multi-profile `inspect` makes exactly one call**, asserted by count. The
+  whole justification for the interface taking every credential is that N
+  profiles cost one call; an implementation that loops would satisfy every other
+  assertion in this spec.
 - The verdict derivation is **not** re-tested here; it is `domain`'s table from
   #112 and duplicating it would let the two drift.
 - CLI: the three renderings, and that a refusal goes to **stderr** while the
@@ -270,7 +336,19 @@ unvalidated assumption, but the live path here is fixture-driven.
   `parseAccessEntries` all exist from #112 and are reused rather than
   reimplemented.
 - `domain.AccessVerdictFor`, `domain.AccessCheckMode` — the single truth table.
-- `internal/services.SelectionService.UseTarget` — extended.
+- `internal/services.SelectionService.UseTarget` — extended. It already holds the
+  provider registry.
+- `internal/services.TargetService.ResolveWithCredentials` — extended, and this
+  is the one real cost of bringing `inspect` in scope: `TargetService` is
+  `struct{ store }` today and has **no registry**, so it must gain one.
+  `NewTargetService(` appears at **36 call sites** across `internal/cli`,
+  `internal/mcpserver` and seven test files. The churn is mechanical but wide,
+  and the plan should decide whether to change the constructor or add a
+  `WithProviders` builder — the same choice #114 faced with `DoctorService`,
+  where the builder kept every existing call site untouched and turned out to be
+  the better answer.
+- `domain.Credential.Identity` — the ARN discovery already stored, which is what
+  makes the live check cost one call instead of one plus N.
 - No new module, no new external binary, no new persisted state.
 
 ---
@@ -305,10 +383,16 @@ unvalidated assumption, but the live path here is fixture-driven.
 - [x] The unproven area named, and the part that is now *proven* (ARN matching,
       validated against a real account) distinguished from it.
 
-**Open question for Gate 2**: whether `CheckAccess` should take the credential at
-all, or take the target and return the full admitted set. The latter is one call
-either way and would let a single check answer for every profile reaching the
-target — useful for `inspect`, unnecessary for `use`. Deciding it needs the
-plan's view of whether `inspect` should also go live.
+**Resolved during Gate 1** (was an open question): `CheckAccess` takes **every**
+reaching credential and returns the admitted subset, rather than answering for
+one. Both shapes cost one API call, but only this one lets `inspect` render every
+profile without looping — and `inspect` going live is now in scope, which is what
+settled it.
+
+**Open question for Gate 2**: whether `SelectionService` and `TargetService`
+should each reach the provider, or whether the lookup belongs in one place both
+call. They need the same call with the same inputs; two entry points is how the
+`use` and `inspect` verdicts would eventually stop agreeing. Deciding it needs
+the plan's view of where the credential join already happens.
 
 **Gate 1: PASSED**
