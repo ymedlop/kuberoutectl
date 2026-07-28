@@ -22,6 +22,15 @@ import (
 // what makes reachability discoverable at all.
 func newNoPatternAWSProvider(t *testing.T) *Provider {
 	t.Helper()
+	p, _ := newNoPatternAWSProviderWithRunner(t)
+	return p
+}
+
+// newNoPatternAWSProviderWithRunner is the same fixture, exposing the runner so
+// a test can assert on which commands ran — the only way to prove a *negative*
+// like "no access-entry call was made for a single-profile cluster".
+func newNoPatternAWSProviderWithRunner(t *testing.T) (*Provider, *execx.FakeRunner) {
+	t.Helper()
 	r := execx.NewFakeRunner()
 	const ssoURL = "https://my-sso.awsapps.com/start"
 
@@ -42,7 +51,16 @@ func newNoPatternAWSProvider(t *testing.T) *Provider {
 	r.Responses["aws eks describe-cluster --profile ops --region eu-central-1 --name eks-prod-ireland --output json"] = execx.FakeResponse{Stdout: readFixture(t, "eks-describe-ireland.json")}
 	r.Responses["aws eks describe-cluster --profile prod-sso --region eu-central-1 --name eks-prod-ireland --output json"] = execx.FakeResponse{Err: failErr{}}
 
-	return New(fakeResolver{path: "aws"}, r)
+	// Frankfurt is the shared cluster, in `API` mode, and its entry list spans
+	// two pages. The profile that IS admitted (ops, AWSReservedSSO_BreakGlass)
+	// appears only on page 2, so a check that stops at the first page reports a
+	// real entry as absent — and under `API` that reads as a confirmed refusal.
+	// prod-sso (AWSReservedSSO_Platform) appears on neither page.
+	const listFrankfurt = "aws eks list-access-entries --cluster-name eks-prod-frankfurt --profile ops --region eu-central-1 --output json"
+	r.Responses[listFrankfurt] = execx.FakeResponse{Stdout: readFixture(t, "access-entries-page1.json")}
+	r.Responses[listFrankfurt+" --starting-token eyJwYWdlIjogMn0="] = execx.FakeResponse{Stdout: readFixture(t, "access-entries-page2.json")}
+
+	return New(fakeResolver{path: "aws"}, r), r
 }
 
 func targetByName(t *testing.T, targets []domain.Target, name string) domain.Target {

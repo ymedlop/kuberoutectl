@@ -85,44 +85,16 @@ func credentialRank(h domain.AccessHealth) int {
 	}
 }
 
-// foldTargetsByID collapses the per-(profile, cluster) targets discovery
-// produces into one target per cluster. Several AWS profiles authenticating
-// into the same account see the same cluster, and an EKS ARN is account-scoped:
-// without this, discovery emits duplicate targets sharing an ID, which
-// AssignAliases then gives the same alias and ResolveTargetRef resolves to the
-// first — leaving the rest unreachable by any reference the CLI prints.
+// Discovery emits one target per (profile, cluster), and several AWS profiles
+// authenticating into the same account see the same cluster. An EKS ARN is
+// account-scoped, so those targets share an ID — which AssignAliases then gives
+// the same alias and ResolveTargetRef resolves to the first, leaving the rest
+// unreachable by any reference the CLI prints. groupTargetsByID and foldGroup
+// collapse them into one target per cluster.
 //
-// The primary is the candidate whose credential ranks best, ties broken by
-// profile name so the result never depends on discovery order.
-//
-// It returns the primary candidate's own struct with CredentialIDs added, and
-// deliberately does NOT assemble a target from parts. Every provider-owned
-// field — including the SystemLabels and Metadata maps — therefore stays
-// consistent with the primary by construction. Patching scalar fields onto some
-// other candidate would leave SystemLabels[LabelHealth] describing a different
-// profile than Target.Health, and SelectionLabels() exposes both, so a selector
-// on `health` and one on `kuberoutectl.io/health` would disagree about the same
-// target.
-//
-// Input order is preserved for the surviving targets; only duplicates collapse.
-//
-// Maintenance note: the returned target shares its SystemLabels and Metadata
-// maps with the input candidate, because copying a Go struct copies map fields
-// by reference. Never write into those maps here — reassign the whole map if a
-// value must change, or the mutation is also visible through the caller's
-// slice.
-func foldTargetsByID(targets []domain.Target) []domain.Target {
-	groups := groupTargetsByID(targets)
-	out := make([]domain.Target, 0, len(groups))
-	for _, g := range groups {
-		out = append(out, foldGroup(g, accessResult{}))
-	}
-	return out
-}
-
-// groupTargetsByID is the first half of the fold: it collects the candidates
-// for each cluster, preserving the order clusters were first seen in, and does
-// no ranking.
+// groupTargetsByID is the first half: it collects the candidates for each
+// cluster, preserving the order clusters were first seen in, and does no
+// ranking.
 //
 // It is separate from foldGroup because the access-entry check has to run
 // between the two. The check only applies to clusters more than one profile
@@ -163,9 +135,25 @@ type accessResult struct {
 // will refuse. Ties break on profile name, so the result never depends on
 // discovery order.
 //
+// It returns the winning candidate's own struct and deliberately does NOT
+// assemble a target from parts. Every provider-owned field — including the
+// SystemLabels and Metadata maps — therefore stays consistent with the primary
+// by construction. Patching scalar fields onto some other candidate would leave
+// SystemLabels[LabelHealth] describing a different profile than Target.Health,
+// and SelectionLabels() exposes both, so a selector on `health` and one on
+// `kuberoutectl.io/health` would disagree about the same target. Operability
+// ranking makes that mistake likelier, since the winner is no longer simply the
+// healthiest.
+//
 // A group of one is returned untouched: CredentialIDs stays nil and AccessCheck
 // stays empty, so targets with a single way in serialize exactly as they did
 // before any of this existed.
+//
+// Maintenance note: the returned target shares its SystemLabels and Metadata
+// maps with the input candidate, because copying a Go struct copies map fields
+// by reference. Never write into those maps here — reassign the whole map if a
+// value must change, or the mutation is also visible through the caller's
+// slice.
 func foldGroup(group []domain.Target, access accessResult) domain.Target {
 	if len(group) == 1 {
 		return group[0]

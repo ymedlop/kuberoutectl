@@ -88,6 +88,10 @@ func (p *Provider) Discover(ctx context.Context, in providers.DiscoveryInput) (p
 
 	res := providers.DiscoveryResult{}
 	scopeSeen := map[domain.ScopeID]bool{}
+	// Each profile's identity, reduced to the form an access entry can be
+	// compared against. Collected here because the access-entry check runs after
+	// the per-profile loop, by which point the STS responses are gone.
+	principalKeys := map[domain.CredentialID]string{}
 
 	for i, profile := range profiles {
 		res.Sources = append(res.Sources, buildSource(profile, now))
@@ -113,6 +117,7 @@ func (p *Provider) Discover(ctx context.Context, in providers.DiscoveryInput) (p
 		if stsErr != nil || identity.Account == "" {
 			continue // unusable identity: no scope, no targets
 		}
+		principalKeys[credentialID(profile)] = principalKey(identity.Arn)
 		if scope, ok := buildScope(identity.Account); ok && !scopeSeen[scope.ID] {
 			scopeSeen[scope.ID] = true
 			res.Scopes = append(res.Scopes, scope)
@@ -127,9 +132,28 @@ func (p *Provider) Discover(ctx context.Context, in providers.DiscoveryInput) (p
 	}
 
 	// Several profiles into one account see the same cluster, and an EKS ARN is
-	// account-scoped — so the per-profile targets above can share an ID. Fold
-	// them into one target per cluster before anything downstream sees them.
-	res.Targets = foldTargetsByID(res.Targets)
+	// account-scoped — so the per-profile targets above can share an ID. Group
+	// them, ask which profiles the cluster actually admits, then fold each group
+	// into one target.
+	//
+	// The check sits between the two halves on purpose. It only applies to
+	// clusters more than one profile reaches, which is what grouping
+	// establishes, and its answer feeds the ranking, which the fold performs.
+	// Folding first and re-ranking afterwards is impossible: the fold keeps the
+	// winner's own struct and discards the losing candidates'.
+	groups := groupTargetsByID(res.Targets)
+	folded := make([]domain.Target, 0, len(groups))
+	for _, group := range groups {
+		access := accessResult{}
+		if len(group) > 1 {
+			access, err = p.checkAccessEntries(ctx, awsBin, group, principalKeys, prog)
+			if err != nil {
+				return providers.DiscoveryResult{}, err
+			}
+		}
+		folded = append(folded, foldGroup(group, access))
+	}
+	res.Targets = folded
 
 	sort.Slice(res.Targets, func(i, j int) bool { return res.Targets[i].ID < res.Targets[j].ID })
 	prog.Step("discovered %d cluster(s)", len(res.Targets))
