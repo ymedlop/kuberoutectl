@@ -112,10 +112,16 @@ Verifiable:
    to a user on a stable version — the `latest` endpoint already excludes
    pre-releases, and the `prerelease` field is checked anyway rather than trusted.
 
-7. **Opt-out**: `KUBEROUTECTL_NO_UPDATE_CHECK` set to any non-empty value, or a
-   config field. Either suppresses the row and the request. Documented in the
-   README and the docs site next to a plain statement that this is the only
-   outbound request `kuberoutectl` makes and that it transmits nothing.
+7. **Opt-out**: `KUBEROUTECTL_NO_UPDATE_CHECK` set to any non-empty value
+   suppresses the row and the request. Documented in the README and the docs site
+   next to a plain statement that this is the only outbound request
+   `kuberoutectl` makes and that it transmits nothing.
+
+   *Amended 2026-07-28 (plan D1)*: this originally read "or a config field".
+   There is no config file — `internal/config` resolves paths only, and
+   `config.Default()` is its sole construction path — so a config-file loader
+   would have to be built to host one boolean. The environment variable is the
+   whole opt-out until a config file exists for other reasons.
 
 8. **Bounded cost.** 3-second timeout. The command may take that long in the worst
    case; that is acceptable for a diagnostic the user invoked on purpose, and is
@@ -271,7 +277,6 @@ belongs in the PR rather than papered over.
 ## Dependencies
 
 - `internal/buildinfo` for the current version (exists; injected via `-ldflags`).
-- `internal/config` for the opt-out field.
 - `internal/services.DoctorService` — modified, and its documented "no network
   calls" contract revised deliberately.
 - Go stdlib `net/http` — **the first network client in the core**. Today every
