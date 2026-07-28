@@ -136,6 +136,22 @@ run sync aws
 run sync kubeconfig
 run sync gcp
 
+echo; echo "==> the update check never fires on a non-release build, and no command phones home"
+# The e2e binary is built without release ldflags, so buildinfo.Version is `dev`
+# — uncomparable, and therefore skipped before any client is constructed. This is
+# also what keeps this very script from making a network call.
+doctor_out="$("$BIN" doctor 2>&1)"; echo "$doctor_out"
+echo "$doctor_out" | grep -qE '^version' && fail "a dev build must not produce an update row"
+assert_contains "$doctor_out" "provider:aws"          # the real checks still run
+
+# --check-update on a dev build asks for nothing and claims nothing.
+ver_out="$("$BIN" version --check-update 2>&1)"; echo "$ver_out"
+echo "$ver_out" | grep -qF "is available" && fail "a dev build must not offer an upgrade"
+assert_contains "$("$BIN" version --help)" "check-update"   # the flag is documented
+
+# The opt-out is honoured even where the check would otherwise be possible.
+KUBEROUTECTL_NO_UPDATE_CHECK=1 "$BIN" doctor >/dev/null || fail "the opt-out must not break doctor"
+
 echo; echo "==> aws: an expired-token profile is surfaced on sync (diagnostic), not silently dropped"
 sync_aws_diag="$("$BIN" sync aws 2>&1)"; echo "$sync_aws_diag"
 assert_contains "$sync_aws_diag" 'profile "default": identity check failed'  # expired SSO named, not swallowed

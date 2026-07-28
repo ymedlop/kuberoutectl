@@ -84,6 +84,32 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
   alone. Without `eks:ListAccessEntries` the verdict is `unavailable`, every
   profile reads `unknown`, and `sync` names the missing permission.
 
+- **`doctor` now tells you when your binary is out of date**, and
+  `version --check-update` asks the same question deliberately. Someone on an old
+  release had no way to learn a newer one existed short of visiting the repo —
+  the cost of which is not a missing feature but **debugging a bug that is
+  already fixed**, which is exactly what sends people to `doctor` in the first
+  place. The verdict is an ordinary check row, so it inherits `doctor`'s
+  rendering and `-o json` shape, and it is appended rather than inserted so a
+  consumer indexing that array sees an added element and not shifted ones.
+
+  **No other command makes a network request.** Not `sync`, `target`,
+  `collection`, `current` or `mcp` — and a test enforces that only the CLI layer
+  can import the code that would. There is no ambient check and nothing is
+  cached: an unsolicited outbound call on every invocation is a sentence a tool
+  that handles cloud credentials has to defend in every security review, and
+  confining it to two commands whose names say "diagnostic" is a much easier one.
+  The request itself is an unauthenticated `GET` that transmits nothing — no
+  version, no identifier, no usage data. Set `KUBEROUTECTL_NO_UPDATE_CHECK` to
+  any value to suppress the request as well as the output.
+
+  A build that is not a stable release (`dev`, a snapshot) never checks, and a
+  pre-release upstream is never offered to someone on a stable version. An
+  unreachable or rate-limited API — the likely case behind a corporate NAT
+  sharing one address across 60 requests an hour — is reported as "could not
+  check" and **never** as "you are up to date": a check that vanishes when it
+  fails is indistinguishable from one that was never wired up.
+
 ### Known limitation
 - An access entry answers "are you admitted", not "may you do X" — a restrictive
   access policy still yields `Forbidden` on specific verbs, which only

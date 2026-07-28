@@ -147,7 +147,8 @@ stderr so it never pollutes `-o json`. Reach for it when a `sync` returns fewer
 targets than expected (an expired token, say).
 
 ```bash
-kuberoutectl doctor                              # check required provider CLIs resolve
+kuberoutectl doctor                              # check required provider CLIs resolve, and whether a newer release exists
+kuberoutectl version --check-update              # ask deliberately, without running doctor
 
 kuberoutectl sync azure                          # discover Azure inventory into the cache
 kuberoutectl sync aws                            # discover AWS inventory into the cache
@@ -198,6 +199,30 @@ kuberoutectl setup aws-sso --sso-session <name>  # write ~/.aws/config profiles 
 kuberoutectl mcp                                 # serve kuberoutectl as MCP tools over stdio (optional; --read-only available)
 kuberoutectl version
 ```
+
+### Network access
+
+`kuberoutectl` reaches the network in exactly two ways, and both are things you
+asked for:
+
+1. The cloud CLIs it drives — `az`, `aws`, `gcloud`, `kubectl` — during `sync`,
+   `target use` and `credential renew`.
+2. A single unauthenticated `GET` to the GitHub releases API, made **only** by
+   `doctor` and by `version --check-update`, to see whether a newer stable
+   release exists.
+
+That request transmits nothing: no version, no identifier, no usage data, no
+telemetry of any kind. It is never made by `sync`, `target`, `collection`,
+`current` or `mcp`, never on a `dev` or snapshot build, and a test enforces that
+only the CLI layer can reach the code that makes it. To switch it off entirely:
+
+```bash
+export KUBEROUTECTL_NO_UPDATE_CHECK=1
+```
+
+Set to any non-empty value, that suppresses the request as well as the output.
+An unreachable or rate-limited API is reported as "could not check" and never as
+"you are up to date".
 
 ## MCP server (optional)
 
