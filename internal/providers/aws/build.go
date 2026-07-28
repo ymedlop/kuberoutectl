@@ -112,37 +112,105 @@ func credentialRank(h domain.AccessHealth) int {
 // value must change, or the mutation is also visible through the caller's
 // slice.
 func foldTargetsByID(targets []domain.Target) []domain.Target {
-	groups := map[domain.TargetID][]domain.Target{}
-	var order []domain.TargetID
-	for _, t := range targets {
-		if _, seen := groups[t.ID]; !seen {
-			order = append(order, t.ID)
-		}
-		groups[t.ID] = append(groups[t.ID], t)
-	}
-
-	out := make([]domain.Target, 0, len(order))
-	for _, id := range order {
-		group := groups[id]
-		if len(group) == 1 {
-			out = append(out, group[0])
-			continue
-		}
-		sort.SliceStable(group, func(i, j int) bool {
-			ri, rj := credentialRank(group[i].Health), credentialRank(group[j].Health)
-			if ri != rj {
-				return ri < rj
-			}
-			return group[i].Metadata["profile"] < group[j].Metadata["profile"]
-		})
-		primary := group[0]
-		primary.CredentialIDs = make([]domain.CredentialID, 0, len(group))
-		for _, c := range group {
-			primary.CredentialIDs = append(primary.CredentialIDs, c.CredentialID)
-		}
-		out = append(out, primary)
+	groups := groupTargetsByID(targets)
+	out := make([]domain.Target, 0, len(groups))
+	for _, g := range groups {
+		out = append(out, foldGroup(g, accessResult{}))
 	}
 	return out
+}
+
+// groupTargetsByID is the first half of the fold: it collects the candidates
+// for each cluster, preserving the order clusters were first seen in, and does
+// no ranking.
+//
+// It is separate from foldGroup because the access-entry check has to run
+// between the two. The check only applies to clusters more than one profile
+// reaches — which is exactly what grouping establishes — and its result feeds
+// the ranking, which foldGroup performs. Folding first and re-ranking afterwards
+// is not an option: by then the losing candidates' structs are gone, and
+// re-picking would mean assembling a target from parts (see foldGroup).
+func groupTargetsByID(targets []domain.Target) [][]domain.Target {
+	index := map[domain.TargetID]int{}
+	var out [][]domain.Target
+	for _, t := range targets {
+		if i, seen := index[t.ID]; seen {
+			out[i] = append(out[i], t)
+			continue
+		}
+		index[t.ID] = len(out)
+		out = append(out, []domain.Target{t})
+	}
+	return out
+}
+
+// accessResult is what the access-entry check established for one group: the
+// mode it read the cluster under, and which of the group's credentials it found
+// listed. The zero value means no check was attempted, which is the state every
+// single-credential group and every non-AWS provider stays in.
+type accessResult struct {
+	check    domain.AccessCheckMode
+	operable map[domain.CredentialID]bool
+}
+
+// foldGroup is the second half of the fold: it picks the primary and returns
+// that candidate's own struct with the multi-credential fields filled in.
+//
+// Ranking is operability first, then health. An expired session is a renewable
+// obstacle — `aws sso login` fixes it and action_hint already says so — while a
+// missing access entry cannot be fixed from this CLI at all. So a profile that
+// is expired but admitted is a better default than a healthy one the cluster
+// will refuse. Ties break on profile name, so the result never depends on
+// discovery order.
+//
+// A group of one is returned untouched: CredentialIDs stays nil and AccessCheck
+// stays empty, so targets with a single way in serialize exactly as they did
+// before any of this existed.
+func foldGroup(group []domain.Target, access accessResult) domain.Target {
+	if len(group) == 1 {
+		return group[0]
+	}
+	sort.SliceStable(group, func(i, j int) bool {
+		ai := accessRank(domain.AccessVerdictFor(access.operable[group[i].CredentialID], access.check))
+		aj := accessRank(domain.AccessVerdictFor(access.operable[group[j].CredentialID], access.check))
+		if ai != aj {
+			return ai < aj
+		}
+		ri, rj := credentialRank(group[i].Health), credentialRank(group[j].Health)
+		if ri != rj {
+			return ri < rj
+		}
+		return group[i].Metadata["profile"] < group[j].Metadata["profile"]
+	})
+
+	primary := group[0]
+	primary.CredentialIDs = make([]domain.CredentialID, 0, len(group))
+	for _, c := range group {
+		primary.CredentialIDs = append(primary.CredentialIDs, c.CredentialID)
+	}
+	primary.AccessCheck = access.check
+	// Built in CredentialIDs order rather than map order, so `-o json` does not
+	// churn between syncs.
+	for _, id := range primary.CredentialIDs {
+		if access.operable[id] {
+			primary.OperableCredentialIDs = append(primary.OperableCredentialIDs, id)
+		}
+	}
+	return primary
+}
+
+// accessRank orders verdicts best-first for primary selection. Unknown sits
+// between the two certainties: it is not worth preferring over a confirmed
+// admission, and not worth demoting below a confirmed refusal.
+func accessRank(v domain.AccessVerdict) int {
+	switch v {
+	case domain.AccessOperable:
+		return 0
+	case domain.AccessNotOperable:
+		return 2
+	default:
+		return 1
+	}
 }
 
 // buildTarget maps an EKS cluster to a target. Like Azure it sets only
