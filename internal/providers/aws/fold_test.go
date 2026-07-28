@@ -33,6 +33,20 @@ func TestCredentialRankIsTotalAndKnowsEveryHealth(t *testing.T) {
 	}
 }
 
+// foldTargetsByID is the fold with no access-entry check in play — the shape
+// the whole fold had before this feature, and the one every test below was
+// written against. Keeping it as a test helper rather than production code
+// keeps that regression suite intact without leaving a function in the adapter
+// that nothing ships calls.
+func foldTargetsByID(targets []domain.Target) []domain.Target {
+	groups := groupTargetsByID(targets)
+	out := make([]domain.Target, 0, len(groups))
+	for _, g := range groups {
+		out = append(out, foldGroup(g, accessResult{}))
+	}
+	return out
+}
+
 // foldCandidate builds a target the way buildTarget does, so a fold test
 // exercises structs with the same internal consistency real discovery produces.
 func foldCandidate(profile, arn string, health domain.AccessHealth, action domain.ActionHint) domain.Target {

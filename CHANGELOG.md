@@ -48,13 +48,48 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
 - New `kuberoutectl.io/credential` system label on every provider's targets,
   naming the target's default credential so it can be selected on.
 
+- **`sync aws` now reads EKS access entries, so the default profile is picked on
+  whether the cluster admits it — not just on whether it can authenticate.**
+  Reachability was resolved at the **IAM** layer (`eks:DescribeCluster`), but
+  operating inside a cluster additionally requires an EKS **access entry**, a
+  Kubernetes-side authorization layer. Where profiles differed only there, a
+  profile could describe a cluster, be chosen as the default, activate cleanly,
+  and still get `Forbidden` from `kubectl` — with nothing in the inventory
+  hinting at it. For clusters more than one profile reaches, discovery now makes
+  one `list-access-entries` call per cluster and prefers an admitted profile
+  **even over a healthier one**: an expired session is one `aws sso login` away,
+  while a missing access entry cannot be fixed from this CLI at all.
+
+  What can be concluded depends on the cluster's `authenticationMode`, and only
+  a *negative* answer does: under `API` the list is authoritative both ways;
+  under `API_AND_CONFIG_MAP` and `CONFIG_MAP` a listed profile is still
+  confirmed but an absent one is **unknown**, because `aws-auth` may grant it and
+  kuberoutectl deliberately does not read `aws-auth` (that would need working
+  `kubectl` access to the cluster being asked about). Clusters created through
+  the API, the SDKs or CloudFormation default to `CONFIG_MAP`, so `unknown` is
+  the normal answer rather than a failure, and it is never rendered as "no".
+
+  `target list` gains an `OPERABLE` column and `target inspect` a per-profile
+  verdict, both under the same "only when a target has a choice" rule as
+  `PROFILES`. `target use` with a profile the cluster is **confirmed** to refuse
+  warns on stderr, names one that would work, and proceeds anyway — the verdict
+  is from the last sync and may be stale, and entering a cluster to diagnose
+  exactly this is legitimate. A profile whose verdict is `unknown` produces no
+  warning at all. The MCP `use_target` tool returns the same caution as an
+  `access_warning` field, from the same service call, so the two surfaces cannot
+  drift into disagreeing about when to warn.
+
+  No extra call is made for a cluster only one profile reaches, and none for a
+  `CONFIG_MAP` cluster, where the answer is knowable from the describe response
+  alone. Without `eks:ListAccessEntries` the verdict is `unavailable`, every
+  profile reads `unknown`, and `sync` names the missing permission.
+
 ### Known limitation
-- Profile reachability is resolved at the **IAM** layer (`eks:DescribeCluster`).
-  Operating inside a cluster additionally requires an EKS **access entry**, which
-  is a Kubernetes-side mechanism kuberoutectl does not read. Where profiles
-  differ only at that layer, the chosen default is a guess — which is why it is
-  labelled `(default — pass --profile to pick another)` rather than presented as
-  a decision.
+- An access entry answers "are you admitted", not "may you do X" — a restrictive
+  access policy still yields `Forbidden` on specific verbs, which only
+  `kubectl auth can-i` can tell you. Two IAM roles with the same name under
+  different paths also reduce to the same principal and match each other; if that
+  shape exists in your account, the match is a false positive.
 
 ### Added
 - **CI now verifies reproducible builds.** A `reproducible-build` workflow

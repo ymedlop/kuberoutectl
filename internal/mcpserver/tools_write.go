@@ -96,6 +96,12 @@ type UseTargetOutput struct {
 	// gone from the snapshot, so there is no name left to resolve; naming the
 	// field for a profile would promise something this value cannot be.
 	LostCredentialID string `json:"lost_credential_id,omitempty"`
+	// AccessWarning is set only when the chosen credential is *confirmed* to
+	// hold no EKS access entry on this target — never when operability is merely
+	// unknown, which is the common case. A field rather than prose so a client
+	// can branch on it; the CLI prints the same string, from the same service, so
+	// the two surfaces cannot drift into disagreeing about when to warn.
+	AccessWarning string `json:"access_warning,omitempty"`
 }
 
 func (h *handler) useTarget(ctx context.Context, _ *mcp.CallToolRequest, in UseTargetInput) (*mcp.CallToolResult, UseTargetOutput, error) {
@@ -115,6 +121,7 @@ func (h *handler) useTarget(ctx context.Context, _ *mcp.CallToolRequest, in UseT
 		Profile:          res.Credential.Name,
 		ProfileSource:    res.CredentialSource.String(),
 		LostCredentialID: string(res.LostCredentialID),
+		AccessWarning:    res.AccessWarning,
 	}, nil
 }
 

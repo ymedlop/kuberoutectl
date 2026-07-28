@@ -36,6 +36,19 @@ type Target struct {
 	// migration step.
 	CredentialIDs []CredentialID `json:"credential_ids,omitempty"`
 
+	// OperableCredentialIDs lists the credentials confirmed to hold an access
+	// entry on this target — that is, admitted by the cluster, not merely able
+	// to call the provider API about it. A credential in CredentialIDs but
+	// absent here is NOT necessarily refused; AccessCheck says whether its
+	// absence means anything. Use CredentialAccess rather than reading this
+	// directly, so the two fields are never interpreted apart.
+	OperableCredentialIDs []CredentialID `json:"operable_credential_ids,omitempty"`
+
+	// AccessCheck records what the operability check could establish, or is
+	// empty when none was attempted — which is the case for every target
+	// reachable by a single credential, and for every provider but AWS.
+	AccessCheck AccessCheckMode `json:"access_check,omitempty"`
+
 	ScopeID ScopeID `json:"scope_id"`
 	Kind    string  `json:"kind"`
 	Name    string  `json:"name"`

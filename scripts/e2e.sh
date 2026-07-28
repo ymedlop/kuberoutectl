@@ -63,6 +63,13 @@ EOF
 cat > "$WORK/bin/aws" <<EOF
 #!/usr/bin/env bash
 SSO="https://my-sso.awsapps.com/start"
+# Both SSO profiles see the same three clusters. madrid is defined inline rather
+# than as a shared fixture because it exists only for this script: it is a
+# CONFIG_MAP cluster, the mode where access entries do not apply at all, so no
+# list-access-entries call may be made for it and every profile must read
+# `unknown` — never "not operable".
+EKS_LIST='{"clusters":["eks-prod-frankfurt","eks-prod-ireland","eks-prod-madrid"]}'
+MADRID='{"cluster":{"name":"eks-prod-madrid","arn":"arn:aws:eks:eu-central-1:111111111111:cluster/eks-prod-madrid","endpoint":"https://GHI789.gr7.eu-central-1.eks.amazonaws.com","version":"1.29","status":"ACTIVE","accessConfig":{"authenticationMode":"CONFIG_MAP"}}}'
 case "\$*" in
   "configure list-profiles") printf 'default\nops\nprod-sso\nlegacy-static\n' ;;
   "sts get-caller-identity --profile default --output json") echo "Error loading SSO Token: Token for default does not exist" >&2; exit 1 ;;
@@ -74,18 +81,28 @@ case "\$*" in
   "sts get-caller-identity --profile prod-sso --output json") cat "$AWS_FIX/identity-prod-sso.json" ;;
   "configure get sso_start_url --profile prod-sso") echo "\$SSO" ;;
   "configure get region --profile prod-sso") echo "eu-central-1" ;;
-  "eks list-clusters --profile prod-sso --region eu-central-1 --output json") cat "$AWS_FIX/eks-list-prod.json" ;;
+  "eks list-clusters --profile prod-sso --region eu-central-1 --output json") echo "\$EKS_LIST" ;;
   "eks describe-cluster --profile prod-sso --region eu-central-1 --name eks-prod-frankfurt --output json") cat "$AWS_FIX/eks-describe-frankfurt.json" ;;
   "eks describe-cluster --profile prod-sso --region eu-central-1 --name eks-prod-ireland --output json") cat "$AWS_FIX/eks-describe-ireland.json" ;;
+  "eks describe-cluster --profile prod-sso --region eu-central-1 --name eks-prod-madrid --output json") echo "\$MADRID" ;;
   # ops: a second SSO profile into the SAME account. It sees frankfurt (so the
   # two profiles' targets share an ARN and must fold into one), but IAM denies
   # it describe on ireland — the no-pattern case this feature exists for.
   "sts get-caller-identity --profile ops --output json") cat "$AWS_FIX/identity-ops.json" ;;
   "configure get sso_start_url --profile ops") echo "\$SSO" ;;
   "configure get region --profile ops") echo "eu-central-1" ;;
-  "eks list-clusters --profile ops --region eu-central-1 --output json") cat "$AWS_FIX/eks-list-prod.json" ;;
+  "eks list-clusters --profile ops --region eu-central-1 --output json") echo "\$EKS_LIST" ;;
   "eks describe-cluster --profile ops --region eu-central-1 --name eks-prod-frankfurt --output json") cat "$AWS_FIX/eks-describe-frankfurt.json" ;;
   "eks describe-cluster --profile ops --region eu-central-1 --name eks-prod-ireland --output json") exit 1 ;;
+  "eks describe-cluster --profile ops --region eu-central-1 --name eks-prod-madrid --output json") echo "\$MADRID" ;;
+  # Frankfurt is in API authentication mode, so its access-entry list is
+  # authoritative in both directions. The list is asked for once for the whole
+  # cluster (through the group's first profile, ops) and spans two pages: ops'
+  # own entry is on page 2, so a check that ignored nextToken would report a real
+  # entry as absent — which under API mode reads as a confirmed refusal.
+  # prod-sso appears on neither page.
+  "eks list-access-entries --cluster-name eks-prod-frankfurt --profile ops --region eu-central-1 --output json") cat "$AWS_FIX/access-entries-page1.json" ;;
+  "eks list-access-entries --cluster-name eks-prod-frankfurt --profile ops --region eu-central-1 --output json --starting-token eyJwYWdlIjogMn0=") cat "$AWS_FIX/access-entries-page2.json" ;;
   *) exit 1 ;;
 esac
 EOF
@@ -203,6 +220,59 @@ echo "$chosen" | grep -qF "default" && fail "an explicit choice must not read as
 assert_contains "$("$BIN" current)" "prod-sso"    # persisted, and reported
 again="$("$BIN" target use eks-prod-frankfurt --no-kubeconfig 2>&1)"; echo "$again"
 assert_contains "$again" "remembered"
+
+echo; echo "==> access entries decide who can actually operate, not just authenticate"
+# Both profiles can describe frankfurt — that is IAM. Only ops holds an EKS
+# access entry, which is the Kubernetes-side layer that decides whether kubectl
+# works at all. The OPERABLE column is the difference between the two.
+assert_contains "$aws_rows" "OPERABLE"
+# The cells are read positionally, not with a substring match on the whole row.
+# PROFILES sits immediately left of OPERABLE and holds the same profile names, so
+# `assert_contains "$row" "ops"` is satisfied by the PROFILES cell and passes even
+# when the OPERABLE cell is wrong — verified: it stayed green with operableCell
+# stubbed to a constant.
+[ "$(echo "$aws_rows" | head -1 | awk '{print $NF}')" = "OPERABLE" ] ||
+  fail "OPERABLE is no longer the last column; the \$NF reads below would take the wrong cell"
+# $NF is the last whitespace-separated token, so this holds only while every
+# OPERABLE value is a single token (`ops`, `unknown`, `none`, or a comma-joined
+# name list). If the cell ever renders a multi-word value — as `target inspect`
+# already does with "not operable" — $NF would quietly return just the last word
+# instead of failing, so change this reader at the same time as that format.
+operable_cell() { echo "$aws_rows" | grep "$1" | awk '{print $NF}'; }
+
+fra_operable="$(operable_cell eks-prod-frankfurt)"
+echo "frankfurt OPERABLE=$fra_operable"
+[ "$fra_operable" = "ops" ] || fail "frankfurt OPERABLE is '$fra_operable', want exactly 'ops' (prod-sso holds no entry)"
+
+# Ireland was never checked — only one profile reaches it, so there was nothing
+# to disambiguate. Madrid was checked and found to be CONFIG_MAP, where access
+# entries do not apply. Different paths, same honest answer: neither may render
+# blank, because a blank cell reads as "no" and neither of these is a "no".
+ire_operable="$(operable_cell eks-prod-ireland)"
+echo "ireland OPERABLE=$ire_operable (never checked: single profile)"
+[ "$ire_operable" = "unknown" ] || fail "ireland OPERABLE is '$ire_operable', want 'unknown'"
+
+mad_operable="$(operable_cell eks-prod-madrid)"
+echo "madrid OPERABLE=$mad_operable (checked: CONFIG_MAP)"
+[ "$mad_operable" = "unknown" ] || fail "madrid OPERABLE is '$mad_operable', want 'unknown' — CONFIG_MAP can never yield a refusal"
+
+# And the CONFIG_MAP cluster must cost nothing: the mode is readable from the
+# describe response already in hand, so no access-entry call is warranted.
+madrid_sync="$("$BIN" sync aws 2>&1)"
+assert_contains "$madrid_sync" "eks-prod-madrid"
+assert_contains "$madrid_sync" "CONFIG_MAP"
+
+fra_inspect="$("$BIN" target inspect eks-prod-frankfurt)"; echo "$fra_inspect"
+assert_contains "$fra_inspect" "Access check"
+assert_contains "$fra_inspect" "not operable"     # prod-sso, confirmed absent under API mode
+
+echo; echo "==> choosing a profile the cluster refuses warns on stderr and still proceeds"
+warn="$("$BIN" target use eks-prod-frankfurt --profile prod-sso --no-kubeconfig 2>&1 >/dev/null)"; echo "$warn"
+assert_contains "$warn" "no access entry"
+assert_contains "$warn" "ops"                     # names one that would work
+stdout_only="$("$BIN" target use eks-prod-frankfurt --profile prod-sso --no-kubeconfig 2>/dev/null)"
+assert_contains "$stdout_only" "Recorded selection"  # reports, does not block
+echo "$stdout_only" | grep -qF "no access entry" && fail "the warning belongs on stderr, not stdout"
 
 echo; echo "==> an unreachable profile is rejected, naming the ones that work"
 bad="$("$BIN" target use eks-prod-frankfurt --profile nope --no-kubeconfig 2>&1)" && fail "expected failure"

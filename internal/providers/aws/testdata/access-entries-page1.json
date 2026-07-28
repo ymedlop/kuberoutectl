@@ -1,0 +1,8 @@
+{
+  "accessEntries": [
+    "arn:aws:iam::111111111111:role/eks-node-group-prod",
+    "arn:aws:iam::111111111111:user/ci-bot",
+    "arn:aws:iam::111111111111:role/aws-reserved/sso.amazonaws.com/eu-central-1/AWSReservedSSO_ReadOnly"
+  ],
+  "nextToken": "eyJwYWdlIjogMn0="
+}
