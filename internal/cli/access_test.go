@@ -82,9 +82,8 @@ func TestTargetList_OperableCellValues(t *testing.T) {
 			if err != nil {
 				t.Fatalf("target list: %v", err)
 			}
-			row := rowContaining(t, out, "eks-prod")
-			if !strings.Contains(row, tc.want) {
-				t.Errorf("row %q does not carry %q", row, tc.want)
+			if got := columnValue(t, out, "eks-prod", "OPERABLE"); got != tc.want {
+				t.Errorf("OPERABLE = %q, want %q\n%s", got, tc.want, out)
 			}
 		})
 	}
@@ -98,20 +97,50 @@ func TestTargetList_OperableNeverBlankForUncheckedRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("target list: %v", err)
 	}
-	row := rowContaining(t, out, "gke-prod")
-	if !strings.Contains(row, "unknown") {
-		t.Errorf("an unchecked row must read unknown, not blank: %q", row)
+	if got := columnValue(t, out, "gke-prod", "OPERABLE"); got != string(domain.AccessUnknown) {
+		t.Errorf("an unchecked row must read unknown, not %q\n%s", got, out)
 	}
 }
 
-func rowContaining(t *testing.T, out, substr string) string {
+// columnValue reads one cell out of the tab-written listing, by column name.
+//
+// Asserting `strings.Contains(row, want)` instead is unreliable here and was an
+// actual bug in this file: PROFILES sits immediately left of OPERABLE and often
+// holds the same profile name, so `Contains(row, "ops")` passed even with
+// operableCell stubbed to return a constant. A cell assertion has to name the
+// cell.
+func columnValue(t *testing.T, out, rowSubstr, column string) string {
 	t.Helper()
-	for _, line := range strings.Split(out, "\n") {
-		if strings.Contains(line, substr) {
-			return line
+	lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+	if len(lines) == 0 {
+		t.Fatalf("no output to read a column from")
+	}
+	header := strings.Fields(lines[0])
+	idx := -1
+	for i, h := range header {
+		if h == column {
+			idx = i
+			break
 		}
 	}
-	t.Fatalf("no row containing %q in:\n%s", substr, out)
+	if idx < 0 {
+		t.Fatalf("no %s column in header %q", column, lines[0])
+	}
+	for _, line := range lines[1:] {
+		if !strings.Contains(line, rowSubstr) {
+			continue
+		}
+		cells := strings.Fields(line)
+		// Positional indexing only holds while every cell is non-empty. Rather
+		// than silently reading the wrong column when that stops being true (an
+		// empty HIDDEN cell would shift everything), fail and say so.
+		if len(cells) != len(header) {
+			t.Fatalf("row %q has %d cells but the header has %d; this helper cannot index it safely",
+				line, len(cells), len(header))
+		}
+		return cells[idx]
+	}
+	t.Fatalf("no row containing %q in:\n%s", rowSubstr, out)
 	return ""
 }
 
@@ -126,9 +155,28 @@ func TestTargetInspect_ShowsAccessCheckAndPerProfileVerdict(t *testing.T) {
 	if !strings.Contains(out, "Access check") {
 		t.Errorf("expected an Access check line, got:\n%s", out)
 	}
-	if !strings.Contains(out, "operable") || !strings.Contains(out, "not operable") {
-		t.Errorf("expected both verdicts in the per-profile breakdown, got:\n%s", out)
+	// Per profile, not merely "both words appear somewhere": a breakdown that
+	// attached the verdicts to the wrong profiles would satisfy an unpaired
+	// existence check while telling the operator the exact opposite of the truth.
+	ops := profileLine(t, out, "ops")
+	if !strings.Contains(ops, string(domain.AccessOperable)) || strings.Contains(ops, string(domain.AccessNotOperable)) {
+		t.Errorf("ops holds the access entry; its line reads %q", ops)
 	}
+	if dev := profileLine(t, out, "dev"); !strings.Contains(dev, string(domain.AccessNotOperable)) {
+		t.Errorf("dev is absent from the list under api mode; its line reads %q", dev)
+	}
+}
+
+// profileLine returns the `profile <name> …` line from `target inspect`.
+func profileLine(t *testing.T, out, name string) string {
+	t.Helper()
+	for _, line := range strings.Split(out, "\n") {
+		if fields := strings.Fields(line); len(fields) > 1 && fields[0] == "profile" && fields[1] == name {
+			return line
+		}
+	}
+	t.Fatalf("no profile line for %q in:\n%s", name, out)
+	return ""
 }
 
 // A cluster nobody checked must not grow an Access check line, so the common

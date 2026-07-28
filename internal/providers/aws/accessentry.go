@@ -126,7 +126,14 @@ func (p *Provider) checkAccessEntries(ctx context.Context, awsBin string, group 
 		token = page.NextToken
 	}
 
-	return accessResult{check: mode, operable: matchOperable(entries, keys)}, nil
+	// Scoped to this cluster's own candidates: keys holds every profile
+	// discovered, and matching the rest would compute verdicts for profiles that
+	// have nothing to do with this cluster.
+	groupKeys := make(map[domain.CredentialID]string, len(group))
+	for _, t := range group {
+		groupKeys[t.CredentialID] = keys[t.CredentialID]
+	}
+	return accessResult{check: mode, operable: matchOperable(entries, groupKeys)}, nil
 }
 
 // principalKey reduces an ARN to `account/name`, the form in which an access
