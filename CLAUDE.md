@@ -58,13 +58,22 @@ X, then make it pass". The verification ladder here:
 
 ```
 go test ./...            # unit: domain, services, providers (fixtures, no cloud)
-make check               # fmt + vet + test — the pre-commit gate
+make check               # fmt-check + vet + test — the pre-commit gate
 bash scripts/e2e.sh      # 4-provider operator flow with fake az/aws/gcloud/kubectl
+make docs-reference      # regenerate docs/reference; commit it if it changed
+make verify-readme       # README + demo commands still exist in the CLI
 ```
 
-All three must pass before a PR. What fixtures cannot prove (real CLI output
-shapes, interactive auth) is an accepted caveat — say so in the PR instead of
-pretending coverage.
+All five must pass before a PR, and the last two are the ones that get skipped.
+They generate or check content from the Cobra tree rather than testing
+behaviour, so **a change to the command surface passes the first three rungs and
+fails CI** — which is exactly how it happened in #110, where adding a flag left
+`docs/reference` stale. Treat them as mandatory whenever a command, subcommand,
+flag, or help string is touched: `make docs-reference` rewrites files, so run it
+and commit the result, don't just read its output.
+
+What fixtures cannot prove (real CLI output shapes, interactive auth) is an
+accepted caveat — say so in the PR instead of pretending coverage.
 
 ## Repo workflow
 
