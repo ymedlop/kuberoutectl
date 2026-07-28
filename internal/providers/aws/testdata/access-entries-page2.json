@@ -1,0 +1,5 @@
+{
+  "accessEntries": [
+    "arn:aws:iam::111111111111:role/aws-reserved/sso.amazonaws.com/eu-central-1/AWSReservedSSO_BreakGlass"
+  ]
+}

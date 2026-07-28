@@ -178,6 +178,13 @@ func buildTarget(profile, region string, id awsIdentity, c awsCluster, health do
 			"profile": profile,
 			"account": id.Account,
 			"status":  c.Status,
+			// Provider-private, like the three above. The access-entry check runs
+			// after the fold has grouped candidates, long after describe-cluster
+			// returned, so the mode has to travel on the target to get there. It
+			// cannot be written to Target.AccessCheck at this point: that field
+			// means "a check was attempted", and a cluster only one profile
+			// reaches is never checked even though its mode is known.
+			"authentication_mode": c.AccessConfig.AuthenticationMode,
 		},
 	}
 }

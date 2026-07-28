@@ -110,6 +110,76 @@ func TestSelectionOmitsEmptyCredentialID(t *testing.T) {
 	}
 }
 
+// The operability fields round-trip together. They are two halves of one
+// answer — which credentials hold an access entry, and whether the absence of a
+// credential from that list means anything — so a snapshot carrying one without
+// the other cannot be interpreted.
+func TestTargetAccessFieldsRoundTrip(t *testing.T) {
+	in := Target{
+		ID:                    "arn:aws:eks:eu-west-1:1234:cluster/prod",
+		ProviderID:            "aws",
+		CredentialID:          "aws:ops",
+		CredentialIDs:         []CredentialID{"aws:ops", "aws:dev"},
+		OperableCredentialIDs: []CredentialID{"aws:ops"},
+		AccessCheck:           AccessCheckAPI,
+	}
+	data, err := json.Marshal(in)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var out Target
+	if err := json.Unmarshal(data, &out); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(out.OperableCredentialIDs) != 1 || out.OperableCredentialIDs[0] != "aws:ops" {
+		t.Errorf("OperableCredentialIDs = %v, want [aws:ops]", out.OperableCredentialIDs)
+	}
+	if out.AccessCheck != AccessCheckAPI {
+		t.Errorf("AccessCheck = %q, want %q", out.AccessCheck, AccessCheckAPI)
+	}
+}
+
+// A target nobody checked must not carry either key, so snapshots for
+// single-credential targets and for the other three providers stay
+// byte-identical to today's.
+func TestTargetUncheckedOmitsAccessFields(t *testing.T) {
+	data, err := json.Marshal(Target{ID: "gcp:project:eu:cluster", CredentialID: "gcp:account:user"})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	for _, key := range []string{"operable_credential_ids", "access_check"} {
+		if strings.Contains(string(data), key) {
+			t.Errorf("%s must be omitted when empty, got %s", key, data)
+		}
+	}
+}
+
+// Edge case 13: a snapshot written before the check existed has neither key, and
+// every credential on it must read as unknown — never as a confirmed refusal.
+// This is the whole reason absence is not stored as a boolean.
+func TestTargetPreUpgradeSnapshotIsUnknownNotRefused(t *testing.T) {
+	const preUpgrade = `{
+		"id": "arn:aws:eks:eu-west-1:1234:cluster/prod",
+		"provider_id": "aws",
+		"credential_id": "aws:ops",
+		"credential_ids": ["aws:ops", "aws:dev"],
+		"health": "valid"
+	}`
+	var out Target
+	if err := json.Unmarshal([]byte(preUpgrade), &out); err != nil {
+		t.Fatalf("unmarshal pre-upgrade target: %v", err)
+	}
+	if out.AccessCheck != "" || out.OperableCredentialIDs != nil {
+		t.Fatalf("pre-upgrade target decoded with access data: check=%q operable=%v",
+			out.AccessCheck, out.OperableCredentialIDs)
+	}
+	for _, id := range out.CredentialIDs {
+		if got := out.CredentialAccess(id); got != AccessUnknown {
+			t.Errorf("CredentialAccess(%q) = %q, want %q on a pre-upgrade target", id, got, AccessUnknown)
+		}
+	}
+}
+
 // LabelCredential lives in the reserved system namespace like every other
 // discovery-owned key, so a user label can never shadow it.
 func TestLabelCredentialIsReserved(t *testing.T) {
