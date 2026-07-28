@@ -81,9 +81,9 @@ per project (each cluster a Target). Progress goes to stderr; the summary and
 
 ```console
 $ kuberoutectl target list --provider gcp
-ALIAS          PLATFORM  REGION          HEALTH  PROVIDER
-gke-lab-euw4   gke       europe-west4-a  valid   gcp
-gke-prod-euw1  gke       europe-west1    valid   gcp
+ALIAS          PLATFORM  VERSION  REGION          HEALTH  PROVIDER
+gke-lab-euw4   gke       1.30     europe-west4-a  valid   gcp
+gke-prod-euw1  gke       1.30     europe-west1    valid   gcp
 ```
 
 `REGION` is the GKE **location** — a region (`europe-west1`) for regional

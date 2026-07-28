@@ -38,6 +38,12 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
   cannot reach the target is rejected before anything runs, naming the ones that
   would work. The same argument is available on the MCP `use_target` tool, so an
   AI client is not restricted to the default.
+- **`target list` gains a `VERSION` column**, showing the Kubernetes server
+  version discovery already records. It was previously reachable only through
+  `target inspect`, one cluster at a time, despite being among the first things
+  you look at when choosing one. Nothing new is fetched — the value is already in
+  the snapshot. A target cached before versions were tracked renders `unknown`
+  rather than blank, since an empty cell in a table reads as a value.
 - **`target list` gains a `PROFILES` column** and `target inspect` a per-profile
   health breakdown, both shown only when a target actually has a choice.
 - **Per-cluster access denials are reported during `sync aws`.** `eks:ListClusters`
@@ -69,9 +75,8 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
   the API, the SDKs or CloudFormation default to `CONFIG_MAP`, so `unknown` is
   the normal answer rather than a failure, and it is never rendered as "no".
 
-  `target list` gains an `OPERABLE` column and `target inspect` a per-profile
-  verdict, both under the same "only when a target has a choice" rule as
-  `PROFILES`. `target use` with a profile the cluster is **confirmed** to refuse
+  `target inspect` gains an `Access check` line and a per-profile
+  verdict. `target use` with a profile the cluster is **confirmed** to refuse
   warns on stderr, names one that would work, and proceeds anyway — the verdict
   is from the last sync and may be stale, and entering a cluster to diagnose
   exactly this is legitimate. A profile whose verdict is `unknown` produces no
