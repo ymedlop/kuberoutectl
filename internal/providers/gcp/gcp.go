@@ -124,7 +124,7 @@ func (p *Provider) Discover(ctx context.Context, in providers.DiscoveryInput) (p
 	for i, proj := range projects {
 		res.Scopes = append(res.Scopes, buildScope(proj))
 		prog.Step("listing GKE clusters in %q (%d/%d)", proj.ProjectID, i+1, len(projects))
-		res.Targets = append(res.Targets, p.discoverClusters(ctx, gcloud, account, proj, health, action, now)...)
+		res.Targets = append(res.Targets, p.discoverClusters(ctx, gcloud, account, proj, health, action, now, prog)...)
 	}
 
 	sort.Slice(res.Targets, func(i, j int) bool { return res.Targets[i].ID < res.Targets[j].ID })
@@ -137,13 +137,24 @@ func (p *Provider) Discover(ctx context.Context, in providers.DiscoveryInput) (p
 // than an error, since that is an expected, common condition across a project
 // set. A parse failure on a successful listing is skipped for the same reason —
 // one malformed project must not sink the whole sync.
-func (p *Provider) discoverClusters(ctx context.Context, gcloud, account string, proj gcpProject, health domain.AccessHealth, action domain.ActionHint, now time.Time) []domain.Target {
+//
+// The two are not equivalent, though: a failed listing is routine, a parse
+// failure is a format regression. So the latter is reported through prog. The
+// command succeeded, which means --verbose shows nothing wrong either, and
+// without the step a gcloud output change would read as "this project has no
+// clusters".
+func (p *Provider) discoverClusters(ctx context.Context, gcloud, account string, proj gcpProject, health domain.AccessHealth, action domain.ActionHint, now time.Time, prog providers.Progress) []domain.Target {
 	out, _, err := p.runner.Run(ctx, gcloud, "container", "clusters", "list", "--project", proj.ProjectID, "--format=json")
 	if err != nil {
 		return nil
 	}
 	clusters, err := parseClusters(out)
 	if err != nil {
+		// Skipped rather than fatal, per the rule above — but never silently.
+		// The command succeeded, so `--verbose` shows nothing wrong, and a
+		// gcloud output-format change would read as "this project has no
+		// clusters".
+		prog.Step("could not parse the cluster list for project %q (%v) — possible gcloud format change; skipping this project", proj.ProjectID, err)
 		return nil
 	}
 	var targets []domain.Target

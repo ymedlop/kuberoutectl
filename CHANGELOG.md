@@ -9,6 +9,18 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
 ## [Unreleased]
 
 ### Fixed
+- **A malformed provider response no longer looks like an empty account.** When
+  `az aks list`, `aws eks list-clusters` / `describe-cluster`, or
+  `gcloud container clusters list` **succeeded** but returned output that could
+  not be parsed, the cluster (or the
+  whole subscription/profile/project) was skipped in complete silence — and because the
+  command itself succeeded, `--verbose` showed nothing wrong either. An output
+  format change from a provider CLI therefore read as "you have no clusters".
+  These cases are still skipped rather than failing the sync, since one bad
+  cluster must not sink the whole inventory, but each now prints a diagnostic
+  naming what could not be read and flagging a possible CLI format change. The
+  wording is deliberately distinct from an access denial: one is routine in a
+  fleet with uneven permissions, the other is worth investigating.
 - **A cluster reachable by several AWS profiles was listed twice, and one copy
   was unreachable.** An EKS ARN identifies the account, not the profile, so two
   profiles authenticating into the same account produced two targets with an

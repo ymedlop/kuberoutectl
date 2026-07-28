@@ -40,7 +40,12 @@ caution over speed — for trivial tasks, use judgment.
 - Error convention in provider `Discover`: an external-CLI *command failure*
   is resilient (fall through, optionally `prog.Step` a diagnostic); a *parse
   failure on a successful command* is a wrapped hard error — never let a
-  format regression masquerade as "not logged in".
+  format regression masquerade as "not logged in". **One exception**: a parse
+  failure on a *per-item* call inside a loop (a subscription's cluster list, a
+  profile's, a project's) is skipped rather than fatal, so one bad item cannot
+  sink the whole sync — but it must emit a `prog.Step` naming the item and
+  flagging a possible CLI format change. Skipping it silently is the bug the
+  rule exists to prevent, just quieter.
 - Remove only orphans your own change created; mention pre-existing dead code,
   don't delete it unasked.
 
