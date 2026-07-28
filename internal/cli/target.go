@@ -153,9 +153,14 @@ func (a *app) targetInspectCmd() *cobra.Command {
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			svc := services.NewTargetService(a.store, a.registry)
-			joined, err := svc.ResolveWithCredentials(args[0])
+			// Either path, never both: ResolveWithAccessCheck calls
+			// ResolveWithCredentials itself, so running both loaded the snapshot
+			// twice for one command.
+			joined, err := services.TargetWithCredentials{}, error(nil)
 			if refresh {
 				joined, err = svc.ResolveWithAccessCheck(cmd.Context(), args[0])
+			} else {
+				joined, err = svc.ResolveWithCredentials(args[0])
 			}
 			if err != nil {
 				return err

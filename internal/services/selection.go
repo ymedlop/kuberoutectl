@@ -210,12 +210,17 @@ func (s *SelectionService) UseTarget(ctx context.Context, ref string, opts UseTa
 	reaching := credentialsFor(found, snap.Credentials)
 	accessReason := ""
 	if opts.Refresh {
-		// Overrides the cached verdict rather than merging with it: two sources
-		// for one answer is how they drift apart.
 		live := checkAccess(ctx, s.registry, found, reaching)
-		if live.Mode != "" || live.Reason != "" {
+		// Two separate decisions, deliberately not one. A reason is always worth
+		// reporting; a verdict is only worth *substituting* when one was actually
+		// established. Gating the override on "was anything attempted" blanks a
+		// perfectly good cached answer whenever the diagnostic itself fails —
+		// trading knowledge for `unknown` because a call did not come back.
+		accessReason = live.Reason
+		if live.Mode != "" {
+			// Overrides rather than merges: two sources for one answer is how
+			// they drift apart.
 			found.AccessCheck, found.OperableCredentialIDs = live.Mode, live.Operable
-			accessReason = live.Reason
 		}
 	}
 

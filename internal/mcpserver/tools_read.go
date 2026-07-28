@@ -92,9 +92,13 @@ func (h *handler) getTarget(ctx context.Context, _ *mcp.CallToolRequest, in GetT
 	// ResolveWithCredentials, not Resolve: the plain Resolve is shared with the
 	// three `target label` commands, and teaching it to check access would give
 	// them a cloud call none of them asked for.
-	joined, err := h.d.Targets.ResolveWithCredentials(in.Ref)
+	joined, err := services.TargetWithCredentials{}, error(nil)
 	if in.Refresh {
 		joined, err = h.d.Targets.ResolveWithAccessCheck(ctx, in.Ref)
+	} else {
+		// ResolveWithAccessCheck calls this itself, so the two are exclusive:
+		// running both would load the snapshot twice for one request.
+		joined, err = h.d.Targets.ResolveWithCredentials(in.Ref)
 	}
 	t := joined.Target
 	if err != nil {

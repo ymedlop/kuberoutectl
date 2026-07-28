@@ -346,12 +346,16 @@ func (s *TargetService) Clear() (int, error) {
 // need the same call with the same inputs, and two entry points is how their
 // answers eventually stop agreeing.
 //
-// Every "cannot answer" collapses to the zero AccessCheck — no registry, no such
-// provider, a provider without the capability, or a provider that rejected the
-// target. Callers therefore never branch on provider identity, which is what
-// keeps this layer provider-agnostic, and "not attempted" and "this provider has
-// no such concept" are deliberately the same value: neither tells you anything
-// about the target.
+// A provider that cannot be reached at all — no registry, no such provider, or
+// no such capability — yields the zero AccessCheck. Callers therefore never
+// branch on provider identity, which is what keeps this layer provider-agnostic,
+// and "not attempted" and "this provider has no such concept" are deliberately
+// the same value: neither tells you anything about the target.
+//
+// A provider that answers with an *error* is different, and callers must treat
+// it as such: it yields a Reason but no Mode, meaning "there is something to
+// report, and nothing to substitute". Blanking a cached verdict because the
+// diagnostic failed would replace knowledge with `unknown`.
 func checkAccess(ctx context.Context, reg *providers.Registry, t domain.Target, creds []domain.Credential) providers.AccessCheck {
 	if reg == nil {
 		return providers.AccessCheck{}
@@ -387,12 +391,13 @@ func (s *TargetService) ResolveWithAccessCheck(ctx context.Context, ref string) 
 		return TargetWithCredentials{}, err
 	}
 	live := checkAccess(ctx, s.registry, joined.Target, joined.Credentials)
-	if live.Mode == "" && live.Reason == "" {
-		return joined, nil // nothing was attempted; keep what the sync knew
-	}
-	// Override rather than merge: two sources for one answer is how they drift.
-	joined.Target.AccessCheck = live.Mode
-	joined.Target.OperableCredentialIDs = live.Operable
+	// A reason is always worth reporting; a verdict is only worth *substituting*
+	// when one was established. See UseTarget for why those are not one decision.
 	joined.AccessReason = live.Reason
+	if live.Mode != "" {
+		// Override rather than merge: two sources for one answer is how they drift.
+		joined.Target.AccessCheck = live.Mode
+		joined.Target.OperableCredentialIDs = live.Operable
+	}
 	return joined, nil
 }

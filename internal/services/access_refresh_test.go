@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/ymedlop/kuberoutectl/internal/domain"
@@ -139,5 +140,37 @@ func TestUseTarget_RefreshOnAProviderThatCannotCheckKeepsTheCache(t *testing.T) 
 	}
 	if res.AccessVerdict != domain.AccessNotOperable {
 		t.Errorf("AccessVerdict = %q, want the cached verdict", res.AccessVerdict)
+	}
+}
+
+// A provider that answers with an error must leave the cached verdict exactly as
+// it was. The failure this guards is subtle: the error branch returns a non-zero
+// Reason, so a caller gating the override on "was anything attempted" takes it,
+// overwrites AccessCheck with the empty Mode and blanks a perfectly good cached
+// answer — replacing knowledge with `unknown` because a diagnostic failed.
+//
+// The scaffolding for this test existed unused for a while: checkingProvider has
+// carried an `err` field since it was written, and nothing set it. An untested
+// error branch on an optional capability is the one that looks unreachable
+// through today's callers and stops being so at the next provider.
+func TestUseTarget_ProviderErrorMustNotBlankTheCache(t *testing.T) {
+	prov := &checkingProvider{
+		credentialActivatableProvider: credentialActivatableProvider{activatableProvider: activatableProvider{id: "aws", canSwitch: true}},
+		err:                           errors.New("aws: target belongs to provider \"gcp\""),
+	}
+	svc := refreshSetup(t, prov)
+
+	res, err := svc.UseTarget(context.Background(), "t1", UseTargetOptions{Activate: true, Refresh: true})
+	if err != nil {
+		t.Fatalf("a provider error must not fail the command: %v", err)
+	}
+	if res.Target.AccessCheck != domain.AccessCheckAPI {
+		t.Errorf("AccessCheck = %q, want the cached %q left intact", res.Target.AccessCheck, domain.AccessCheckAPI)
+	}
+	if len(res.Target.OperableCredentialIDs) != 1 {
+		t.Errorf("OperableCredentialIDs = %v, want the cached set left intact", res.Target.OperableCredentialIDs)
+	}
+	if res.AccessReason == "" {
+		t.Error("the failure must still be reported")
 	}
 }
