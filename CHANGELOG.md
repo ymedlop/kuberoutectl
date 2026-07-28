@@ -110,14 +110,6 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
   check" and **never** as "you are up to date": a check that vanishes when it
   fails is indistinguishable from one that was never wired up.
 
-### Known limitation
-- An access entry answers "are you admitted", not "may you do X" — a restrictive
-  access policy still yields `Forbidden` on specific verbs, which only
-  `kubectl auth can-i` can tell you. Two IAM roles with the same name under
-  different paths also reduce to the same principal and match each other; if that
-  shape exists in your account, the match is a false positive.
-
-### Added
 - **CI now verifies reproducible builds.** A `reproducible-build` workflow
   builds the full snapshot twice and diffs `dist/checksums.txt`, running on
   demand (before cutting a tag), on pull requests that touch the build
@@ -125,6 +117,13 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
   reproducibility with no repo change at all. Until now this was a manual
   checklist item, which is why it was skipped for 1.1.0 and that release's notes
   had to record the guarantee as unproven for that tag.
+
+### Known limitation
+- An access entry answers "are you admitted", not "may you do X" — a restrictive
+  access policy still yields `Forbidden` on specific verbs, which only
+  `kubectl auth can-i` can tell you. Two IAM roles with the same name under
+  different paths also reduce to the same principal and match each other; if that
+  shape exists in your account, the match is a false positive.
 
 ## [1.1.1] — 2026-07-26
 
