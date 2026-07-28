@@ -130,12 +130,12 @@ func TestSync_PreservesHiddenAcrossResync(t *testing.T) {
 		t.Fatalf("Sync: %v", err)
 	}
 	// Rediscovered, but still hidden from the default list.
-	def, _ := NewTargetService(store).List(TargetFilter{})
+	def, _ := NewTargetService(store, nil).List(TargetFilter{})
 	if contains(targetIDs(def), "t1") {
 		t.Errorf("hidden target resurfaced in default list after resync")
 	}
 	// Still present when hidden are included.
-	all, _ := NewTargetService(store).List(TargetFilter{IncludeHidden: true})
+	all, _ := NewTargetService(store, nil).List(TargetFilter{IncludeHidden: true})
 	if !contains(targetIDs(all), "t1") {
 		t.Errorf("target should still exist, just hidden: %v", targetIDs(all))
 	}

@@ -39,7 +39,7 @@ func preUpgradeStore(t *testing.T) *jsonstore.Store {
 // Edge case 8: a cache written before this feature must load and list exactly
 // as it did, with no migration step.
 func TestPreUpgradeSnapshot_LoadsAndLists(t *testing.T) {
-	svc := NewTargetService(preUpgradeStore(t))
+	svc := NewTargetService(preUpgradeStore(t), nil)
 
 	targets, err := svc.List(TargetFilter{})
 	if err != nil {
@@ -63,7 +63,7 @@ func TestPreUpgradeSnapshot_LoadsAndLists(t *testing.T) {
 // CredentialID", which is what makes absent-means-primary work without a
 // migration.
 func TestPreUpgradeSnapshot_CredentialJoinFallsBackToTheSingleID(t *testing.T) {
-	svc := NewTargetService(preUpgradeStore(t))
+	svc := NewTargetService(preUpgradeStore(t), nil)
 
 	got, err := svc.ResolveWithCredentials("eks-prod-frankfurt")
 	if err != nil {

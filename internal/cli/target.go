@@ -59,7 +59,7 @@ func (a *app) targetListCmd() *cobra.Command {
 			// One call, one snapshot read: deriving the rows and the profile
 			// names from the same result keeps them from describing two
 			// different generations if a `sync` lands mid-command.
-			rows, err := services.NewTargetService(a.store).ListWithCredentials(filter)
+			rows, err := services.NewTargetService(a.store, a.registry).ListWithCredentials(filter)
 			if err != nil {
 				return err
 			}
@@ -148,7 +148,7 @@ func (a *app) targetInspectCmd() *cobra.Command {
 		Short: "Show a single target in detail, including labels",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			joined, err := services.NewTargetService(a.store).ResolveWithCredentials(args[0])
+			joined, err := services.NewTargetService(a.store, a.registry).ResolveWithCredentials(args[0])
 			if err != nil {
 				return err
 			}
@@ -228,7 +228,7 @@ func (a *app) targetLabelAddCmd() *cobra.Command {
 			if !ok {
 				return fmt.Errorf("label must be key=value, got %q", args[1])
 			}
-			target, err := services.NewTargetService(a.store).Resolve(args[0])
+			target, err := services.NewTargetService(a.store, a.registry).Resolve(args[0])
 			if err != nil {
 				return err
 			}
@@ -247,7 +247,7 @@ func (a *app) targetLabelRemoveCmd() *cobra.Command {
 		Short: "Remove a user label from a target",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			target, err := services.NewTargetService(a.store).Resolve(args[0])
+			target, err := services.NewTargetService(a.store, a.registry).Resolve(args[0])
 			if err != nil {
 				return err
 			}
@@ -266,7 +266,7 @@ func (a *app) targetLabelListCmd() *cobra.Command {
 		Short: "List user labels on a target",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			target, err := services.NewTargetService(a.store).Resolve(args[0])
+			target, err := services.NewTargetService(a.store, a.registry).Resolve(args[0])
 			if err != nil {
 				return err
 			}
@@ -301,7 +301,7 @@ func (a *app) targetDeleteCmd() *cobra.Command {
 			"exists. Scopes, credentials, and sources are left untouched.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			removed, err := services.NewTargetService(a.store).Delete(args[0])
+			removed, err := services.NewTargetService(a.store, a.registry).Delete(args[0])
 			if err != nil {
 				return err
 			}
@@ -321,7 +321,7 @@ func (a *app) targetClearCmd() *cobra.Command {
 			"unless --yes is given.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			svc := services.NewTargetService(a.store)
+			svc := services.NewTargetService(a.store, a.registry)
 			targets, err := svc.List(services.TargetFilter{})
 			if err != nil {
 				return err

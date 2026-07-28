@@ -66,7 +66,7 @@ func newTestHandlerWithStore(t *testing.T, snap domain.InventorySnapshot, provs 
 		Sources:     services.NewSourceService(store),
 		Scopes:      services.NewScopeService(store),
 		Credentials: services.NewCredentialService(store, reg),
-		Targets:     services.NewTargetService(store),
+		Targets:     services.NewTargetService(store, nil),
 		Selection:   services.NewSelectionService(store, reg, now),
 		Collections: services.NewCollectionService(store, services.NewSelectorEngine()),
 	}}, store
