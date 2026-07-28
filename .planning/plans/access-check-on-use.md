@@ -144,11 +144,12 @@ issue no provider calls, because the wrong implementation here is the natural on
 
 ## Tasks
 
-### Phase 1 — Domain and interface (no behaviour)
+### Phase 1 — Interface
+
+*Task 1 (the `operable` selector) shipped in #117, together with phase 3.*
 
 | # | Task | Test |
 |---|------|------|
-| 1 | `Target.SelectionLabels` gains `operable` (D4) | all three values; **`operable=false` matches only a confirmed refusal** — a naive "not in the set → false" passes the other two and inverts this one; a pre-#112 target is `unknown` |
 | 2 | `providers.AccessChecker` + `AccessCheck` | compile-time assertion that `*aws.Provider` implements it |
 
 ### Phase 2 — The provider (depends on 2)
@@ -158,12 +159,10 @@ issue no provider calls, because the wrong implementation here is the natural on
 | 3 | `aws.Provider.CheckAccess`, reusing `checkAccessEntries`/`matchOperable` | one call for N credentials, asserted on `runner.Calls`; `CONFIG_MAP` makes none; pagination followed |
 | 4 | **Never returns an error for a command or parse failure** — downgrades to `unavailable` data, with a reason naming a possible CLI format change for the parse case | edge cases 5, 6; the parse-failure reason must be **distinct** from the routine `unknown` reasons, asserted by comparing the two strings |
 
-### Phase 3 — The widened sync (depends on 3)
+### Phase 3 — The widened sync — **shipped in #117**
 
-| # | Task | Test |
-|---|------|------|
-| 5 | `foldGroup` sets access data for every group size, `CredentialIDs` only for >1 (D3) | `TestFoldLeavesSingleCredentialTargetsAlone` and the pre-upgrade fixture pass **unmodified** — that is the proof, and editing either means the property broke |
-| 6 | Drop the `len(group) > 1` bound in `Discover`; `prog.Step` the count checked | a single-profile cluster now gets a verdict; a `CONFIG_MAP` one still costs no call |
+Tasks 5 and 6 are done: `foldGroup` splits the two assignments, `Discover` checks
+every cluster with a conclusive mode, and the migration guards pass unmodified.
 
 ### Phase 4 — Services (depends on 2, 5)
 
@@ -171,15 +170,15 @@ issue no provider calls, because the wrong implementation here is the natural on
 |---|------|------|
 | 7 | `services.checkAccess` (D1); `NewTargetService(store, reg)` (D2) | a nil registry, and a provider without the interface, both yield "not attempted" rather than an error |
 | 8 | `ResolveWithAccessCheck` (D5) | live verdict overrides the cached one (edge 12); non-AWS makes no call, asserted on the runner |
-| 9 | `UseTarget` performs the check and reports both directions | operable, refused-with-alternative, unknown-is-silent; a failed check does **not** block activation |
+| 9 | `UseTargetOptions.Refresh`; `UseTarget` checks only when set, and reports both directions | operable, refused-with-alternative, unknown; **without the flag the checker is never reached**, asserted with a provider that fails the test if called; a failed check does **not** block activation |
 
 ### Phase 5 — Surfaces (depends on 7–9)
 
 | # | Task | Test |
 |---|------|------|
-| 10 | `inspect` live; `use` prints the verdict on stderr | refusal on stderr while the selection line stays on stdout |
+| 10 | `--refresh` on both `target use` and `target inspect`; `use` prints the verdict on stderr | refusal on stderr while the selection line stays on stdout; **both commands default to the cached verdict and make no call**; `make docs-reference` regenerated and committed — two new flags |
 | 11 | `get_target` rewired onto the join + `refresh`; label commands untouched (D6) | **the three label commands make no provider call**, asserted on the runner |
-| 12 | `use_target` returns `access_verdict` | CLI and MCP agree, from one service call |
+| 12 | `use_target` takes `refresh` and returns `access_verdict` | CLI and MCP agree, from one service call, and share the default |
 
 ### Phase 6 — Verify and document
 
@@ -207,16 +206,19 @@ Parallel: 1 with 2; 4 with 5; 14 with 13.
 | MCP | `internal/mcpserver` | `refresh` default, parity with the CLI |
 | e2e | `scripts/e2e.sh` | shipped binary |
 
-**Ladder** — all five rungs. Task 11 adds an MCP argument, not a CLI flag, so
-`make docs-reference` should be unchanged — to be confirmed by running it, not
-assumed.
+**Ladder** — all five rungs. Task 10 adds **two CLI flags**, so
+`make docs-reference` will change `docs/reference/kuberoutectl_target_use.md` and
+`_inspect.md` and its output must be committed. That is the rung that failed CI
+in #110; the plan's earlier claim that no flag was added was written before
+`--refresh` existed.
 
 **Verify by injection**, before trusting any of these:
-- map `AccessNotOperable` to the same selector value as `AccessUnknown` → task 1's
-  third case must fail;
-- delete `foldGroup`'s `len(group) > 1` guard → the migration tests must fail;
 - make `CheckAccess` propagate the parse error → task 9's no-block test must fail;
-- point `get_target` back at `Resolve` → task 11 must fail.
+- point `get_target` back at `Resolve` → task 11 must fail;
+- ignore the `Refresh` flag and always check → the "no call without the flag"
+  assertions in tasks 9 and 10 must fail.
+
+Tasks 1, 5 and 6 shipped in #117; their injection checks were run there.
 
 **Stated gap**: no test runs against a real EKS cluster. The ARN reduction this
 depends on **was** validated manually against the operator's account after #112
