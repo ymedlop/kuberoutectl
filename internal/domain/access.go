@@ -72,6 +72,22 @@ func AccessVerdictFor(listed bool, check AccessCheckMode) AccessVerdict {
 	return AccessUnknown
 }
 
+// SelectorValue renders a verdict for the selector engine, where "not operable"
+// would be unusable: `-l "operable=not operable"` cannot be written. Three
+// values, matching the three verdicts — `unknown` is a value like any other, so
+// `-l operable=unknown` finds the targets nothing was established about, which
+// is exactly the set worth enumerating in a fleet with uneven permissions.
+func (v AccessVerdict) SelectorValue() string {
+	switch v {
+	case AccessOperable:
+		return "true"
+	case AccessNotOperable:
+		return "false"
+	default:
+		return "unknown"
+	}
+}
+
 // CredentialAccess reports what is known about reaching *into* this target with
 // the given credential, as opposed to Health, which reports whether the
 // credential can authenticate to the provider at all. A credential can be

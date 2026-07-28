@@ -84,10 +84,23 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
   `access_warning` field, from the same service call, so the two surfaces cannot
   drift into disagreeing about when to warn.
 
-  No extra call is made for a cluster only one profile reaches, and none for a
-  `CONFIG_MAP` cluster, where the answer is knowable from the describe response
-  alone. Without `eks:ListAccessEntries` the verdict is `unavailable`, every
-  profile reads `unknown`, and `sync` names the missing permission.
+  **Every cluster whose authentication mode permits a conclusion is checked**,
+  one call each, including those a single profile reaches. An earlier revision of
+  this work skipped those, reasoning that with one way in there is nothing to
+  choose — true, but there is still something to *know*: whether that one way in
+  will be refused. Validated against a real fleet, that bound turned out to skip
+  nearly everything, leaving `unknown` almost everywhere. `CONFIG_MAP` clusters
+  still cost nothing, since the mode arrives with `describe-cluster`, and `sync`
+  now reports how many clusters it listed entries for so the cost is visible.
+  Without `eks:ListAccessEntries` the verdict is `unavailable`, every profile
+  reads `unknown`, and `sync` names the missing permission.
+
+- **`target list -l operable=true`** — the verdict is queryable as a selector,
+  alongside `region`, `platform` and `health`, so "which of these can I actually
+  operate?" is one question rather than a column to scan. Three values —
+  `true`, `false`, `unknown` — with `unknown` always present rather than absent,
+  since in most fleets it is the largest set and the one worth enumerating. It
+  composes with the rest of the selector grammar and with collections.
 
 - **`doctor` now tells you when your binary is out of date**, and
   `version --check-update` asks the same question deliberately. Someone on an old

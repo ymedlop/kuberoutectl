@@ -172,11 +172,24 @@ eks-prod-ireland    eks       1.30     eu-central-1  valid   aws       prod-sso
 ```
 
 The `PROFILES` column appears only when some cluster has a choice. The
-operability verdict is **not** in the listing: the access-entry check only runs
-for clusters more than one profile reaches, so in a fleet where each cluster has
-a single way in the column would read `unknown` on nearly every row. It lives in
-`target inspect`, which breaks down each profile's health *and* whether the
-cluster admits it — two different questions, answered separately:
+operability verdict is **not** a column — the table is for scanning a fleet, and
+the verdict is better asked as a question:
+
+```console
+$ kuberoutectl target list --provider aws -l operable=true      # I am admitted to these
+$ kuberoutectl target list --provider aws -l operable=unknown   # nothing could be told
+$ kuberoutectl target list --provider aws -l operable=false     # confirmed refusals
+```
+
+`operable` sits alongside `region`, `platform` and `health` as a selector key, so
+it composes with the rest of the grammar and with collections. Its three values
+are `true`, `false` and `unknown`, and `unknown` is always queryable rather than
+absent — in most fleets it is the largest of the three, and the one worth
+enumerating.
+
+Per profile, the verdict lives in `target inspect`, which breaks down each
+profile's health *and* whether the cluster admits it — two different questions,
+answered separately:
 
 ```console
 $ kuberoutectl target inspect eks-prod-frankfurt
@@ -221,11 +234,24 @@ additionally requires an EKS **access entry** — a Kubernetes-side authorizatio
 layer. A profile can describe a cluster, activate cleanly, and still get
 `Forbidden` from `kubectl`.
 
-For clusters more than one profile reaches, `sync aws` reads that layer too
-(`aws eks list-access-entries`, one call per cluster) and prefers a profile the
-cluster actually admits — **even over a healthier one**. Renewing an expired
-session is one `aws sso login`; a missing access entry cannot be fixed from this
-CLI at all.
+`sync aws` reads that layer too — `aws eks list-access-entries`, **one call per
+cluster**, for every cluster whose authentication mode permits a conclusion — and
+prefers a profile the cluster actually admits, **even over a healthier one**.
+Renewing an expired session is one `aws sso login`; a missing access entry cannot
+be fixed from this CLI at all.
+
+A cluster reached by a single profile is checked too. There is nothing to
+*choose* there, but there is still something to *know*: whether that one way in
+will be refused. `sync` reports how many clusters it listed entries for, so the
+cost is visible:
+
+```console
+$ kuberoutectl sync aws
+  → discovered 12 cluster(s); listed access entries for 9
+```
+
+The three that cost nothing are `CONFIG_MAP` clusters, where the mode already
+came back with `describe-cluster` and access entries do not apply.
 
 What can be concluded depends on the cluster's `authenticationMode`, and only a
 *negative* answer depends on it:

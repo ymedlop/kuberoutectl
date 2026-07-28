@@ -89,3 +89,78 @@ func TestAccessCheckModeValid(t *testing.T) {
 		}
 	}
 }
+
+// The selector exposes the verdict under a bare `operable` key, next to region,
+// platform and health — so a fleet question is one query rather than reading
+// every row: `target list -l operable=true`.
+//
+// The values are true/false/unknown, not the verdict strings: AccessNotOperable
+// renders as "not operable", and `-l "operable=not operable"` is unusable.
+func TestSelectionLabels_Operable(t *testing.T) {
+	cases := []struct {
+		name   string
+		target Target
+		want   string
+	}{
+		{
+			name: "confirmed admitted",
+			target: Target{
+				CredentialID:          "aws:ops",
+				OperableCredentialIDs: []CredentialID{"aws:ops"},
+				AccessCheck:           AccessCheckAPI,
+			},
+			want: "true",
+		},
+		{
+			// The only cell that may say no.
+			name:   "confirmed refused under api",
+			target: Target{CredentialID: "aws:dev", AccessCheck: AccessCheckAPI},
+			want:   "false",
+		},
+		{
+			// The trap: an implementation that maps "absent from the operable set"
+			// straight to false passes the two cases above and inverts every one
+			// below — reporting a refusal the cluster never made.
+			name:   "absent under api_and_config_map is unknown, not false",
+			target: Target{CredentialID: "aws:dev", AccessCheck: AccessCheckAPIAndConfigMap},
+			want:   "unknown",
+		},
+		{
+			name:   "config_map is unknown",
+			target: Target{CredentialID: "aws:dev", AccessCheck: AccessCheckConfigMap},
+			want:   "unknown",
+		},
+		{
+			name:   "the check could not run",
+			target: Target{CredentialID: "aws:dev", AccessCheck: AccessCheckUnavailable},
+			want:   "unknown",
+		},
+		{
+			name:   "never checked, e.g. a pre-upgrade snapshot",
+			target: Target{CredentialID: "aws:dev"},
+			want:   "unknown",
+		},
+		{
+			name:   "a provider with no such concept",
+			target: Target{CredentialID: "gcp:account:me"},
+			want:   "unknown",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.target.SelectionLabels()["operable"]
+			if got != tc.want {
+				t.Errorf("operable = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// The key is always present, so `-l operable=unknown` can find the targets
+// nothing was established about. An absent key would make them unqueryable —
+// and they are exactly the set an operator wants to enumerate.
+func TestSelectionLabels_OperableAlwaysPresent(t *testing.T) {
+	if _, ok := (Target{}).SelectionLabels()["operable"]; !ok {
+		t.Error("the operable key must be present even on a bare target")
+	}
+}

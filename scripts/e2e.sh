@@ -103,6 +103,11 @@ case "\$*" in
   # prod-sso appears on neither page.
   "eks list-access-entries --cluster-name eks-prod-frankfurt --profile ops --region eu-central-1 --output json") cat "$AWS_FIX/access-entries-page1.json" ;;
   "eks list-access-entries --cluster-name eks-prod-frankfurt --profile ops --region eu-central-1 --output json --starting-token eyJwYWdlIjogMn0=") cat "$AWS_FIX/access-entries-page2.json" ;;
+  # Ireland is reached by prod-sso alone. It is checked anyway now: with one way
+  # in there is nothing to choose, but still something to know — whether that one
+  # way in will be refused. Under the old bound a fleet of single-profile
+  # clusters got no verdict anywhere.
+  "eks list-access-entries --cluster-name eks-prod-ireland --profile prod-sso --region eu-central-1 --output json") cat "$AWS_FIX/access-entries-page2.json" ;;
   *) exit 1 ;;
 esac
 EOF
@@ -255,10 +260,26 @@ echo "frankfurt VERSION=$fra_version"
 [ "$fra_version" = "1.29" ] || fail "frankfurt VERSION is '$fra_version', want '1.29' (from discovery)"
 
 # The CONFIG_MAP cluster must cost nothing: the mode is readable from the
-# describe response already in hand, so no access-entry call is warranted.
+# describe response already in hand, so no access-entry call is warranted. The
+# sync reports how many clusters it actually listed entries for, so that cost is
+# visible rather than mysterious — 2 of 3 here, madrid being the free one.
 madrid_sync="$("$BIN" sync aws 2>&1)"
 assert_contains "$madrid_sync" "eks-prod-madrid"
 assert_contains "$madrid_sync" "CONFIG_MAP"
+assert_contains "$madrid_sync" "listed access entries for 2"
+
+# Ireland is reached by one profile and is checked anyway — the case the original
+# cost bound skipped, and the one a real fleet is mostly made of.
+ire_inspect="$("$BIN" target inspect eks-prod-ireland)"; echo "$ire_inspect"
+assert_contains "$ire_inspect" "Access check"
+
+# The fleet question is a selector, not a column: `which of these can I operate?`
+operable="$("$BIN" target list --provider aws -l operable=true)"; echo "$operable"
+assert_contains "$operable" "eks-prod-frankfurt"
+echo "$operable" | grep -qF "eks-prod-madrid" && fail "a CONFIG_MAP cluster is unknown, never operable=true"
+# And `unknown` is queryable, which is the whole reason the key is always present.
+unknown="$("$BIN" target list --provider aws -l operable=unknown)"; echo "$unknown"
+assert_contains "$unknown" "eks-prod-madrid"
 
 fra_inspect="$("$BIN" target inspect eks-prod-frankfurt)"; echo "$fra_inspect"
 assert_contains "$fra_inspect" "Access check"

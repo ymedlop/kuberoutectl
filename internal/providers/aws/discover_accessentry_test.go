@@ -29,22 +29,78 @@ func accessEntryCalls(calls []string) []string {
 	return out
 }
 
-// Edge case 1, the cost bound: a cluster only one profile reaches has nothing to
-// disambiguate, so it must trigger no extra API call at all. Asserted on the
-// recorded calls rather than on the result, because a result-level assertion
-// passes just as well when the call was made and its answer discarded.
-func TestDiscover_NoAccessEntryCallForSingleProfileCluster(t *testing.T) {
+// accessEntryCallsFor narrows to one cluster. Counting fleet-wide totals was
+// only ever workable while most clusters went unchecked; now that every cluster
+// with a conclusive mode is checked, a total says nothing about the cluster a
+// test is actually about.
+func accessEntryCallsFor(calls []string, cluster string) []string {
+	var out []string
+	for _, c := range accessEntryCalls(calls) {
+		if strings.Contains(c, "--cluster-name "+cluster+" ") {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
+// A cluster reached by ONE profile is now checked too. The original bound
+// skipped it, reasoning that with one way in there is nothing to choose — true,
+// but there is still something to know: whether that one way in will be refused.
+// In a fleet where every cluster has a single profile, the old rule produced no
+// verdict anywhere, which was most of the value of having the check at all.
+func TestDiscover_SingleProfileClusterIsCheckedToo(t *testing.T) {
 	p, r := newNoPatternAWSProviderWithRunner(t)
-	if _, err := p.Discover(context.Background(), providers.DiscoveryInput{}); err != nil {
+	res, err := p.Discover(context.Background(), providers.DiscoveryInput{})
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+
+	var found bool
+	for _, c := range accessEntryCalls(r.Calls) {
+		if strings.Contains(c, "eks-prod-ireland") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("no access-entry call for the single-profile cluster; calls:\n%s",
+			strings.Join(accessEntryCalls(r.Calls), "\n"))
+	}
+
+	ireland := targetByName(t, res.Targets, "eks-prod-ireland")
+	if ireland.AccessCheck != domain.AccessCheckAPIAndConfigMap {
+		t.Errorf("AccessCheck = %q, want %q", ireland.AccessCheck, domain.AccessCheckAPIAndConfigMap)
+	}
+	if got := ireland.CredentialAccess(credentialID("ops")); got != domain.AccessOperable {
+		t.Errorf("ops = %q, want %q — it holds an entry on this cluster", got, domain.AccessOperable)
+	}
+	// The whole point of the split in foldGroup: a verdict, and still no
+	// credential_ids, so the no-migration property survives.
+	if ireland.CredentialIDs != nil {
+		t.Errorf("CredentialIDs = %v, want nil — one profile reaches this cluster", ireland.CredentialIDs)
+	}
+}
+
+// A cluster whose authentication mode cannot be read is still not checked: the
+// mode decides whether an absence means anything, and guessing is the one thing
+// that turns silence into a confident refusal.
+func TestDiscover_UnreadableModeStillMakesNoCall(t *testing.T) {
+	p, r := newNoPatternAWSProviderWithRunner(t)
+	for _, profile := range []string{"ops", "prod-sso"} {
+		r.Responses["aws eks describe-cluster --profile "+profile+" --region eu-central-1 --name eks-prod-frankfurt --output json"] =
+			execx.FakeResponse{Stdout: []byte(`{"cluster":{"name":"eks-prod-frankfurt","arn":"arn:aws:eks:eu-central-1:111111111111:cluster/eks-prod-frankfurt","status":"ACTIVE"}}`)}
+	}
+	res, err := p.Discover(context.Background(), providers.DiscoveryInput{})
+	if err != nil {
 		t.Fatalf("Discover: %v", err)
 	}
 	for _, c := range accessEntryCalls(r.Calls) {
-		if strings.Contains(c, "eks-prod-ireland") {
-			t.Errorf("access entries were listed for a single-profile cluster: %q", c)
+		if strings.Contains(c, "eks-prod-frankfurt") {
+			t.Errorf("checked a cluster whose mode could not be read: %q", c)
 		}
 	}
-	if len(accessEntryCalls(r.Calls)) == 0 {
-		t.Fatal("no access-entry call at all; the assertion above would pass vacuously")
+	frankfurt := targetByName(t, res.Targets, "eks-prod-frankfurt")
+	if frankfurt.AccessCheck != "" {
+		t.Errorf("AccessCheck = %q, want empty", frankfurt.AccessCheck)
 	}
 }
 
@@ -57,8 +113,8 @@ func TestDiscover_FollowsAccessEntryPagination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Discover: %v", err)
 	}
-	if got := len(accessEntryCalls(r.Calls)); got != 2 {
-		t.Fatalf("made %d access-entry calls, want 2 (one per page): %v", got, accessEntryCalls(r.Calls))
+	if got := accessEntryCallsFor(r.Calls, "eks-prod-frankfurt"); len(got) != 2 {
+		t.Fatalf("made %d access-entry calls for frankfurt, want 2 (one per page): %v", len(got), got)
 	}
 
 	frankfurt := targetByName(t, res.Targets, "eks-prod-frankfurt")
@@ -70,20 +126,6 @@ func TestDiscover_FollowsAccessEntryPagination(t *testing.T) {
 	}
 	if got := frankfurt.CredentialAccess(credentialID("prod-sso")); got != domain.AccessNotOperable {
 		t.Errorf("prod-sso = %q, want %q — absent under api mode", got, domain.AccessNotOperable)
-	}
-}
-
-// A cluster nobody had to disambiguate must not gain the fields at all, so
-// snapshots and `-o json` output stay as they were for single-profile fleets.
-func TestDiscover_SingleProfileClusterCarriesNoAccessData(t *testing.T) {
-	res, err := newNoPatternAWSProvider(t).Discover(context.Background(), providers.DiscoveryInput{})
-	if err != nil {
-		t.Fatalf("Discover: %v", err)
-	}
-	ireland := targetByName(t, res.Targets, "eks-prod-ireland")
-	if ireland.AccessCheck != "" || ireland.OperableCredentialIDs != nil {
-		t.Errorf("unchecked target carries access data: check=%q operable=%v",
-			ireland.AccessCheck, ireland.OperableCredentialIDs)
 	}
 }
 
@@ -153,7 +195,7 @@ func TestDiscover_ConfigMapClusterSkipsTheCallAndStaysUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Discover: %v", err)
 	}
-	if got := accessEntryCalls(r.Calls); len(got) != 0 {
+	if got := accessEntryCallsFor(r.Calls, "eks-prod-frankfurt"); len(got) != 0 {
 		t.Errorf("made %d access-entry calls for a CONFIG_MAP cluster, want 0: %v", len(got), got)
 	}
 
@@ -206,7 +248,7 @@ func TestDiscover_UnknownAuthenticationModeIsNotChecked(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Discover: %v", err)
 	}
-	if got := accessEntryCalls(r.Calls); len(got) != 0 {
+	if got := accessEntryCallsFor(r.Calls, "eks-prod-frankfurt"); len(got) != 0 {
 		t.Errorf("checked a cluster whose mode is unrecognised: %v", got)
 	}
 	frankfurt := targetByName(t, res.Targets, "eks-prod-frankfurt")

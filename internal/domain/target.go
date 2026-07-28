@@ -115,6 +115,12 @@ func (t Target) SelectionLabels() map[string]string {
 	setNonEmpty("provider", string(t.ProviderID))
 	setNonEmpty("kind", t.Kind)
 	setNonEmpty("health", string(t.Health))
+	// Always set, never conditional: `operable=unknown` has to be queryable, and
+	// a target nothing was concluded about is the case an operator most wants to
+	// enumerate. The verdict is that of the *primary* credential, because a
+	// selector matches a target rather than a (target, credential) pair — the
+	// per-credential breakdown lives in `target inspect` and `-o json`.
+	out["operable"] = t.CredentialAccess(t.CredentialID).SelectorValue()
 	for k, v := range t.SystemLabels {
 		out[k] = v
 	}
