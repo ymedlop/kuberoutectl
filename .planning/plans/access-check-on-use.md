@@ -91,16 +91,17 @@ Computed from the **primary** credential, because a selector matches a target an
 not a (target, credential) pair. Always present — a target nothing was concluded
 about is `unknown`, never absent, so `-l operable=unknown` can find it.
 
-### D5 — `inspect` gets its own service method rather than a boolean parameter
+### D5 — A second service method rather than a boolean parameter
 
-`get_target` defaults to cached, `inspect` defaults to live. Rather than
-`ResolveWithCredentials(ref, live bool)` — a boolean at a call site says nothing
-about what it selects — there are two methods:
+Every surface defaults to cached and opts in with `--refresh` / `refresh: true`.
+Rather than `ResolveWithCredentials(ref, live bool)` — a boolean at a call site
+says nothing about what it selects — there are two methods:
 
 - `ResolveWithCredentials(ref)` — unchanged, cached, no network.
 - `ResolveWithAccessCheck(ctx, ref)` — the same join plus a live check.
 
-`get_target` calls the first, or the second when `refresh: true`.
+Each caller picks by the flag: `--refresh` and `refresh: true` select the
+second, everything else the first. One name, one default, both surfaces.
 
 ### D6 — `Resolve` is not touched
 

@@ -41,16 +41,18 @@ no check was ever attempted.
 
 ## Goal
 
-The two commands that ask about **one** cluster — `target use` and
-`target inspect` — answer from a live check rather than from what a fleet-wide
-sync happened to establish, for any AWS target, and never block on it.
+`sync aws` establishes a verdict for **every** AWS cluster, so the cached answer
+is complete rather than mostly `unknown`. On top of that, the two commands that
+ask about **one** cluster — `target use` and `target inspect` — can re-establish
+it on demand with `--refresh`, and never block on the result.
 
 Verifiable:
 
-1. `target use <aws-target>` performs one `list-access-entries` call for that
-   cluster and reports the verdict, including for a single-profile target.
-2. `target inspect <aws-target>` performs the same single call and renders a
-   verdict **per profile**, replacing the cached one.
+1. `target use <aws-target> --refresh` performs one `list-access-entries` call
+   for that cluster and reports the verdict; without the flag it reports the
+   cached one and makes no call.
+2. `target inspect <aws-target> --refresh` performs the same single call and
+   renders a verdict **per profile**, overriding the cached one.
 3. A **confirmed refusal** on `use` warns on stderr, names an admitted profile
    when one is known, and still writes the kubeconfig.
 4. A **confirmed admission** is reported too — the operator asked "can I operate
@@ -81,17 +83,32 @@ Verifiable:
 
 ### Must have
 
-1. **The check runs on every `target use` and `target inspect` against an AWS
-   target.** On `use`, with or without `--profile` and with or without
-   `--no-kubeconfig` — the selection is recorded either way, so the question
-   applies either way. On `inspect`, always: it is the command whose entire job
-   is to tell you the truth about one cluster, and it is now the only surface
-   carrying the verdict at all since `target list` dropped the column.
+1. **The check is opt-in per invocation: `target use --refresh` and
+   `target inspect --refresh`.** Both default to the cached verdict.
+
+   *Amended 2026-07-28, and it changes the shape of this feature.* This
+   originally read "runs on every `target use` and `target inspect`". Once the
+   sync bound widened (see the decision below), the cache has a verdict for
+   **every** target, so a live check by default no longer buys coverage — it buys
+   freshness, and charges an API call on every invocation for it. Access entries
+   do not change often. The concrete case that wants freshness is narrow and
+   deliberate: *"I have just been granted access, check this one cluster without
+   resyncing the fleet."* That is a flag, not a default.
+
+   The name is `--refresh` rather than `--force` (which does not say what it
+   forces) or `--no-cache` (which promises more than it does — the target, its
+   labels and its credentials still come from the snapshot; only the access
+   verdict is re-established).
+
+   It also removes an asymmetry this spec had to argue its way out of: MCP
+   `get_target` already took a `refresh` argument defaulting to false. CLI and MCP
+   now share one name, one default and one meaning, instead of "CLI live, MCP
+   cached" needing a justification.
 
    **One call answers for every profile.** The entry list names all principals,
-   so a single `list-access-entries` covers the whole cluster, and each reaching
-   credential is matched locally against it. `inspect` therefore costs exactly
-   what `use` costs, regardless of how many profiles reach the target.
+   so a single `list-access-entries` covers the whole cluster and each reaching
+   credential is matched locally against it. `--refresh` on a multi-profile
+   target therefore costs exactly what it costs on a single-profile one.
 
    Matching uses each credential's `Identity` ARN, already in the snapshot from
    discovery — **no `sts get-caller-identity` is re-run**. That ARN is as fresh
@@ -164,17 +181,10 @@ Verifiable:
    would be told different things, and every instance of that asymmetry in this
    repo has become a bug.
 
-   **`get_target` takes a `refresh` argument defaulting to `false`; `inspect`
-   checks by default.** Both surfaces can produce a live verdict through the
-   identical service call, so capability stays symmetric and only the default
-   differs — a human runs `inspect` once, an agent may poll `get_target` in a
-   loop, which is a cost this spec's own user story invites.
-
-   *An earlier revision deferred this mitigation "until there is evidence it is
-   needed". That is precisely the posture that produced the bug this spec exists
-   to fix: #112 shipped a bound based on an assumption about real fleets and was
-   wrong. Deferring a cheap, already-designed mitigation for want of evidence
-   repeats it in the opposite direction — too many calls instead of too few.*
+   **`get_target` takes the same `refresh` argument as the CLI's `--refresh`,
+   with the same default of `false`** (requirement 1). Nothing polls its way into
+   a per-call cloud request by accident, and there is no surface where a human and
+   an agent are told different things about the same cluster.
 
 7. **The label commands must not gain a live check.** `get_target` calls
    `TargetService.Resolve`, **not** `ResolveWithCredentials` — and `Resolve` is
@@ -189,7 +199,10 @@ Verifiable:
 
 ### Nice to have
 
-- `--no-access-check` to skip the call on a slow link.
+- Writing a `--refresh` verdict back into the snapshot, so a later `list` or
+  `inspect` reflects it. Defensible now that the refresh is explicitly asked for
+  — the operator arguably meant "update what you know" — but it makes a read
+  command write to the cache, which discovery owns. Deferred, not rejected.
 - Writing the fresh verdict back into the snapshot, so a later `target list` or
   `inspect` reflects what `use` learned.
 
