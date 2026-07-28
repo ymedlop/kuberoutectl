@@ -86,6 +86,14 @@ case "\$*" in
   "eks list-clusters --profile ops --region eu-central-1 --output json") cat "$AWS_FIX/eks-list-prod.json" ;;
   "eks describe-cluster --profile ops --region eu-central-1 --name eks-prod-frankfurt --output json") cat "$AWS_FIX/eks-describe-frankfurt.json" ;;
   "eks describe-cluster --profile ops --region eu-central-1 --name eks-prod-ireland --output json") exit 1 ;;
+  # Frankfurt is in API authentication mode, so its access-entry list is
+  # authoritative in both directions. The list is asked for once for the whole
+  # cluster (through the group's first profile, ops) and spans two pages: ops'
+  # own entry is on page 2, so a check that ignored nextToken would report a real
+  # entry as absent — which under API mode reads as a confirmed refusal.
+  # prod-sso appears on neither page.
+  "eks list-access-entries --cluster-name eks-prod-frankfurt --profile ops --region eu-central-1 --output json") cat "$AWS_FIX/access-entries-page1.json" ;;
+  "eks list-access-entries --cluster-name eks-prod-frankfurt --profile ops --region eu-central-1 --output json --starting-token eyJwYWdlIjogMn0=") cat "$AWS_FIX/access-entries-page2.json" ;;
   *) exit 1 ;;
 esac
 EOF
@@ -203,6 +211,33 @@ echo "$chosen" | grep -qF "default" && fail "an explicit choice must not read as
 assert_contains "$("$BIN" current)" "prod-sso"    # persisted, and reported
 again="$("$BIN" target use eks-prod-frankfurt --no-kubeconfig 2>&1)"; echo "$again"
 assert_contains "$again" "remembered"
+
+echo; echo "==> access entries decide who can actually operate, not just authenticate"
+# Both profiles can describe frankfurt — that is IAM. Only ops holds an EKS
+# access entry, which is the Kubernetes-side layer that decides whether kubectl
+# works at all. The OPERABLE column is the difference between the two.
+assert_contains "$aws_rows" "OPERABLE"
+fra_row="$(echo "$aws_rows" | grep 'eks-prod-frankfurt')"
+echo "$fra_row"
+assert_contains "$fra_row" "ops"
+# Ireland was never checked (only one profile reaches it), and an unchecked row
+# must read `unknown` rather than blank — a blank cell reads as "no", and "we
+# did not look" is not "no".
+ire_row="$(echo "$aws_rows" | grep 'eks-prod-ireland')"
+echo "$ire_row"
+assert_contains "$ire_row" "unknown"
+
+fra_inspect="$("$BIN" target inspect eks-prod-frankfurt)"; echo "$fra_inspect"
+assert_contains "$fra_inspect" "Access check"
+assert_contains "$fra_inspect" "not operable"     # prod-sso, confirmed absent under API mode
+
+echo; echo "==> choosing a profile the cluster refuses warns on stderr and still proceeds"
+warn="$("$BIN" target use eks-prod-frankfurt --profile prod-sso --no-kubeconfig 2>&1 >/dev/null)"; echo "$warn"
+assert_contains "$warn" "no access entry"
+assert_contains "$warn" "ops"                     # names one that would work
+stdout_only="$("$BIN" target use eks-prod-frankfurt --profile prod-sso --no-kubeconfig 2>/dev/null)"
+assert_contains "$stdout_only" "Recorded selection"  # reports, does not block
+echo "$stdout_only" | grep -qF "no access entry" && fail "the warning belongs on stderr, not stdout"
 
 echo; echo "==> an unreachable profile is rejected, naming the ones that work"
 bad="$("$BIN" target use eks-prod-frankfurt --profile nope --no-kubeconfig 2>&1)" && fail "expected failure"

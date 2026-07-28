@@ -166,20 +166,21 @@ and records every profile that reaches it:
 
 ```console
 $ kuberoutectl target list --provider aws
-ALIAS               PLATFORM  REGION        HEALTH  PROVIDER  PROFILES
-eks-prod-frankfurt  eks       eu-central-1  valid   aws       ops,prod-sso
-eks-prod-ireland    eks       eu-central-1  valid   aws       prod-sso
+ALIAS               PLATFORM  REGION        HEALTH  PROVIDER  PROFILES      OPERABLE
+eks-prod-frankfurt  eks       eu-central-1  valid   aws       ops,prod-sso  ops
+eks-prod-ireland    eks       eu-central-1  valid   aws       prod-sso      unknown
 ```
 
-The `PROFILES` column appears only when some cluster has a choice. `target
-inspect` breaks down the health of each one, so an expired alternative is
-visible even though the target itself reports the healthiest:
+The `PROFILES` and `OPERABLE` columns appear only when some cluster has a
+choice. `target inspect` breaks down each profile's health *and* whether the
+cluster admits it — two different questions, answered separately:
 
 ```console
 $ kuberoutectl target inspect eks-prod-frankfurt
 ...
-profile  ops       valid    use      (primary)
-profile  prod-sso  expired  renew
+Access check  api (a profile absent from the list will be refused)
+profile  ops       valid    use    operable      (primary)
+profile  prod-sso  expired  renew  not operable
 ```
 
 Pick one with `--profile`. The choice is remembered, so a later bare
@@ -210,14 +211,49 @@ $ kuberoutectl sync aws
   → profile "ops" cannot describe cluster "eks-prod-ireland" in eu-central-1 — skipping it for this profile
 ```
 
-> **Limit worth knowing.** This reflects **IAM** reachability. Operating inside a
-> cluster also requires an EKS **access entry** (formerly the `aws-auth`
-> ConfigMap), which is a Kubernetes-side mechanism kuberoutectl does not read. If
-> your profiles differ at that layer, a profile can describe a cluster, be chosen
-> as the default, activate cleanly, and still get `Forbidden` from `kubectl`. That
-> is why an unprompted default says `(default — pass --profile to pick another)`
-> rather than presenting itself as a decision: verify with
-> `kubectl auth can-i`, and pin the working profile with `--profile`.
+### Authenticating is not the same as being admitted
+
+Everything above is **IAM** reachability. Operating *inside* a cluster
+additionally requires an EKS **access entry** — a Kubernetes-side authorization
+layer. A profile can describe a cluster, activate cleanly, and still get
+`Forbidden` from `kubectl`.
+
+For clusters more than one profile reaches, `sync aws` reads that layer too
+(`aws eks list-access-entries`, one call per cluster) and prefers a profile the
+cluster actually admits — **even over a healthier one**. Renewing an expired
+session is one `aws sso login`; a missing access entry cannot be fixed from this
+CLI at all.
+
+What can be concluded depends on the cluster's `authenticationMode`, and only a
+*negative* answer depends on it:
+
+| `authenticationMode` | Profile listed | Profile absent |
+|---|---|---|
+| `API`                | operable       | **not operable** |
+| `API_AND_CONFIG_MAP` | operable       | **unknown** — `aws-auth` may still grant it |
+| `CONFIG_MAP`         | *(no entries exist)* | **unknown** — access entries do not apply |
+
+**`unknown` is the normal answer, not a failure.** Clusters created through the
+API, the SDKs or CloudFormation default to `CONFIG_MAP`, and reading `aws-auth`
+would require working `kubectl` access to the very cluster being asked about.
+So kuberoutectl reports what it can establish and says nothing where it cannot:
+
+```console
+$ kuberoutectl target use eks-prod-frankfurt --profile prod-sso
+Warning: prod-sso had no access entry on this cluster at the last sync; kubectl
+         may return Forbidden. ops did have one.
+Now using target: eks-prod-frankfurt (eks-prod-frankfurt) via prod-sso
+```
+
+It warns rather than refuses — the verdict is from the last sync and may be
+stale, and going into a cluster to diagnose exactly this is legitimate. A profile
+whose verdict is `unknown` produces no warning at all.
+
+> **Still not covered.** An access entry answers "are you admitted", not "may
+> you do X" — a restrictive access policy still yields `Forbidden` on specific
+> verbs. `kubectl auth can-i` remains the way to check that. Checking also needs
+> `eks:ListAccessEntries`; without it the verdict is `unavailable` and every
+> profile reads `unknown`, which `sync` names.
 
 ## 6. Corporate SSO: discover every account you can reach (Entra / IAM Identity Center)
 
