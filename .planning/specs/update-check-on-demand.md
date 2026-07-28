@@ -69,13 +69,19 @@ Verifiable:
    `version --check-update`. No other command performs the check, and there is no
    ambient notice on any command's output.
 
-2. **`doctor` checks by default.** This deliberately revises `DoctorService`'s
-   current contract, whose doc comment states it "does not attempt discovery or
-   network calls — it only answers 'is the environment set up'". The revision is
-   the point of the feature: a stale binary *is* an environment defect. Behind an
-   opt-in flag the check would only reach users who already suspected the answer,
-   which is precisely the population that does not need it. The doc comment must
-   be updated in the same change rather than left contradicting the code.
+2. **`doctor` checks by default.** Behind an opt-in flag the check would only
+   reach users who already suspected the answer, which is precisely the
+   population that does not need it.
+
+   *Amended 2026-07-28 (built)*: this originally said the feature "deliberately
+   revises `DoctorService`'s contract", whose doc comment states it "does not
+   attempt discovery or network calls". **It does not, and that turned out to be
+   unnecessary.** `DoctorService` is untouched: the `doctor` command appends the
+   row to what `Run()` returns, gated by `updatecheck.Enabled` before any client
+   is constructed. The service's promise stays true, `Run()` keeps its signature,
+   and a future consumer — the MCP server, per the Gate 1 open question below —
+   inherits no network call by construction rather than by remembering to opt
+   out. Breaking that contract was a cost the design did not have to pay.
 
 3. **The result is a `services.Check`, not a banner.** It joins the existing rows
    and inherits their rendering and their `-o json` shape. This is what removes
@@ -277,8 +283,9 @@ belongs in the PR rather than papered over.
 ## Dependencies
 
 - `internal/buildinfo` for the current version (exists; injected via `-ldflags`).
-- `internal/services.DoctorService` — modified, and its documented "no network
-  calls" contract revised deliberately.
+- `internal/services.DoctorService` — **unmodified** (see the amendment on
+  requirement 2). The `doctor` command composes the extra row onto its result;
+  the service itself never learns about HTTP or release versions.
 - Go stdlib `net/http` — **the first network client in the core**. Today every
   external call is delegated to a cloud CLI through `execx`. This is an
   architectural first and must be called out in the PR and in the docs, not

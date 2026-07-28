@@ -98,6 +98,69 @@ func parseVersion(v string) ([3]int, bool) {
 	return out, true
 }
 
+// Verdict is what a check could establish. Three values, not two: "could not
+// tell" is a real answer, and collapsing it into "up to date" would turn a
+// network failure into a claim about the user's build.
+type Verdict int
+
+const (
+	// VerdictUnknown: no comparison happened. Reason says why.
+	VerdictUnknown Verdict = iota
+	// VerdictCurrent: the running build is the latest stable release, or ahead.
+	VerdictCurrent
+	// VerdictOutdated: a newer stable release exists.
+	VerdictOutdated
+)
+
+// Result is one evaluated check. It carries facts, not sentences: the CLI turns
+// these into the text a user reads, and `version -o json` reports Latest as a
+// field, which it could not do if the answer only existed as prose.
+type Result struct {
+	Current string
+	// Latest is set only when a comparison actually happened.
+	Latest  string
+	Verdict Verdict
+	// Reason is set exactly when Verdict is VerdictUnknown, and is phrased for
+	// display.
+	Reason string
+}
+
+// Evaluate looks up the newest release and decides what can be said about the
+// running build.
+//
+// The decision lives here rather than in the command layer because both `doctor`
+// and `version --check-update` need it, and because it is a judgement about
+// release state rather than about presentation — the two commands must not be
+// able to drift into disagreeing about when an update is worth reporting.
+//
+// Only a newer release is a positive finding. Every failure yields
+// VerdictUnknown with a reason, never VerdictCurrent: reporting an unreachable
+// API as "you are up to date" would be a confident falsehood assembled out of
+// silence, which is the parse-failure bug of #111 in a different costume.
+func (c *Checker) Evaluate(ctx context.Context, current string) Result {
+	res := Result{Current: current}
+
+	latest, ok, reason := c.Latest(ctx)
+	if !ok {
+		res.Reason = reason
+		return res
+	}
+	newer, comparable := Newer(current, latest)
+	if !comparable {
+		// Enabled should have kept this build out of here; not depending on the
+		// caller having been right about that.
+		res.Reason = "this build has no comparable version"
+		return res
+	}
+	res.Latest = latest
+	if newer {
+		res.Verdict = VerdictOutdated
+	} else {
+		res.Verdict = VerdictCurrent
+	}
+	return res
+}
+
 // release is the subset of the GitHub releases payload we read.
 type release struct {
 	TagName    string `json:"tag_name"`

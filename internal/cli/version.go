@@ -41,16 +41,19 @@ func (a *app) versionCmd() *cobra.Command {
 				Date:    buildinfo.Date,
 			}
 
-			// Shared with `doctor`, so the two commands cannot disagree about when
-			// an update is worth reporting.
-			var status *updateStatus
+			// The verdict comes from the same evaluation `doctor` uses, so the two
+			// commands cannot disagree about when an update is worth reporting.
+			line := ""
 			if check && updatecheck.Enabled(a.version) {
-				st := checkForUpdate(cmd.Context(), a.version, a.checker)
-				status = &st
-				if st.Newer {
-					view.LatestVersion, view.UpdateAvailable = st.Latest, true
+				res := a.checker.Evaluate(cmd.Context(), a.version)
+				line = describeUpdate(res)
+				if res.Verdict == updatecheck.VerdictOutdated {
+					view.LatestVersion, view.UpdateAvailable = res.Latest, true
 				} else {
-					view.UpdateCheck = st.Detail
+					// Mutually exclusive with LatestVersion by construction: a build
+					// that is current, or one we could not check, has no upgrade to
+					// report and must not appear to.
+					view.UpdateCheck = line
 				}
 			}
 
@@ -58,8 +61,8 @@ func (a *app) versionCmd() *cobra.Command {
 				return renderJSON(out, view)
 			}
 			fprintln(out, "kuberoutectl", buildinfo.String())
-			if status != nil {
-				fprintln(out, status.Detail)
+			if line != "" {
+				fprintln(out, line)
 			}
 			return nil
 		},

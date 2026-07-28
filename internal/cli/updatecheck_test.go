@@ -16,17 +16,28 @@ import (
 	"github.com/ymedlop/kuberoutectl/internal/updatecheck"
 )
 
-// fakeChecker returns a canned release answer and records that it was asked.
+// fakeChecker returns a canned verdict and records that it was asked.
 type fakeChecker struct {
-	version string
-	ok      bool
-	reason  string
-	calls   int
+	res   updatecheck.Result
+	calls int
 }
 
-func (f *fakeChecker) Latest(context.Context) (string, bool, string) {
+func (f *fakeChecker) Evaluate(_ context.Context, current string) updatecheck.Result {
 	f.calls++
-	return f.version, f.ok, f.reason
+	r := f.res
+	r.Current = current
+	return r
+}
+
+// outdated, current and failed build the three verdicts a checker can return.
+func outdated(latest string) *fakeChecker {
+	return &fakeChecker{res: updatecheck.Result{Latest: latest, Verdict: updatecheck.VerdictOutdated}}
+}
+func upToDate(latest string) *fakeChecker {
+	return &fakeChecker{res: updatecheck.Result{Latest: latest, Verdict: updatecheck.VerdictCurrent}}
+}
+func failed(reason string) *fakeChecker {
+	return &fakeChecker{res: updatecheck.Result{Verdict: updatecheck.VerdictUnknown, Reason: reason}}
 }
 
 // neverChecker fails the test if anything asks it for a release. It is how the
@@ -34,10 +45,10 @@ func (f *fakeChecker) Latest(context.Context) (string, bool, string) {
 // just as well when the call happened and its answer was discarded.
 type neverChecker struct{ t *testing.T }
 
-func (n neverChecker) Latest(context.Context) (string, bool, string) {
+func (n neverChecker) Evaluate(context.Context, string) updatecheck.Result {
 	n.t.Helper()
 	n.t.Error("an update request was made when none was allowed")
-	return "", false, ""
+	return updatecheck.Result{}
 }
 
 func TestUpdateCheckRow(t *testing.T) {
@@ -52,21 +63,21 @@ func TestUpdateCheckRow(t *testing.T) {
 		{
 			name:       "a newer release is a warning naming both versions",
 			current:    "1.0.0",
-			checker:    &fakeChecker{version: "v1.2.0", ok: true},
+			checker:    outdated("v1.2.0"),
 			wantStatus: services.CheckWarn,
 			wantIn:     []string{"1.2.0", "1.0.0", updatecheck.ReleasesURL},
 		},
 		{
 			name:       "up to date is ok and says nothing about upgrading",
 			current:    "1.2.0",
-			checker:    &fakeChecker{version: "v1.2.0", ok: true},
+			checker:    upToDate("v1.2.0"),
 			wantStatus: services.CheckOK,
 			wantNotIn:  []string{updatecheck.ReleasesURL, "available"},
 		},
 		{
 			name:       "ahead of the latest release is ok, not a warning",
 			current:    "1.3.0",
-			checker:    &fakeChecker{version: "v1.2.0", ok: true},
+			checker:    upToDate("v1.2.0"),
 			wantStatus: services.CheckOK,
 			wantNotIn:  []string{"available"},
 		},
@@ -76,7 +87,7 @@ func TestUpdateCheckRow(t *testing.T) {
 			// silent-skip bug fixed in #111, in a different costume.
 			name:       "an unreachable API is reported, not dropped",
 			current:    "1.0.0",
-			checker:    &fakeChecker{ok: false, reason: "could not reach the releases API"},
+			checker:    failed("could not reach the releases API"),
 			wantStatus: services.CheckOK,
 			wantIn:     []string{"could not reach the releases API"},
 			wantNotIn:  []string{"available"},
@@ -86,7 +97,7 @@ func TestUpdateCheckRow(t *testing.T) {
 			// read as a clean bill of health.
 			name:       "a failed check never claims you are up to date",
 			current:    "1.0.0",
-			checker:    &fakeChecker{ok: false, reason: "the releases API rate-limited this address"},
+			checker:    failed("the releases API rate-limited this address"),
 			wantStatus: services.CheckOK,
 			wantNotIn:  []string{"latest release", "up to date"},
 		},
@@ -95,7 +106,7 @@ func TestUpdateCheckRow(t *testing.T) {
 			// depend on its caller to be correct about it.
 			name:       "an uncomparable running version yields no verdict",
 			current:    "0.0.0-snapshot-abc1234",
-			checker:    &fakeChecker{version: "v1.2.0", ok: true},
+			checker:    failed("this build has no comparable version"),
 			wantStatus: services.CheckOK,
 			wantNotIn:  []string{"available", updatecheck.ReleasesURL},
 		},
@@ -126,18 +137,21 @@ func TestUpdateCheckRow(t *testing.T) {
 	}
 }
 
-// The opt-out has to stop the request, not just the output. Asserted through
-// Enabled, which is consulted before any client is built — that ordering is what
-// makes "no row" and "no request" one decision instead of two.
-func TestUpdateCheck_OptOutStopsTheRequest(t *testing.T) {
+// The opt-out has to stop the request, not just the output. Enabled is consulted
+// before any client is built, which is the ordering that makes "no row" and "no
+// request" one decision instead of two.
+//
+// This asserts the predicate only. The end-to-end guarantee — that doctorCmd
+// really never reaches the checker — is TestDoctor_RowAppearsOnlyWhenChecked,
+// which drives the command with a checker that fails on use. An earlier version
+// of this test tried to do both and guarded the second half with the same
+// `Enabled(...)` call it had just proven false, making that half unreachable: a
+// guard repeating verbatim the condition it is supposed to protect is dead code,
+// not defence in depth.
+func TestUpdateCheck_OptOutDisablesThePredicate(t *testing.T) {
 	t.Setenv(updatecheck.EnvDisable, "1")
 	if updatecheck.Enabled("1.0.0") {
 		t.Fatal("the opt-out did not disable the check")
-	}
-	// And nothing calls the checker when disabled — the wiring below is what
-	// doctorCmd does.
-	if updatecheck.Enabled("1.0.0") {
-		_ = updateCheckRow(context.Background(), "1.0.0", neverChecker{t})
 	}
 }
 
@@ -159,7 +173,7 @@ func doctorApp(t *testing.T, version string, c releaseChecker) *app {
 // was before — so an installation that opted out, or a dev build, sees no
 // change at all.
 func TestDoctor_RowAppearsOnlyWhenChecked(t *testing.T) {
-	with, err := runCmd(doctorApp(t, "1.0.0", &fakeChecker{version: "v1.2.0", ok: true}).doctorCmd(), "")
+	with, err := runCmd(doctorApp(t, "1.0.0", outdated("v1.2.0")).doctorCmd(), "")
 	if err != nil {
 		t.Fatalf("doctor: %v", err)
 	}
@@ -205,7 +219,7 @@ func TestDoctor_NonReleaseBuildNeverChecks(t *testing.T) {
 // must not find its provider rows shifted underneath it.
 func TestDoctor_UpdateRowIsAppendedLast(t *testing.T) {
 	checks := []services.Check{{Name: "provider:aws"}, {Name: "provider:azure"}}
-	got := append(checks, updateCheckRow(context.Background(), "1.0.0", &fakeChecker{version: "v1.0.0", ok: true}))
+	got := append(checks, updateCheckRow(context.Background(), "1.0.0", upToDate("v1.0.0")))
 
 	if got[0].Name != "provider:aws" || got[1].Name != "provider:azure" {
 		t.Errorf("provider rows moved: %+v", got)
@@ -286,7 +300,7 @@ func TestVersion_PlainNeverChecks(t *testing.T) {
 }
 
 func TestVersion_CheckUpdateReportsAndStaysQuietWhenCurrent(t *testing.T) {
-	a := doctorApp(t, "1.0.0", &fakeChecker{version: "v1.2.0", ok: true})
+	a := doctorApp(t, "1.0.0", outdated("v1.2.0"))
 	out, err := runCmd(a.versionCmd(), "", "--check-update")
 	if err != nil {
 		t.Fatalf("version --check-update: %v", err)
@@ -295,7 +309,10 @@ func TestVersion_CheckUpdateReportsAndStaysQuietWhenCurrent(t *testing.T) {
 		t.Errorf("expected the update line, got:\n%s", out)
 	}
 
-	a = doctorApp(t, "1.2.0", &fakeChecker{version: "v1.2.0", ok: true})
+	// The canned verdict is what makes this the up-to-date case: the comparison
+	// itself is decided in internal/updatecheck and tested there, so a CLI fake
+	// that recomputed it would be testing the fake.
+	a = doctorApp(t, "1.2.0", upToDate("v1.2.0"))
 	out, err = runCmd(a.versionCmd(), "", "--check-update")
 	if err != nil {
 		t.Fatalf("version --check-update: %v", err)
@@ -336,7 +353,7 @@ func TestVersionJSON_UpdateFieldsAreAdditive(t *testing.T) {
 		}
 	}
 
-	got = run(t, doctorApp(t, "1.0.0", &fakeChecker{version: "v1.2.0", ok: true}), "--check-update")
+	got = run(t, doctorApp(t, "1.0.0", outdated("v1.2.0")), "--check-update")
 	if got["latest_version"] != "v1.2.0" || got["update_available"] != true {
 		t.Errorf("expected structured update fields, got %v", got)
 	}
@@ -346,7 +363,7 @@ func TestVersionJSON_UpdateFieldsAreAdditive(t *testing.T) {
 
 	// A failed lookup reports the reason and must NOT claim a version — the two
 	// are mutually exclusive by construction.
-	got = run(t, doctorApp(t, "1.0.0", &fakeChecker{ok: false, reason: "could not reach the releases API"}), "--check-update")
+	got = run(t, doctorApp(t, "1.0.0", failed("could not reach the releases API")), "--check-update")
 	if _, ok := got["latest_version"]; ok {
 		t.Errorf("a failed check must not report a latest_version: %v", got)
 	}
