@@ -59,7 +59,7 @@ func (a *app) targetListCmd() *cobra.Command {
 			// One call, one snapshot read: deriving the rows and the profile
 			// names from the same result keeps them from describing two
 			// different generations if a `sync` lands mid-command.
-			rows, err := services.NewTargetService(a.store).ListWithCredentials(filter)
+			rows, err := services.NewTargetService(a.store, a.registry).ListWithCredentials(filter)
 			if err != nil {
 				return err
 			}
@@ -143,14 +143,30 @@ func (a *app) targetListCmd() *cobra.Command {
 }
 
 func (a *app) targetInspectCmd() *cobra.Command {
-	return &cobra.Command{
+	var refresh bool
+	cmd := &cobra.Command{
 		Use:   "inspect <alias|id|name>",
 		Short: "Show a single target in detail, including labels",
-		Args:  cobra.ExactArgs(1),
+		Long: "Show a single target in detail, including labels.\n\n" +
+			"Operability comes from the last `sync`. Pass --refresh to re-establish it\n" +
+			"against the provider instead — one extra API call, for the cluster named.",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			joined, err := services.NewTargetService(a.store).ResolveWithCredentials(args[0])
+			svc := services.NewTargetService(a.store, a.registry)
+			// Either path, never both: ResolveWithAccessCheck calls
+			// ResolveWithCredentials itself, so running both loaded the snapshot
+			// twice for one command.
+			joined, err := services.TargetWithCredentials{}, error(nil)
+			if refresh {
+				joined, err = svc.ResolveWithAccessCheck(cmd.Context(), args[0])
+			} else {
+				joined, err = svc.ResolveWithCredentials(args[0])
+			}
 			if err != nil {
 				return err
+			}
+			if joined.AccessReason != "" {
+				fprintln(cmd.ErrOrStderr(), "Note:", joined.AccessReason)
 			}
 			target := joined.Target
 			out := cmd.OutOrStdout()
@@ -210,6 +226,8 @@ func (a *app) targetInspectCmd() *cobra.Command {
 			return tw.Flush()
 		},
 	}
+	cmd.Flags().BoolVar(&refresh, "refresh", false, "re-check operability against the provider instead of using the last sync")
+	return cmd
 }
 
 func (a *app) targetLabelCmd() *cobra.Command {
@@ -228,7 +246,7 @@ func (a *app) targetLabelAddCmd() *cobra.Command {
 			if !ok {
 				return fmt.Errorf("label must be key=value, got %q", args[1])
 			}
-			target, err := services.NewTargetService(a.store).Resolve(args[0])
+			target, err := services.NewTargetService(a.store, a.registry).Resolve(args[0])
 			if err != nil {
 				return err
 			}
@@ -247,7 +265,7 @@ func (a *app) targetLabelRemoveCmd() *cobra.Command {
 		Short: "Remove a user label from a target",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			target, err := services.NewTargetService(a.store).Resolve(args[0])
+			target, err := services.NewTargetService(a.store, a.registry).Resolve(args[0])
 			if err != nil {
 				return err
 			}
@@ -266,7 +284,7 @@ func (a *app) targetLabelListCmd() *cobra.Command {
 		Short: "List user labels on a target",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			target, err := services.NewTargetService(a.store).Resolve(args[0])
+			target, err := services.NewTargetService(a.store, a.registry).Resolve(args[0])
 			if err != nil {
 				return err
 			}
@@ -301,7 +319,7 @@ func (a *app) targetDeleteCmd() *cobra.Command {
 			"exists. Scopes, credentials, and sources are left untouched.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			removed, err := services.NewTargetService(a.store).Delete(args[0])
+			removed, err := services.NewTargetService(a.store, a.registry).Delete(args[0])
 			if err != nil {
 				return err
 			}
@@ -321,7 +339,7 @@ func (a *app) targetClearCmd() *cobra.Command {
 			"unless --yes is given.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			svc := services.NewTargetService(a.store)
+			svc := services.NewTargetService(a.store, a.registry)
 			targets, err := svc.List(services.TargetFilter{})
 			if err != nil {
 				return err
@@ -435,6 +453,7 @@ func (a *app) targetUseCmd() *cobra.Command {
 	var (
 		noKubeconfig bool
 		profile      string
+		refresh      bool
 	)
 	cmd := &cobra.Command{
 		Use:   "use <alias|id|name>",
@@ -454,6 +473,7 @@ func (a *app) targetUseCmd() *cobra.Command {
 				UseTarget(cmd.Context(), args[0], services.UseTargetOptions{
 					Activate:       activate,
 					CredentialName: profile,
+					Refresh:        refresh,
 				})
 			if err != nil {
 				return err
@@ -466,6 +486,16 @@ func (a *app) targetUseCmd() *cobra.Command {
 			// entering a cluster to diagnose exactly this is legitimate.
 			if res.AccessWarning != "" {
 				fprintln(cmd.ErrOrStderr(), "Warning:", res.AccessWarning)
+			} else if refresh {
+				// Only under --refresh, and in both directions: the operator asked
+				// whether they can operate here, and silence answers half of that.
+				// Without the flag the cached verdict speaks only when it is bad
+				// news, which is the pre-existing behaviour.
+				if res.AccessReason != "" {
+					fprintln(cmd.ErrOrStderr(), "Could not check access entries:", res.AccessReason)
+				} else if res.AccessVerdict == domain.AccessOperable {
+					fprintln(cmd.ErrOrStderr(), res.Credential.Name, "holds an access entry on this cluster.")
+				}
 			}
 			if a.output == formatJSON {
 				// The bare target, as this command has always rendered. Wrapping
@@ -490,6 +520,7 @@ func (a *app) targetUseCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&noKubeconfig, "no-kubeconfig", false, "record the selection only; do not modify ~/.kube/config")
 	cmd.Flags().StringVar(&profile, "profile", "", "go in through this credential (an AWS profile name) when several reach the target")
+	cmd.Flags().BoolVar(&refresh, "refresh", false, "re-check operability against the provider instead of using the last sync")
 	return cmd
 }
 

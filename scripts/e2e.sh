@@ -293,6 +293,20 @@ stdout_only="$("$BIN" target use eks-prod-frankfurt --profile prod-sso --no-kube
 assert_contains "$stdout_only" "Recorded selection"  # reports, does not block
 echo "$stdout_only" | grep -qF "no access entry" && fail "the warning belongs on stderr, not stdout"
 
+echo; echo "==> --refresh re-checks operability live; without it nothing is called"
+# The fake aws answers list-access-entries for frankfurt through ops. A refresh
+# goes back to it; the default does not, which is the whole reason the flag
+# exists now that the cache covers every cluster.
+refreshed="$("$BIN" target use eks-prod-frankfurt --profile ops --no-kubeconfig --refresh 2>&1 >/dev/null)"; echo "$refreshed"
+assert_contains "$refreshed" "holds an access entry"
+assert_contains "$("$BIN" target inspect eks-prod-frankfurt --refresh)" "Access check"
+# A profile the cluster refuses still warns, and still proceeds.
+warn_live="$("$BIN" target use eks-prod-frankfurt --profile prod-sso --no-kubeconfig --refresh 2>&1 >/dev/null)"; echo "$warn_live"
+assert_contains "$warn_live" "no access entry"
+# And the flags are documented, or the override is unreachable.
+assert_contains "$("$BIN" target use --help)" "refresh"
+assert_contains "$("$BIN" target inspect --help)" "refresh"
+
 echo; echo "==> an unreachable profile is rejected, naming the ones that work"
 bad="$("$BIN" target use eks-prod-frankfurt --profile nope --no-kubeconfig 2>&1)" && fail "expected failure"
 echo "$bad"

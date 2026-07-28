@@ -76,6 +76,7 @@ type UseTargetInput struct {
 	Ref      string `json:"ref" jsonschema:"target reference: full id, alias, or name"`
 	Activate bool   `json:"activate,omitempty" jsonschema:"also merge the target's context into ~/.kube/config and make it current (default false)"`
 	Profile  string `json:"profile,omitempty" jsonschema:"credential to go in through (an AWS profile name) when several reach the target; omit to use the target's default"`
+	Refresh  bool   `json:"refresh,omitempty" jsonschema:"re-check operability against the provider instead of using the last sync (default false)"`
 }
 type UseTargetOutput struct {
 	Target    domain.Target `json:"target"`
@@ -102,6 +103,12 @@ type UseTargetOutput struct {
 	// can branch on it; the CLI prints the same string, from the same service, so
 	// the two surfaces cannot drift into disagreeing about when to warn.
 	AccessWarning string `json:"access_warning,omitempty"`
+	// AccessVerdict reports the answer in both directions — operable, not
+	// operable, or unknown — where AccessWarning speaks only on a confirmed
+	// refusal. An agent choosing a cluster needs the positive case too.
+	AccessVerdict string `json:"access_verdict,omitempty"`
+	// AccessReason explains why a refresh could not conclude.
+	AccessReason string `json:"access_reason,omitempty"`
 }
 
 func (h *handler) useTarget(ctx context.Context, _ *mcp.CallToolRequest, in UseTargetInput) (*mcp.CallToolResult, UseTargetOutput, error) {
@@ -111,6 +118,7 @@ func (h *handler) useTarget(ctx context.Context, _ *mcp.CallToolRequest, in UseT
 	res, err := h.d.Selection.UseTarget(ctx, in.Ref, services.UseTargetOptions{
 		Activate:       in.Activate,
 		CredentialName: in.Profile,
+		Refresh:        in.Refresh,
 	})
 	if err != nil {
 		return nil, UseTargetOutput{}, err
@@ -122,6 +130,8 @@ func (h *handler) useTarget(ctx context.Context, _ *mcp.CallToolRequest, in UseT
 		ProfileSource:    res.CredentialSource.String(),
 		LostCredentialID: string(res.LostCredentialID),
 		AccessWarning:    res.AccessWarning,
+		AccessVerdict:    string(res.AccessVerdict),
+		AccessReason:     res.AccessReason,
 	}, nil
 }
 

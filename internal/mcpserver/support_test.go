@@ -66,7 +66,9 @@ func newTestHandlerWithStore(t *testing.T, snap domain.InventorySnapshot, provs 
 		Sources:     services.NewSourceService(store),
 		Scopes:      services.NewScopeService(store),
 		Credentials: services.NewCredentialService(store, reg),
-		Targets:     services.NewTargetService(store),
+		// The real registry, as internal/cli/mcp.go wires it: a nil here would
+		// make every "no live check happened" assertion pass for the wrong reason.
+		Targets:     services.NewTargetService(store, reg),
 		Selection:   services.NewSelectionService(store, reg, now),
 		Collections: services.NewCollectionService(store, services.NewSelectorEngine()),
 	}}, store

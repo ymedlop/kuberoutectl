@@ -90,6 +90,36 @@ type CredentialActivator interface {
 	ActivateAs(ctx context.Context, target domain.Target, cred domain.Credential) error
 }
 
+// AccessChecker is an optional capability: providers that can tell which
+// credentials a target admits *from inside* — as opposed to which can
+// authenticate to the provider about it — implement it. For AWS that is the EKS
+// access-entry layer; azure, gcp and kubeconfig have no equivalent this tool
+// reads, so they do not implement it and services reach it by type assertion.
+//
+// It takes every credential that reaches the target and returns the admitted
+// subset, rather than answering about one. Both cost a single API call — the
+// entry list names all principals — but only this shape lets a caller render a
+// verdict per profile without looping.
+type AccessChecker interface {
+	CheckAccess(ctx context.Context, target domain.Target, creds []domain.Credential) (AccessCheck, error)
+}
+
+// AccessCheck is what one live lookup established about a target.
+//
+// It carries facts, not a verdict: which credentials are listed, and under which
+// mode they were read. Callers derive the verdict with domain.AccessVerdictFor,
+// so the rule that only `api` mode may produce a negative lives in exactly one
+// place.
+type AccessCheck struct {
+	Mode     domain.AccessCheckMode
+	Operable []domain.CredentialID
+	// Reason explains why nothing conclusive came back, phrased for display and
+	// empty when Mode is conclusive. A format regression must not be worded like
+	// a routine "nothing to tell": the two are indistinguishable to a reader
+	// otherwise, and one of them is a bug worth chasing.
+	Reason string
+}
+
 // Provider is the full contract a backend implements. It is small on purpose:
 // discover state, and optionally renew a credential. Everything else
 // (organization, persistence, selection) is core concern, not provider concern.

@@ -37,6 +37,12 @@ func NewSelectionService(store cache.CacheStore, registry *providers.Registry, n
 // records a selection without touching the kubeconfig and lets the service pick
 // the access path.
 type UseTargetOptions struct {
+	// Refresh re-establishes operability against the provider instead of
+	// trusting the last sync. Off by default: the cached verdict covers every
+	// cluster, so a live check buys freshness rather than coverage and should
+	// cost a call only when asked for.
+	Refresh bool
+
 	// Activate also fetches the target's credentials into the local kubeconfig.
 	Activate bool
 	// CredentialName selects which of the target's credentials to go in
@@ -104,6 +110,15 @@ type UseTargetResult struct {
 	// nothing can be established, so warning on unknown would fire constantly on
 	// no evidence and train the operator to ignore the one case that matters.
 	AccessWarning string `json:"access_warning,omitempty"`
+
+	// AccessVerdict is what is known about the credential in use — operable, not
+	// operable, or unknown. Reported in both directions, unlike AccessWarning:
+	// the operator asked whether they can operate here, and silence answers only
+	// half of that.
+	AccessVerdict domain.AccessVerdict `json:"access_verdict,omitempty"`
+	// AccessReason explains why a --refresh check could not conclude. Empty when
+	// it did, and when none was asked for.
+	AccessReason string `json:"access_reason,omitempty"`
 }
 
 // accessWarning renders the caution for a credential the target is known to
@@ -112,7 +127,7 @@ type UseTargetResult struct {
 // It reports rather than blocks: the verdict comes from the last sync and may
 // be stale, and going into a cluster to diagnose exactly this is a legitimate
 // thing to do.
-func accessWarning(t domain.Target, used domain.Credential, reaching []domain.Credential) string {
+func accessWarning(t domain.Target, used domain.Credential, reaching []domain.Credential, live bool) string {
 	if t.CredentialAccess(used.ID) != domain.AccessNotOperable {
 		return ""
 	}
@@ -122,7 +137,13 @@ func accessWarning(t domain.Target, used domain.Credential, reaching []domain.Cr
 			alternatives = append(alternatives, c.Name)
 		}
 	}
-	msg := used.Name + " had no access entry on this cluster at the last sync; kubectl may return Forbidden."
+	when := " at the last sync"
+	if live {
+		// Under --refresh the answer is current, and saying otherwise would send
+		// the operator to re-sync in search of a fresher one that does not exist.
+		when = ""
+	}
+	msg := used.Name + " has no access entry on this cluster" + when + "; kubectl may return Forbidden."
 	if len(alternatives) > 0 {
 		msg += " " + strings.Join(alternatives, ", ") + " did have one."
 	}
@@ -186,9 +207,28 @@ func (s *SelectionService) UseTarget(ctx context.Context, ref string, opts UseTa
 	if err := s.store.SaveSelection(sel); err != nil {
 		return UseTargetResult{}, err
 	}
+	reaching := credentialsFor(found, snap.Credentials)
+	accessReason := ""
+	if opts.Refresh {
+		live := checkAccess(ctx, s.registry, found, reaching)
+		// Two separate decisions, deliberately not one. A reason is always worth
+		// reporting; a verdict is only worth *substituting* when one was actually
+		// established. Gating the override on "was anything attempted" blanks a
+		// perfectly good cached answer whenever the diagnostic itself fails —
+		// trading knowledge for `unknown` because a call did not come back.
+		accessReason = live.Reason
+		if live.Mode != "" {
+			// Overrides rather than merges: two sources for one answer is how
+			// they drift apart.
+			found.AccessCheck, found.OperableCredentialIDs = live.Mode, live.Operable
+		}
+	}
+
 	return UseTargetResult{
 		Target: found, Credential: cred, CredentialSource: source, LostCredentialID: lost,
-		AccessWarning: accessWarning(found, cred, credentialsFor(found, snap.Credentials)),
+		AccessWarning: accessWarning(found, cred, reaching, opts.Refresh),
+		AccessVerdict: found.CredentialAccess(cred.ID),
+		AccessReason:  accessReason,
 	}, nil
 }
 

@@ -30,7 +30,7 @@ func storeForCredentialJoin() *memStore {
 // The join preserves CredentialIDs order, so "primary first" survives to the
 // display layer without the caller re-sorting.
 func TestResolveWithCredentials_PrimaryFirst(t *testing.T) {
-	svc := NewTargetService(storeForCredentialJoin())
+	svc := NewTargetService(storeForCredentialJoin(), nil)
 
 	got, err := svc.ResolveWithCredentials("eks-prod")
 	if err != nil {
@@ -47,7 +47,7 @@ func TestResolveWithCredentials_PrimaryFirst(t *testing.T) {
 // A target with no CredentialIDs — every single-credential provider, and every
 // snapshot written before the field existed — still yields its one credential.
 func TestResolveWithCredentials_SingleCredentialTarget(t *testing.T) {
-	svc := NewTargetService(storeForCredentialJoin())
+	svc := NewTargetService(storeForCredentialJoin(), nil)
 
 	got, err := svc.ResolveWithCredentials("gke-prod")
 	if err != nil {
@@ -63,7 +63,7 @@ func TestResolveWithCredentials_SingleCredentialTarget(t *testing.T) {
 func TestResolveWithCredentials_SkipsMissingCredential(t *testing.T) {
 	store := storeForCredentialJoin()
 	store.snap.Credentials = store.snap.Credentials[:1] // keep only aws:dev
-	svc := NewTargetService(store)
+	svc := NewTargetService(store, nil)
 
 	got, err := svc.ResolveWithCredentials("eks-prod")
 	if err != nil {
@@ -77,7 +77,7 @@ func TestResolveWithCredentials_SkipsMissingCredential(t *testing.T) {
 // ListWithCredentials joins every row, so `target list` can show a PROFILES
 // column without a per-target snapshot load.
 func TestListWithCredentials_JoinsEveryRow(t *testing.T) {
-	svc := NewTargetService(storeForCredentialJoin())
+	svc := NewTargetService(storeForCredentialJoin(), nil)
 
 	rows, err := svc.ListWithCredentials(TargetFilter{})
 	if err != nil {
@@ -100,7 +100,7 @@ func TestListWithCredentials_JoinsEveryRow(t *testing.T) {
 
 // The filter must still apply — the join is an addition to List, not a bypass.
 func TestListWithCredentials_HonoursFilter(t *testing.T) {
-	svc := NewTargetService(storeForCredentialJoin())
+	svc := NewTargetService(storeForCredentialJoin(), nil)
 
 	rows, err := svc.ListWithCredentials(TargetFilter{Provider: "gcp"})
 	if err != nil {
