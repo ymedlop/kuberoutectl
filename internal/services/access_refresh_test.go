@@ -174,3 +174,70 @@ func TestUseTarget_ProviderErrorMustNotBlankTheCache(t *testing.T) {
 		t.Error("the failure must still be reported")
 	}
 }
+
+// The same guarantee at the other override site. Both were edited by hand on the
+// same day and behave identically — but identical behaviour with only one
+// regression test is exactly the drift D1 exists to prevent: whichever side is
+// unguarded is the side that regresses.
+//
+// Verified the same way as its UseTarget counterpart: re-fusing the two
+// conditions here makes this test, and only this test, fail.
+func TestResolveWithAccessCheck_ProviderErrorMustNotBlankTheCache(t *testing.T) {
+	store := storeWithMultiCredentialTarget()
+	store.snap.Targets[0].AccessCheck = domain.AccessCheckAPI
+	store.snap.Targets[0].OperableCredentialIDs = []domain.CredentialID{"aws:dev"}
+	reg := providers.NewRegistry()
+	if err := reg.Register(&checkingProvider{
+		credentialActivatableProvider: credentialActivatableProvider{activatableProvider: activatableProvider{id: "aws"}},
+		err:                           errors.New("aws: target belongs to provider \"gcp\""),
+	}); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	joined, err := NewTargetService(store, reg).ResolveWithAccessCheck(context.Background(), "t1")
+	if err != nil {
+		t.Fatalf("a provider error must not fail the command: %v", err)
+	}
+	if joined.Target.AccessCheck != domain.AccessCheckAPI {
+		t.Errorf("AccessCheck = %q, want the cached %q left intact", joined.Target.AccessCheck, domain.AccessCheckAPI)
+	}
+	if len(joined.Target.OperableCredentialIDs) != 1 {
+		t.Errorf("OperableCredentialIDs = %v, want the cached set left intact", joined.Target.OperableCredentialIDs)
+	}
+	if joined.AccessReason == "" {
+		t.Error("the failure must still be reported")
+	}
+}
+
+// And the positive direction at the same site, so the test above cannot pass by
+// the check never running at all.
+func TestResolveWithAccessCheck_LiveVerdictOverridesTheCache(t *testing.T) {
+	store := storeWithMultiCredentialTarget()
+	store.snap.Targets[0].AccessCheck = domain.AccessCheckAPI
+	store.snap.Targets[0].OperableCredentialIDs = []domain.CredentialID{"aws:dev"}
+	reg := providers.NewRegistry()
+	prov := &checkingProvider{
+		credentialActivatableProvider: credentialActivatableProvider{activatableProvider: activatableProvider{id: "aws"}},
+		res: providers.AccessCheck{
+			Mode:     domain.AccessCheckAPI,
+			Operable: []domain.CredentialID{"aws:ops"}, // the cache said dev
+		},
+	}
+	if err := reg.Register(prov); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	joined, err := NewTargetService(store, reg).ResolveWithAccessCheck(context.Background(), "t1")
+	if err != nil {
+		t.Fatalf("ResolveWithAccessCheck: %v", err)
+	}
+	if prov.calls != 1 {
+		t.Errorf("made %d checks, want exactly 1 — one call answers for every credential", prov.calls)
+	}
+	if got := joined.Target.CredentialAccess("aws:ops"); got != domain.AccessOperable {
+		t.Errorf("ops = %q, want the live %q", got, domain.AccessOperable)
+	}
+	if got := joined.Target.CredentialAccess("aws:dev"); got != domain.AccessNotOperable {
+		t.Errorf("dev = %q, want the live %q — the cached set said otherwise", got, domain.AccessNotOperable)
+	}
+}
