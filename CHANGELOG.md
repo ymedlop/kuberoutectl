@@ -95,6 +95,25 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
   Without `eks:ListAccessEntries` the verdict is `unavailable`, every profile
   reads `unknown`, and `sync` names the missing permission.
 
+- **`target use --refresh` and `target inspect --refresh`** — re-establish
+  operability against the cluster instead of trusting the last sync, one API call
+  for the cluster you named. The case it exists for is narrow and common: *you
+  have just been granted access and want to know whether it landed*, without
+  resyncing the fleet. Under the flag the answer is reported in **both**
+  directions — a confirmed admission is as much of an answer as a refusal — and a
+  check that cannot conclude says why.
+
+  **Nothing checks without it.** `sync` already covers every cluster, so a live
+  check buys freshness rather than coverage and should cost a call only when
+  asked for; `target list` never checks at all, since one call per row on every
+  display is the cost that is never worth paying. A failed check never blocks the
+  activation: refusing to write a kubeconfig because the EKS API hiccuped would
+  lock you out of a cluster at exactly the moment you are diagnosing it. The MCP
+  `use_target` and `get_target` tools take the same `refresh` argument with the
+  same default, so an agent and a human are never told different things about the
+  same cluster, and `use_target` returns an `access_verdict` alongside the
+  existing `access_warning`.
+
 - **`target list -l operable=true`** — the verdict is queryable as a selector,
   alongside `region`, `platform` and `health`, so "which of these can I actually
   operate?" is one question rather than a column to scan. Three values —

@@ -127,7 +127,7 @@ type UseTargetResult struct {
 // It reports rather than blocks: the verdict comes from the last sync and may
 // be stale, and going into a cluster to diagnose exactly this is a legitimate
 // thing to do.
-func accessWarning(t domain.Target, used domain.Credential, reaching []domain.Credential) string {
+func accessWarning(t domain.Target, used domain.Credential, reaching []domain.Credential, live bool) string {
 	if t.CredentialAccess(used.ID) != domain.AccessNotOperable {
 		return ""
 	}
@@ -137,7 +137,13 @@ func accessWarning(t domain.Target, used domain.Credential, reaching []domain.Cr
 			alternatives = append(alternatives, c.Name)
 		}
 	}
-	msg := used.Name + " had no access entry on this cluster at the last sync; kubectl may return Forbidden."
+	when := " at the last sync"
+	if live {
+		// Under --refresh the answer is current, and saying otherwise would send
+		// the operator to re-sync in search of a fresher one that does not exist.
+		when = ""
+	}
+	msg := used.Name + " has no access entry on this cluster" + when + "; kubectl may return Forbidden."
 	if len(alternatives) > 0 {
 		msg += " " + strings.Join(alternatives, ", ") + " did have one."
 	}
@@ -215,7 +221,7 @@ func (s *SelectionService) UseTarget(ctx context.Context, ref string, opts UseTa
 
 	return UseTargetResult{
 		Target: found, Credential: cred, CredentialSource: source, LostCredentialID: lost,
-		AccessWarning: accessWarning(found, cred, reaching),
+		AccessWarning: accessWarning(found, cred, reaching, opts.Refresh),
 		AccessVerdict: found.CredentialAccess(cred.ID),
 		AccessReason:  accessReason,
 	}, nil

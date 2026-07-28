@@ -269,7 +269,7 @@ So kuberoutectl reports what it can establish and says nothing where it cannot:
 
 ```console
 $ kuberoutectl target use eks-prod-frankfurt --profile prod-sso
-Warning: prod-sso had no access entry on this cluster at the last sync; kubectl
+Warning: prod-sso has no access entry on this cluster at the last sync; kubectl
          may return Forbidden. ops did have one.
 Now using target: eks-prod-frankfurt (eks-prod-frankfurt) via prod-sso
 ```
@@ -277,6 +277,32 @@ Now using target: eks-prod-frankfurt (eks-prod-frankfurt) via prod-sso
 It warns rather than refuses — the verdict is from the last sync and may be
 stale, and going into a cluster to diagnose exactly this is legitimate. A profile
 whose verdict is `unknown` produces no warning at all.
+
+### Asking again, without a full resync
+
+`target use` and `target inspect` take **`--refresh`**, which re-establishes
+operability against the cluster instead of trusting the last sync — one API call,
+for the cluster you named. The case it exists for is narrow and common: *you have
+just been granted access and want to know whether it landed.*
+
+```console
+$ kuberoutectl target use eks-prod-frankfurt --refresh
+ops holds an access entry on this cluster.
+Now using target: eks-prod-frankfurt (eks-prod-frankfurt)
+
+$ kuberoutectl target inspect eks-prod-frankfurt --refresh
+```
+
+Under `--refresh` the answer is reported in **both** directions — an admission is
+as much of an answer as a refusal — and the "at the last sync" wording drops,
+because it no longer applies.
+
+Without the flag nothing is called: `sync` already covers every cluster, so a
+live check buys freshness rather than coverage. Nothing else re-checks either —
+`target list` renders a fleet, and one call per row on every display is the cost
+that is never worth paying. The MCP `use_target` and `get_target` tools take the
+same `refresh` argument with the same default, so an agent and a human are never
+told different things about the same cluster.
 
 > **Still not covered.** An access entry answers "are you admitted", not "may
 > you do X" — a restrictive access policy still yields `Forbidden` on specific
