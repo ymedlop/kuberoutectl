@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/ymedlop/kuberoutectl/internal/services"
+	"github.com/ymedlop/kuberoutectl/internal/updatecheck"
 )
 
 func (a *app) doctorCmd() *cobra.Command {
@@ -14,6 +15,17 @@ func (a *app) doctorCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			doctor := services.NewDoctorService(a.registry, a.resolver, a.requiredBinary)
 			checks := doctor.Run()
+
+			// Appended, never inserted: `doctor -o json` is documented as
+			// machine-readable, so a consumer indexing the array must not find the
+			// provider rows shifted underneath it.
+			//
+			// Enabled() is consulted before the checker is touched, which is what
+			// makes "no row" and "no request" one decision rather than two that can
+			// disagree.
+			if updatecheck.Enabled(a.version) {
+				checks = append(checks, updateCheckRow(cmd.Context(), a.version, a.checker))
+			}
 
 			out := cmd.OutOrStdout()
 			if a.output == formatJSON {

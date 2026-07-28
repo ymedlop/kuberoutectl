@@ -19,6 +19,7 @@ import (
 	"github.com/ymedlop/kuberoutectl/internal/providers/azure"
 	"github.com/ymedlop/kuberoutectl/internal/providers/gcp"
 	"github.com/ymedlop/kuberoutectl/internal/providers/kubeconfig"
+	"github.com/ymedlop/kuberoutectl/internal/updatecheck"
 )
 
 // providerIDs renders the registered provider ids as "azure|aws|gcp|kubeconfig"
@@ -50,6 +51,14 @@ type app struct {
 	// trace is the shared verbose-tracing toggle read by the wrapped command
 	// runner; PersistentPreRunE flips it once --verbose is parsed.
 	trace *execx.TraceConfig
+
+	// version is the running build's version, and checker looks up the newest
+	// release. Both are fields rather than direct reads of buildinfo and
+	// updatecheck so a test can assert what is arguably the more important
+	// behaviour here: that no release request happens. A checker constructed
+	// inside the handler could not be replaced with one that fails on use.
+	version string
+	checker releaseChecker
 }
 
 // newApp builds the fully-wired application: config, provider registry, binary
@@ -63,6 +72,8 @@ func newApp() (*app, error) {
 		store:          jsonstore.New(cfg.CacheDir(), cfg.StateDir()),
 		requiredBinary: map[string]string{},
 		output:         formatText,
+		version:        buildinfo.Version,
+		checker:        updatecheck.New(nil, ""),
 	}
 	a.resolver = execx.NewPathResolver(a.cfg.BinaryPaths, "")
 	// The runner is built here, before flags are parsed, so verbose tracing is
