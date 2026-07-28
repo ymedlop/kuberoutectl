@@ -233,6 +233,11 @@ assert_contains "$aws_rows" "OPERABLE"
 # stubbed to a constant.
 [ "$(echo "$aws_rows" | head -1 | awk '{print $NF}')" = "OPERABLE" ] ||
   fail "OPERABLE is no longer the last column; the \$NF reads below would take the wrong cell"
+# $NF is the last whitespace-separated token, so this holds only while every
+# OPERABLE value is a single token (`ops`, `unknown`, `none`, or a comma-joined
+# name list). If the cell ever renders a multi-word value — as `target inspect`
+# already does with "not operable" — $NF would quietly return just the last word
+# instead of failing, so change this reader at the same time as that format.
 operable_cell() { echo "$aws_rows" | grep "$1" | awk '{print $NF}'; }
 
 fra_operable="$(operable_cell eks-prod-frankfurt)"
@@ -253,7 +258,7 @@ echo "madrid OPERABLE=$mad_operable (checked: CONFIG_MAP)"
 
 # And the CONFIG_MAP cluster must cost nothing: the mode is readable from the
 # describe response already in hand, so no access-entry call is warranted.
-madrid_sync="$("$BIN" sync aws 2>&1)"; echo "$madrid_sync" | grep -F "CONFIG_MAP" || true
+madrid_sync="$("$BIN" sync aws 2>&1)"
 assert_contains "$madrid_sync" "eks-prod-madrid"
 assert_contains "$madrid_sync" "CONFIG_MAP"
 
