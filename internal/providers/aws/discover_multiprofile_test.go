@@ -60,6 +60,14 @@ func newNoPatternAWSProviderWithRunner(t *testing.T) (*Provider, *execx.FakeRunn
 	r.Responses[listFrankfurt] = execx.FakeResponse{Stdout: readFixture(t, "access-entries-page1.json")}
 	r.Responses[listFrankfurt+" --starting-token eyJwYWdlIjogMn0="] = execx.FakeResponse{Stdout: readFixture(t, "access-entries-page2.json")}
 
+	// Ireland is reached by ops alone and runs API_AND_CONFIG_MAP. It exists to
+	// prove a single-profile cluster is checked at all — the case the original
+	// cost bound skipped, and the one a real fleet is mostly made of. ops holds an
+	// entry, so the answer is a confirmed yes rather than the `unknown` the old
+	// rule produced everywhere.
+	r.Responses["aws eks list-access-entries --cluster-name eks-prod-ireland --profile ops --region eu-central-1 --output json"] =
+		execx.FakeResponse{Stdout: readFixture(t, "access-entries-page2.json")}
+
 	return New(fakeResolver{path: "aws"}, r), r
 }
 

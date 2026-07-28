@@ -145,9 +145,12 @@ type accessResult struct {
 // ranking makes that mistake likelier, since the winner is no longer simply the
 // healthiest.
 //
-// A group of one is returned untouched: CredentialIDs stays nil and AccessCheck
-// stays empty, so targets with a single way in serialize exactly as they did
-// before any of this existed.
+// A group of one still receives the access verdict, but **not** CredentialIDs.
+// That split is deliberate and load-bearing: CredentialIDs staying nil for a
+// single-credential target is what let #109 ship with no migration step, and a
+// snapshot written before it existed decodes to nil meaning "just the one in
+// CredentialID". Setting it here for a group of one would break that silently —
+// the obvious edit when the access check was widened to every cluster.
 //
 // Maintenance note: the returned target shares its SystemLabels and Metadata
 // maps with the input candidate, because copying a Go struct copies map fields
@@ -155,9 +158,6 @@ type accessResult struct {
 // value must change, or the mutation is also visible through the caller's
 // slice.
 func foldGroup(group []domain.Target, access accessResult) domain.Target {
-	if len(group) == 1 {
-		return group[0]
-	}
 	sort.SliceStable(group, func(i, j int) bool {
 		ai := accessRank(domain.AccessVerdictFor(access.operable[group[i].CredentialID], access.check))
 		aj := accessRank(domain.AccessVerdictFor(access.operable[group[j].CredentialID], access.check))
@@ -172,16 +172,21 @@ func foldGroup(group []domain.Target, access accessResult) domain.Target {
 	})
 
 	primary := group[0]
-	primary.CredentialIDs = make([]domain.CredentialID, 0, len(group))
-	for _, c := range group {
-		primary.CredentialIDs = append(primary.CredentialIDs, c.CredentialID)
+	// Only a real choice records one. See the doc comment: nil here is the
+	// no-migration property, not an omission.
+	if len(group) > 1 {
+		primary.CredentialIDs = make([]domain.CredentialID, 0, len(group))
+		for _, c := range group {
+			primary.CredentialIDs = append(primary.CredentialIDs, c.CredentialID)
+		}
 	}
 	primary.AccessCheck = access.check
-	// Built in CredentialIDs order rather than map order, so `-o json` does not
-	// churn between syncs.
-	for _, id := range primary.CredentialIDs {
-		if access.operable[id] {
-			primary.OperableCredentialIDs = append(primary.OperableCredentialIDs, id)
+	// Iterating the group, not primary.CredentialIDs — the latter is nil in
+	// exactly the single-credential case this now has to serve. Group order is
+	// the sorted order, so `-o json` does not churn between syncs.
+	for _, c := range group {
+		if access.operable[c.CredentialID] {
+			primary.OperableCredentialIDs = append(primary.OperableCredentialIDs, c.CredentialID)
 		}
 	}
 	return primary
