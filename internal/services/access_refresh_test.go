@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/ymedlop/kuberoutectl/internal/domain"
@@ -95,15 +96,23 @@ func TestUseTarget_RefreshOverridesTheCachedVerdict(t *testing.T) {
 	}
 }
 
-// A failed live check must not block the activation. The natural implementation
-// propagates the error — every other failure in UseTarget does — and would lock
-// the operator out of a cluster at the moment they are diagnosing it.
-func TestUseTarget_FailedRefreshDoesNotBlockActivation(t *testing.T) {
+// A failed live check must not block the activation, and must not blank what the
+// last sync established either.
+//
+// `unavailable` is a mode but it is not an answer: it says the call did not come
+// back, which is a fact about the attempt rather than about who the cluster
+// admits. Overwriting a cached verdict with it trades knowledge for a shrug —
+// and this test previously asserted exactly that, encoding the bug as the
+// contract.
+func TestUseTarget_FailedRefreshKeepsTheCachedVerdict(t *testing.T) {
 	prov := &checkingProvider{
 		credentialActivatableProvider: credentialActivatableProvider{activatableProvider: activatableProvider{id: "aws", canSwitch: true}},
 		res: providers.AccessCheck{
 			Mode:   domain.AccessCheckUnavailable,
 			Reason: "profile ops may lack eks:ListAccessEntries on this cluster",
+			// nil Operable, which is the shape the AWS provider really emits on
+			// a failed listing. A fixture carrying one alongside `unavailable`
+			// describes a response that cannot occur.
 		},
 	}
 	svc := refreshSetup(t, prov)
@@ -112,14 +121,40 @@ func TestUseTarget_FailedRefreshDoesNotBlockActivation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("a failed check must not block: %v", err)
 	}
-	if res.AccessVerdict != domain.AccessUnknown {
-		t.Errorf("AccessVerdict = %q, want %q — nothing was established", res.AccessVerdict, domain.AccessUnknown)
+	// The cache said api / operable=[aws:dev], and the primary is ops — so the
+	// preserved verdict is a refusal, not unknown.
+	if res.Target.AccessCheck != domain.AccessCheckAPI {
+		t.Errorf("AccessCheck = %q, want the cached %q left intact", res.Target.AccessCheck, domain.AccessCheckAPI)
+	}
+	if res.AccessVerdict != domain.AccessNotOperable {
+		t.Errorf("AccessVerdict = %q, want the cached %q", res.AccessVerdict, domain.AccessNotOperable)
 	}
 	if res.AccessReason == "" {
-		t.Error("a failed check must say why")
+		t.Error("a failed check must still say why")
 	}
-	if res.AccessWarning != "" {
-		t.Errorf("an unknown verdict must not warn: %q", res.AccessWarning)
+	// Past tense: nothing was refreshed, so the answer is history.
+	if !strings.Contains(res.AccessWarning, "at the last sync") {
+		t.Errorf("a preserved verdict must read as history, got %q", res.AccessWarning)
+	}
+}
+
+// The tense is keyed on whether a verdict arrived, not on whether one was asked
+// for. A refresh that cannot run at all leaves the cache in place, and rendering
+// that in the present tense is the stale-reads-as-current mistake the tense
+// exists to prevent.
+func TestUseTarget_TenseFollowsTheVerdictNotTheFlag(t *testing.T) {
+	prov := &checkingProvider{
+		credentialActivatableProvider: credentialActivatableProvider{activatableProvider: activatableProvider{id: "aws", canSwitch: true}},
+		res:                           providers.AccessCheck{Reason: "the aws CLI could not be resolved"},
+	}
+	svc := refreshSetup(t, prov)
+
+	res, err := svc.UseTarget(context.Background(), "t1", UseTargetOptions{Activate: true, Refresh: true})
+	if err != nil {
+		t.Fatalf("UseTarget: %v", err)
+	}
+	if !strings.Contains(res.AccessWarning, "at the last sync") {
+		t.Errorf("a --refresh that never ran must still read as history, got %q", res.AccessWarning)
 	}
 }
 

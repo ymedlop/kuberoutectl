@@ -145,15 +145,17 @@ func TestTargetList_NeverChecksAccess(t *testing.T) {
 // read as any of them.
 func TestTargetUse_AccessIsReportedCachedAndRefreshed(t *testing.T) {
 	cases := []struct {
-		name      string
-		mode      domain.AccessCheckMode
-		reason    string
-		operable  []domain.CredentialID
-		profile   string
-		refresh   bool
-		wantIn    []string
-		wantNotIn []string
-		wantEmpty bool
+		name       string
+		mode       domain.AccessCheckMode
+		reason     string
+		operable   []domain.CredentialID
+		cachedMode domain.AccessCheckMode
+		cached     []domain.CredentialID
+		profile    string
+		refresh    bool
+		wantIn     []string
+		wantNotIn  []string
+		wantEmpty  bool
 	}{
 		{
 			name: "cached admission is reported as history",
@@ -194,10 +196,23 @@ func TestTargetUse_AccessIsReportedCachedAndRefreshed(t *testing.T) {
 			// when the entry list could not be fetched. The earlier fixtures never
 			// produced it, so the branch that handles it went untested while a
 			// CONFIG_MAP case that production never emits was asserted instead.
+			// `unavailable` with a NIL operable set — the shape the AWS provider
+			// really emits on a failed listing. Pairing it with an operable set,
+			// as an earlier fixture did, describes a response that cannot occur,
+			// and the branch under test was never reached.
+			//
+			// The cached verdict comes from the seeded snapshot, not from this
+			// response, which is the whole point: a check that could not run must
+			// leave what the last sync knew visible.
 			name: "a refresh that could not run keeps the cached answer visible",
 			mode: domain.AccessCheckUnavailable, reason: "profile ops may lack eks:ListAccessEntries on this cluster",
-			operable: []domain.CredentialID{"aws:ops"}, profile: "ops", refresh: true,
-			wantIn: []string{"Could not check access entries", "eks:ListAccessEntries"},
+			cached: []domain.CredentialID{"aws:ops"}, cachedMode: domain.AccessCheckAPI,
+			profile: "ops", refresh: true,
+			wantIn: []string{
+				"Could not check access entries",
+				"on this cluster.",               // the sentence is closed
+				"ops held one at the last sync.", // and the cached answer survives
+			},
 		},
 		{
 			// Silence keeps exactly one meaning: nothing was established, and you
@@ -222,7 +237,13 @@ func TestTargetUse_AccessIsReportedCachedAndRefreshed(t *testing.T) {
 			if err != nil {
 				t.Fatalf("load: %v", err)
 			}
-			snap.Targets[0].AccessCheck, snap.Targets[0].OperableCredentialIDs = tc.mode, tc.operable
+			// The cache defaults to mirroring the live answer; cases that need
+			// them to differ — a refresh that could not run — set it explicitly.
+			cachedMode, cached := tc.mode, tc.operable
+			if tc.cachedMode != "" {
+				cachedMode, cached = tc.cachedMode, tc.cached
+			}
+			snap.Targets[0].AccessCheck, snap.Targets[0].OperableCredentialIDs = cachedMode, cached
 			if err := a.store.SaveSnapshot(snap); err != nil {
 				t.Fatalf("save: %v", err)
 			}

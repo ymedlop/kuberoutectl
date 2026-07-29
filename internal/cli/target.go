@@ -536,7 +536,9 @@ func describeAccess(res services.UseTargetResult, refreshed bool) string {
 		// keeps the cached verdict in that case, so report it alongside rather
 		// than replacing knowledge with a failure notice — the reader still has
 		// an answer, just an older one.
-		msg := "Could not check access entries: " + res.AccessReason
+		// The reasons the provider produces do not end in a period, so one is
+		// added here rather than leaving the cached clause running on into them.
+		msg := "Could not check access entries: " + res.AccessReason + "."
 		switch res.AccessVerdict {
 		case domain.AccessOperable:
 			msg += " " + res.Credential.Name + " held one at the last sync."

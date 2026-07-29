@@ -394,8 +394,10 @@ func (s *TargetService) ResolveWithAccessCheck(ctx context.Context, ref string) 
 	// A reason is always worth reporting; a verdict is only worth *substituting*
 	// when one was established. See UseTarget for why those are not one decision.
 	joined.AccessReason = live.Reason
-	if live.Mode != "" {
-		// Override rather than merge: two sources for one answer is how they drift.
+	if live.Conclusive() {
+		// Override rather than merge: two sources for one answer is how they
+		// drift. See AccessCheck.Conclusive: `unavailable` is a mode but not an
+		// answer, and must not blank what the last sync established.
 		joined.Target.AccessCheck = live.Mode
 		joined.Target.OperableCredentialIDs = live.Operable
 	}

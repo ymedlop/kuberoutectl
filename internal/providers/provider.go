@@ -125,6 +125,18 @@ type AccessCheck struct {
 	Reason string
 }
 
+// Conclusive reports whether the check established something about **the
+// cluster**, as opposed to something about the attempt.
+//
+// Only a conclusive result may replace a cached verdict. `unavailable` and an
+// empty mode both mean "we could not tell just now", which is a fact about this
+// call and not about who the cluster admits — overwriting knowledge with either
+// trades an answer for a shrug. The reason is still worth reporting; the verdict
+// is not worth substituting.
+func (c AccessCheck) Conclusive() bool {
+	return c.Mode != "" && c.Mode != domain.AccessCheckUnavailable
+}
+
 // Provider is the full contract a backend implements. It is small on purpose:
 // discover state, and optionally renew a credential. Everything else
 // (organization, persistence, selection) is core concern, not provider concern.
