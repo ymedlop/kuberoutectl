@@ -33,6 +33,15 @@ Do **not** collapse `Scope` and `Target` into one type, even if a provider seems
 - Keep the core provider-agnostic.
 - Do not spread provider-specific conditionals across services.
 - Put provider behavior behind explicit interfaces and a provider registry.
+- Optional provider capabilities go in **separate interfaces reached by type
+  assertion** — `ContextActivator`, `CredentialActivator`, `AccessChecker` — never
+  as extra parameters on `Provider`. A provider with no such concept simply does
+  not implement it, and services must treat "not implemented" and "not attempted"
+  as the same answer rather than branching on provider identity.
+- **Only `internal/cli` may make outbound network requests of its own.**
+  Everything else delegates external access to a provider CLI through `execx`. A
+  test walks `internal/**` and fails if any other package imports the one that
+  calls the network; keep that boundary enforced rather than documented.
 - Keep business logic out of Cobra command handlers.
 - Prefer explicit code over reflection or plugin-style indirection.
 - Use JSON persistence first; do not introduce SQLite unless the task explicitly requires it.

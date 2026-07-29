@@ -16,6 +16,11 @@ caution over speed — for trivial tasks, use judgment.
   fit) and wait for confirmation before implementing.
 - If a simpler approach exists, say so. Push back when warranted — agreeing to
   avoid conflict is a failure mode.
+- **Cite only what you checked.** If a decision leans on a precedent in this
+  repo, an API contract, or a prior PR, verify it before invoking it. An invented
+  justification is worse than an unjustified decision: it survives review,
+  because nobody audits the reasoning in a comment the way they audit the code
+  under it.
 - Anything unclear? Stop, name it, ask.
 
 ## 2. Simplicity first
@@ -74,6 +79,29 @@ and commit the result, don't just read its output.
 
 What fixtures cannot prove (real CLI output shapes, interactive auth) is an
 accepted caveat — say so in the PR instead of pretending coverage.
+
+**A guard is not proven until it has failed.** Before trusting a test that
+protects an invariant, break the code it guards — invert the branch, stub the
+function to a constant, delete the condition — and confirm *that specific test*
+fails. Restore, and say in the PR that you did it.
+
+Assertions that pass no matter what the code does, all seen here:
+
+- `reflect.DeepEqual` against a map that shares identity with the value under
+  test (a Go struct copy aliases its map fields — clone the expected value first).
+- `strings.Contains` on a whole row of tabular output, satisfied by a
+  neighbouring column. Index the cell by header name.
+- `json.Unmarshal` into a reused non-nil map: it **merges**, so a later subtest
+  reads the earlier one's keys.
+- A guard repeating verbatim the condition it is meant to protect, making the
+  block unreachable.
+- Logic moved to another layer without moving or re-creating the test that
+  exercised it — no test looks wrong, and nothing covers the new home.
+- A test double carrying a field nothing ever sets: scaffolding designed and not
+  written, which reads as covered.
+
+None of these are visible by re-reading the test — each one looks like a normal
+assertion. Injection is the only check that finds them.
 
 ## Repo workflow
 
