@@ -532,8 +532,18 @@ func describeAccess(res services.UseTargetResult, refreshed bool) string {
 		return "Warning: " + res.AccessWarning
 
 	case res.AccessReason != "":
-		// Only set by a --refresh whose check could not run.
-		return "Could not check access entries: " + res.AccessReason
+		// Set exactly when a --refresh could not run. The service deliberately
+		// keeps the cached verdict in that case, so report it alongside rather
+		// than replacing knowledge with a failure notice — the reader still has
+		// an answer, just an older one.
+		msg := "Could not check access entries: " + res.AccessReason
+		switch res.AccessVerdict {
+		case domain.AccessOperable:
+			msg += " " + res.Credential.Name + " held one at the last sync."
+		case domain.AccessNotOperable:
+			msg += " " + res.Credential.Name + " held none at the last sync; kubectl may return Forbidden."
+		}
+		return msg
 
 	case res.AccessVerdict == domain.AccessOperable:
 		if refreshed {

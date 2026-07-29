@@ -113,10 +113,15 @@ type AccessChecker interface {
 type AccessCheck struct {
 	Mode     domain.AccessCheckMode
 	Operable []domain.CredentialID
-	// Reason explains why nothing conclusive came back, phrased for display and
-	// empty when Mode is conclusive. A format regression must not be worded like
-	// a routine "nothing to tell": the two are indistinguishable to a reader
-	// otherwise, and one of them is a bug worth chasing.
+	// Reason is set exactly when the check could not run — an empty Mode (the
+	// mode itself was unreadable) or AccessCheckUnavailable (the call failed).
+	// It is **empty for every mode that is an answer**, including
+	// AccessCheckConfigMap: "entries do not apply here" is a conclusive result,
+	// not a failure, and callers key off this field to tell the two apart.
+	//
+	// A format regression must not be worded like a routine "nothing to tell":
+	// the two are indistinguishable to a reader otherwise, and one of them is a
+	// bug worth chasing.
 	Reason string
 }
 

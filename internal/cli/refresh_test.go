@@ -147,10 +147,12 @@ func TestTargetUse_AccessIsReportedCachedAndRefreshed(t *testing.T) {
 	cases := []struct {
 		name      string
 		mode      domain.AccessCheckMode
+		reason    string
 		operable  []domain.CredentialID
 		profile   string
 		refresh   bool
 		wantIn    []string
+		wantNotIn []string
 		wantEmpty bool
 	}{
 		{
@@ -161,7 +163,8 @@ func TestTargetUse_AccessIsReportedCachedAndRefreshed(t *testing.T) {
 		{
 			name: "refreshed admission drops the sync clause",
 			mode: domain.AccessCheckAPI, operable: []domain.CredentialID{"aws:ops"}, profile: "ops", refresh: true,
-			wantIn: []string{"ops", "holds an access entry"},
+			wantIn:    []string{"ops", "holds an access entry"},
+			wantNotIn: []string{"at the last sync"},
 		},
 		{
 			name: "cached refusal warns, in the past tense",
@@ -171,7 +174,8 @@ func TestTargetUse_AccessIsReportedCachedAndRefreshed(t *testing.T) {
 		{
 			name: "refreshed refusal warns without it",
 			mode: domain.AccessCheckAPI, operable: []domain.CredentialID{"aws:ops"}, profile: "dev", refresh: true,
-			wantIn: []string{"Warning", "dev", "has no access entry"},
+			wantIn:    []string{"Warning", "dev", "has no access entry"},
+			wantNotIn: []string{"at the last sync"},
 		},
 		{
 			// The case that prompted this: their fleet's mode, a profile that is
@@ -184,6 +188,16 @@ func TestTargetUse_AccessIsReportedCachedAndRefreshed(t *testing.T) {
 			name: "refreshed inconclusive under config_map names the mode",
 			mode: domain.AccessCheckConfigMap, profile: "dev", refresh: true,
 			wantIn: []string{"Could not tell", "CONFIG_MAP"},
+		},
+		{
+			// Mode AND Reason together — the shape the real AWS provider emits
+			// when the entry list could not be fetched. The earlier fixtures never
+			// produced it, so the branch that handles it went untested while a
+			// CONFIG_MAP case that production never emits was asserted instead.
+			name: "a refresh that could not run keeps the cached answer visible",
+			mode: domain.AccessCheckUnavailable, reason: "profile ops may lack eks:ListAccessEntries on this cluster",
+			operable: []domain.CredentialID{"aws:ops"}, profile: "ops", refresh: true,
+			wantIn: []string{"Could not check access entries", "eks:ListAccessEntries"},
 		},
 		{
 			// Silence keeps exactly one meaning: nothing was established, and you
@@ -200,7 +214,7 @@ func TestTargetUse_AccessIsReportedCachedAndRefreshed(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			prov := &checkRecordingProvider{
 				stubProvider: stubProvider{id: "aws"},
-				res:          providers.AccessCheck{Mode: tc.mode, Operable: tc.operable},
+				res:          providers.AccessCheck{Mode: tc.mode, Operable: tc.operable, Reason: tc.reason},
 			}
 			a := refreshApp(t, prov)
 			// refreshApp seeds api/aws:dev; override with this case's fixture.
@@ -231,6 +245,11 @@ func TestTargetUse_AccessIsReportedCachedAndRefreshed(t *testing.T) {
 			for _, want := range tc.wantIn {
 				if !strings.Contains(stderr, want) {
 					t.Errorf("stderr %q missing %q", strings.TrimSpace(stderr), want)
+				}
+			}
+			for _, unwanted := range tc.wantNotIn {
+				if strings.Contains(stderr, unwanted) {
+					t.Errorf("stderr %q must not contain %q", strings.TrimSpace(stderr), unwanted)
 				}
 			}
 			// Nothing inconclusive may read as a refusal.
