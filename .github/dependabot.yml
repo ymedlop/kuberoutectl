@@ -1,9 +1,9 @@
 # Dependabot configuration.
 #
 # Three ecosystems live in this repo and only one was watched: Go modules. The
-# eight workflows under .github/workflows pin ten third-party actions, and the
-# docs site has its own Gemfile — both went unwatched, which is the half of the
-# supply chain CodeQL does not cover.
+# seven workflows under .github/workflows carry ten pinned references to nine
+# third-party actions, and the docs site has its own Gemfile — both went
+# unwatched, which is the half of the supply chain CodeQL does not cover.
 #
 # Updates are grouped. Ungrouped, a quiet week still produces one PR per
 # dependency, each with its own CI run, and a queue nobody reads is the same as
