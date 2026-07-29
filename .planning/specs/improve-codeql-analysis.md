@@ -12,8 +12,8 @@
 
 `.github/workflows/codeql.yml` is the stock GitHub template with two lines
 changed. It runs the **default query suite** — the narrowest of the three — and
-the `queries:` line that would widen it is still commented out. Around forty of
-its ninety lines are instructional comments, and it carries a
+the `queries:` line that would widen it is still commented out. 42 of its 104
+lines are instructional comments, and it carries a
 `Run manual build steps` step that can only ever fire as a confusing `exit 1`,
 because `build-mode` is never `manual`.
 

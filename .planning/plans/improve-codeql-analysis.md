@@ -109,8 +109,11 @@ hold while there is one suite and no exclusions.
 | 2 | Open a throwaway PR touching only `README.md`; confirm it is **mergeable** and does **not** wait on `reproducible-build` | spec req 2, edge case 1 — the failure mode that makes the repo unmergeable |
 | 3 | On the same PR, push a commit that breaks a test; confirm the merge button is **blocked**; revert and close | spec goal 1 — the gate has never been observed to work until this is done |
 
-Phase 1 is not complete until task 3 has been *seen*, not inferred. It is the
-only evidence that the rule matches the names GitHub actually posts.
+Phase 1 is not complete until task 3 has been *seen*, not inferred — and the
+observation has to leave a trace. "Seen, not inferred" with no artifact is a
+checkbox anyone can tick from memory weeks later, including the person who never
+did it. The PR URL is the audit trail, and it is the only evidence the rule
+matches the names GitHub actually posts.
 
 ### Phase 2 — deepen the analysis (depends on nothing; may run before or after 1)
 
@@ -141,6 +144,7 @@ produce three PRs against a file whose diff is easier to read whole.
 | Sequential | Depends on | Why |
 |---|---|---|
 | 1 | 0 | the bypass posture is part of the same ruleset write; deciding it afterwards means a second edit made under whatever pressure prompted it |
+| 2 | 1 | run before the rule exists, "it does not wait on `reproducible-build`" is true because **nothing** is required yet. The test passes for the wrong reason and gets ticked as having verified requirement 2 |
 | 3 | 1, 2 | there is nothing to observe until the rule exists |
 | 7 | 4 | the backlog cannot be triaged before the suite that reports it |
 | 9 | 7, 8 | gating on a suite with an untriaged backlog blocks every PR; gating on a check forks cannot produce blocks every contribution |
@@ -172,8 +176,11 @@ template's layers:
 **The verification ladder does not apply to phase 1 or 3.** `make check`,
 `scripts/e2e.sh` and the rest read the repository, and the ruleset is not in it.
 Saying "all five rungs pass" about a ruleset change would be true and irrelevant.
-Phase 2 does run the ladder, though only `make docs-reference` and the workflow
-itself could plausibly be affected.
+
+Phase 2 runs the ladder, but **no rung can be affected** by an edit confined to
+`codeql.yml`: `make docs-reference` renders the Cobra command tree, which a
+workflow file does not touch. They pass regardless, and reporting them is
+evidence of nothing.
 
 ---
 
