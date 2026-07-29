@@ -54,44 +54,39 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
 - New `kuberoutectl.io/credential` system label on every provider's targets,
   naming the target's default credential so it can be selected on.
 
-- **`sync aws` now reads EKS access entries, so the default profile is picked on
+- **`sync aws` reads EKS access entries, so the default profile is picked on
   whether the cluster admits it — not just on whether it can authenticate.**
-  Reachability was resolved at the **IAM** layer (`eks:DescribeCluster`), but
-  operating inside a cluster additionally requires an EKS **access entry**, a
-  Kubernetes-side authorization layer. Where profiles differed only there, a
-  profile could describe a cluster, be chosen as the default, activate cleanly,
-  and still get `Forbidden` from `kubectl` — with nothing in the inventory
-  hinting at it. For clusters more than one profile reaches, discovery now makes
-  one `list-access-entries` call per cluster and prefers an admitted profile
-  **even over a healthier one**: an expired session is one `aws sso login` away,
-  while a missing access entry cannot be fixed from this CLI at all.
+  Reachability is an **IAM** question (`eks:DescribeCluster`), but operating
+  inside a cluster additionally requires an EKS **access entry**, a
+  Kubernetes-side authorization layer. Where profiles differ only there, a
+  profile can describe a cluster, be chosen as the default, activate cleanly, and
+  still get `Forbidden` from `kubectl`, with nothing in the inventory hinting at
+  it.
 
-  What can be concluded depends on the cluster's `authenticationMode`, and only
-  a *negative* answer does: under `API` the list is authoritative both ways;
-  under `API_AND_CONFIG_MAP` and `CONFIG_MAP` a listed profile is still
-  confirmed but an absent one is **unknown**, because `aws-auth` may grant it and
-  kuberoutectl deliberately does not read `aws-auth` (that would need working
-  `kubectl` access to the cluster being asked about). Clusters created through
-  the API, the SDKs or CloudFormation default to `CONFIG_MAP`, so `unknown` is
-  the normal answer rather than a failure, and it is never rendered as "no".
+  Discovery now makes one `list-access-entries` call per cluster — for every
+  cluster whose authentication mode permits a conclusion, including those a
+  single profile reaches — and prefers an admitted profile **even over a
+  healthier one**: an expired session is one `aws sso login` away, while a
+  missing access entry cannot be fixed from this CLI at all.
 
-  `target inspect` gains an `Access check` line and a per-profile
-  verdict. `target use` with a profile the cluster is **confirmed** to refuse
-  warns on stderr, names one that would work, and proceeds anyway — the verdict
-  is from the last sync and may be stale, and entering a cluster to diagnose
-  exactly this is legitimate. A profile whose verdict is `unknown` produces no
-  warning at all. The MCP `use_target` tool returns the same caution as an
-  `access_warning` field, from the same service call, so the two surfaces cannot
-  drift into disagreeing about when to warn.
+  What can be concluded depends on the cluster's `authenticationMode`, and only a
+  *negative* answer does. Under `API` the entry list is authoritative both ways.
+  Under `API_AND_CONFIG_MAP` and `CONFIG_MAP` a listed profile is still confirmed,
+  but an absent one is **unknown** — `aws-auth` may grant it, and kuberoutectl
+  deliberately does not read `aws-auth`, which would require working `kubectl`
+  access to the very cluster being asked about. Clusters created through the API,
+  the SDKs or CloudFormation default to `CONFIG_MAP`, so `unknown` is the normal
+  answer rather than a failure, and it is never rendered as "no".
 
-  **Every cluster whose authentication mode permits a conclusion is checked**,
-  one call each, including those a single profile reaches. An earlier revision of
-  this work skipped those, reasoning that with one way in there is nothing to
-  choose — true, but there is still something to *know*: whether that one way in
-  will be refused. Validated against a real fleet, that bound turned out to skip
-  nearly everything, leaving `unknown` almost everywhere. `CONFIG_MAP` clusters
-  still cost nothing, since the mode arrives with `describe-cluster`, and `sync`
-  now reports how many clusters it listed entries for so the cost is visible.
+  `target inspect` gains an `Access check` line and a per-profile verdict.
+  `target use` with a profile the cluster is **confirmed** to refuse warns on
+  stderr, names one that would work, and proceeds anyway — the verdict may be
+  stale, and entering a cluster to diagnose exactly this is legitimate. A profile
+  whose verdict is `unknown` produces no warning. The MCP `use_target` tool
+  returns the same caution as an `access_warning` field.
+
+  `CONFIG_MAP` clusters cost no extra call, since the mode arrives with
+  `describe-cluster`, and `sync` reports how many clusters it listed entries for.
   Without `eks:ListAccessEntries` the verdict is `unavailable`, every profile
   reads `unknown`, and `sync` names the missing permission.
 
@@ -103,12 +98,10 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
   directions — a confirmed admission is as much of an answer as a refusal — and a
   check that cannot conclude says why.
 
-  **Nothing checks without it.** `sync` already covers every cluster, so a live
-  check buys freshness rather than coverage and should cost a call only when
-  asked for; `target list` never checks at all, since one call per row on every
-  display is the cost that is never worth paying. A failed check never blocks the
-  activation: refusing to write a kubeconfig because the EKS API hiccuped would
-  lock you out of a cluster at exactly the moment you are diagnosing it. The MCP
+  **Nothing checks without the flag**, and `target list` never checks at all. A
+  failed check never blocks the activation: refusing to write a kubeconfig
+  because the EKS API was unreachable would lock you out of a cluster at exactly
+  the moment you are diagnosing it. The MCP
   `use_target` and `get_target` tools take the same `refresh` argument with the
   same default, so an agent and a human are never told different things about the
   same cluster, and `use_target` returns an `access_verdict` alongside the
@@ -118,8 +111,8 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
   alongside `region`, `platform` and `health`, so "which of these can I actually
   operate?" is one question rather than a column to scan. Three values —
   `true`, `false`, `unknown` — with `unknown` always present rather than absent,
-  since in most fleets it is the largest set and the one worth enumerating. It
-  composes with the rest of the selector grammar and with collections.
+  so the clusters nothing could be established about stay queryable. It composes
+  with the rest of the selector grammar and with collections.
 
 - **`doctor` now tells you when your binary is out of date**, and
   `version --check-update` asks the same question deliberately. Someone on an old
@@ -132,11 +125,8 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
 
   **No other command makes a network request.** Not `sync`, `target`,
   `collection`, `current` or `mcp` — and a test enforces that only the CLI layer
-  can import the code that would. There is no ambient check and nothing is
-  cached: an unsolicited outbound call on every invocation is a sentence a tool
-  that handles cloud credentials has to defend in every security review, and
-  confining it to two commands whose names say "diagnostic" is a much easier one.
-  The request itself is an unauthenticated `GET` that transmits nothing — no
+  can import the code that would. Nothing is cached and no check is ambient. The
+  request is an unauthenticated `GET` that transmits nothing — no
   version, no identifier, no usage data. Set `KUBEROUTECTL_NO_UPDATE_CHECK` to
   any value to suppress the request as well as the output.
 

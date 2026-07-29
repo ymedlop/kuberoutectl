@@ -171,9 +171,8 @@ eks-prod-frankfurt  eks       1.29     eu-central-1  valid   aws       ops,prod-
 eks-prod-ireland    eks       1.30     eu-central-1  valid   aws       prod-sso
 ```
 
-The `PROFILES` column appears only when some cluster has a choice. The
-operability verdict is **not** a column — the table is for scanning a fleet, and
-the verdict is better asked as a question:
+The `PROFILES` column appears only when some cluster has a choice. Operability is
+not a column; ask it as a question instead:
 
 ```console
 $ kuberoutectl target list --provider aws -l operable=true      # I am admitted to these
@@ -240,10 +239,9 @@ prefers a profile the cluster actually admits, **even over a healthier one**.
 Renewing an expired session is one `aws sso login`; a missing access entry cannot
 be fixed from this CLI at all.
 
-A cluster reached by a single profile is checked too. There is nothing to
-*choose* there, but there is still something to *know*: whether that one way in
-will be refused. `sync` reports how many clusters it listed entries for, so the
-cost is visible:
+Clusters reached by a single profile are checked as well — knowing that your one
+way in will be refused is worth as much as choosing between two. `sync` reports
+how many clusters it listed entries for, so the cost is visible:
 
 ```console
 $ kuberoutectl sync aws
@@ -294,11 +292,10 @@ $ kuberoutectl target inspect eks-prod-frankfurt --refresh
 ```
 
 Under `--refresh` the answer is reported in **both** directions — an admission is
-as much of an answer as a refusal — and the "at the last sync" wording drops,
-because it no longer applies.
+as much of an answer as a refusal — and the warning omits "at the last sync",
+since the answer is current.
 
-Without the flag nothing is called: `sync` already covers every cluster, so a
-live check buys freshness rather than coverage. Nothing else re-checks either —
+Without the flag nothing is called. Nothing else re-checks either —
 `target list` renders a fleet, and one call per row on every display is the cost
 that is never worth paying. The MCP `use_target` and `get_target` tools take the
 same `refresh` argument with the same default, so an agent and a human are never
