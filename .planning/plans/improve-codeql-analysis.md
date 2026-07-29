@@ -112,8 +112,21 @@ hold while there is one suite and no exclusions.
 Phase 1 is not complete until task 3 has been *seen*, not inferred — and the
 observation has to leave a trace. "Seen, not inferred" with no artifact is a
 checkbox anyone can tick from memory weeks later, including the person who never
-did it. The PR URL is the audit trail, and it is the only evidence the rule
-matches the names GitHub actually posts.
+did it.
+
+**Record it here.** Fill this table before marking phase 1 complete; a blank cell
+is the signal, and it is the only one this plan has:
+
+| Evidence | Value |
+|---|---|
+| Throwaway PR (tasks 2, 3) | *(URL — leave blank until it exists)* |
+| Task 2: merged without waiting on `reproducible-build`? | *(yes / no + date)* |
+| Task 3: merge blocked while `verify` was red? | *(yes / no + date)* |
+| Ruleset revision after task 1 | *(from `gh api .../rulesets/18918362 --jq .updated_at`)* |
+
+Prose describing an audit trail is not an audit trail. An earlier revision of
+this plan said "the PR URL is the evidence" without saying where it goes, which
+left the requirement satisfiable by agreeing with it.
 
 ### Phase 2 — deepen the analysis (depends on nothing; may run before or after 1)
 
@@ -193,7 +206,7 @@ evidence of nothing.
 | A job rename silently drops its requirement | **Unmitigated.** Nothing warns, and there is no test — the ruleset lives outside the repo. Task 10 documents it; that is the whole defence, and it is weak |
 | `security-extended` reports enough to be ignored rather than triaged | Phase ordering: it does not gate anything until it is at zero, so an untriaged backlog is visible but not obstructive |
 | Fork PRs cannot produce `CodeQL` | Task 8 blocks phase 3 on establishing it |
-| Phase 1 is "done" on paper while the ruleset was never applied | Task 3 requires observing a blocked merge; a PR that merges anyway is the failure |
+| Phase 1 is "done" on paper while the ruleset was never applied | The evidence table above must be filled before phase 1 is complete. Blank cells are the check; "a PR that merges anyway is the failure" was the previous mitigation and relied on someone noticing a negative |
 | No bypass exists, so a wrong context name locks the repository with no escape but editing the ruleset | Task 0 decides this deliberately; task 2 catches a wrong name on a throwaway PR before it matters |
 
 ---
