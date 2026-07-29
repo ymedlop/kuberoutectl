@@ -104,7 +104,8 @@ hold while there is one suite and no exclusions.
 
 | # | Task | Verifies |
 |---|------|----------|
-| 1 | Add `required_status_checks` to ruleset `18918362` with the four contexts from D2, each pinned to `integration_id` 15368, `strict: false` | spec req 1, 4 |
+| 0 | Decide the bypass posture and apply it — `bypass_actors` is currently `[]`, so once checks are required nobody can merge a red PR and the only remedy is editing the ruleset | spec req 4 — **blocking**, because it cannot be decided after the gate closes without first reopening it |
+| 1 | Add `required_status_checks` to ruleset `18918362` with the four contexts from D2, each pinned to `integration_id` 15368, `strict: false` | spec req 1, 5 |
 | 2 | Open a throwaway PR touching only `README.md`; confirm it is **mergeable** and does **not** wait on `reproducible-build` | spec req 2, edge case 1 — the failure mode that makes the repo unmergeable |
 | 3 | On the same PR, push a commit that breaks a test; confirm the merge button is **blocked**; revert and close | spec goal 1 — the gate has never been observed to work until this is done |
 
@@ -139,6 +140,7 @@ produce three PRs against a file whose diff is easier to read whole.
 
 | Sequential | Depends on | Why |
 |---|---|---|
+| 1 | 0 | the bypass posture is part of the same ruleset write; deciding it afterwards means a second edit made under whatever pressure prompted it |
 | 3 | 1, 2 | there is nothing to observe until the rule exists |
 | 7 | 4 | the backlog cannot be triaged before the suite that reports it |
 | 9 | 7, 8 | gating on a suite with an untriaged backlog blocks every PR; gating on a check forks cannot produce blocks every contribution |
@@ -185,6 +187,7 @@ itself could plausibly be affected.
 | `security-extended` reports enough to be ignored rather than triaged | Phase ordering: it does not gate anything until it is at zero, so an untriaged backlog is visible but not obstructive |
 | Fork PRs cannot produce `CodeQL` | Task 8 blocks phase 3 on establishing it |
 | Phase 1 is "done" on paper while the ruleset was never applied | Task 3 requires observing a blocked merge; a PR that merges anyway is the failure |
+| No bypass exists, so a wrong context name locks the repository with no escape but editing the ruleset | Task 0 decides this deliberately; task 2 catches a wrong name on a throwaway PR before it matters |
 
 ---
 

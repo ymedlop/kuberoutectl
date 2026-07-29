@@ -79,33 +79,40 @@ Verifiable:
 3. **`CodeQL` is not required yet.** That is the results check posted by code
    scanning, and it is phase 3 — after the deeper suite has been triaged.
 
-4. **`strict` (require branches up to date) is off.** With one maintainer and a
+4. **Decide the bypass posture.** The ruleset currently configures no bypass
+   actor at all. Adding required checks to it means no one can merge a red PR
+   under any circumstances, and the only remedy is editing the ruleset itself.
+   Either add `bypass_actors` for the admin role deliberately, or record that the
+   absence is intentional. Doing neither leaves an emergency path that consists
+   of deleting the gate.
+
+5. **`strict` (require branches up to date) is off.** With one maintainer and a
    squash-merge workflow it converts every merge into a rebase, for a race that
    this repository's test suite would catch anyway.
 
 ### Must have — phase 2: deepen the analysis
 
-5. **`queries: security-extended`.** Per GitHub's documentation:
+6. **`queries: security-extended`.** Per GitHub's documentation:
    `security-extended` is "queries from the default suite, plus lower severity
    and precision queries". `security-and-quality` adds "maintainability and
    reliability queries" on top — rejected here because `make check` already runs
    `gofmt` and `go vet`, and duplicating style findings into the security surface
    is how a security tab becomes unread.
 
-6. **Delete the dead scaffolding**: the `Run manual build steps` step, and the
+7. **Delete the dead scaffolding**: the `Run manual build steps` step, and the
    template's instructional comment blocks. Keep the comments that state a
    decision this repository made; delete the ones GitHub ships to everybody.
 
-7. **Fix `actions/setup-go@v4` → `@v5`.** It is v5 in `ci.yml` and v4 here — the
+8. **Fix `actions/setup-go@v4` → `@v5`.** It is v5 in `ci.yml` and v4 here — the
    drift `#122`'s Dependabot `github-actions` entry would surface anyway, fixed
    in passing because it is in the file being edited.
 
-8. **Land non-blocking, then triage to zero.** Whatever `security-extended`
+9. **Land non-blocking, then triage to zero.** Whatever `security-extended`
    reports is reviewed and either fixed or dismissed with a reason.
 
 ### Must have — phase 3
 
-9. **Add `CodeQL` to the required checks** once phase 2's findings are at zero.
+10. **Add `CodeQL` to the required checks** once phase 2's findings are at zero.
 
 ### Nice to have
 
@@ -168,9 +175,21 @@ None in the CLI. In GitHub: PRs gain a merge block until the four checks pass.
    repository, and with what token, is **not verified here** — it must be checked
    before CodeQL becomes required, because a check that cannot run on a fork PR
    would make outside contributions unmergeable. See Testing criteria.
-5. **The maintainer needs to merge something red.** Rulesets can be bypassed by
-   an admin. Deliberate: a gate nobody can lift in an emergency is a gate that
-   gets deleted in an emergency.
+5. **The maintainer needs to merge something red.** *Corrected during Gate 3.5:*
+   an earlier draft of this spec said an admin could bypass the ruleset, and
+   reasoned that a gate nobody can lift in an emergency is a gate that gets
+   deleted in an emergency. The reasoning stands; the fact was wrong.
+
+   The ruleset has `bypass_actors: []` — **no bypass is configured for anyone**,
+   at any role. Once required checks are added, a red PR cannot be merged by
+   anybody, and the only escape is editing or disabling the ruleset. Which is
+   precisely the outcome the reasoning was trying to avoid.
+
+   **This needs a decision before phase 1 lands** (see Requirements). Adding
+   `bypass_actors` for the repository admin with `bypass_mode: pull_request`
+   keeps the gate meaningful for the normal path while leaving a lever that does
+   not require dismantling it. Not doing so is also defensible for a solo
+   project — but it should be chosen, not inherited from a default nobody read.
 6. **A dismissed finding recurs.** Dismissals in code scanning are per-alert; the
    same pattern reintroduced elsewhere is a new alert. Expected, not a defect.
 7. **CodeQL's scheduled run finds something between PRs.** It lands in the
