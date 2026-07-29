@@ -137,13 +137,14 @@ func accessWarning(t domain.Target, used domain.Credential, reaching []domain.Cr
 			alternatives = append(alternatives, c.Name)
 		}
 	}
-	when := " at the last sync"
-	if live {
-		// Under --refresh the answer is current, and saying otherwise would send
-		// the operator to re-sync in search of a fresher one that does not exist.
-		when = ""
+	// Tense follows provenance. A cached answer is reported as history, because
+	// presenting week-old data in the present tense invites the reader to trust
+	// it as current; a --refresh answer was just established and should not send
+	// anyone looking for a fresher one.
+	msg := used.Name + " has no access entry on this cluster; kubectl may return Forbidden."
+	if !live {
+		msg = used.Name + " had no access entry on this cluster at the last sync; kubectl may return Forbidden."
 	}
-	msg := used.Name + " has no access entry on this cluster" + when + "; kubectl may return Forbidden."
 	if len(alternatives) > 0 {
 		msg += " " + strings.Join(alternatives, ", ") + " did have one."
 	}
@@ -208,7 +209,7 @@ func (s *SelectionService) UseTarget(ctx context.Context, ref string, opts UseTa
 		return UseTargetResult{}, err
 	}
 	reaching := credentialsFor(found, snap.Credentials)
-	accessReason := ""
+	accessReason, liveVerdict := "", false
 	if opts.Refresh {
 		live := checkAccess(ctx, s.registry, found, reaching)
 		// Two separate decisions, deliberately not one. A reason is always worth
@@ -217,16 +218,22 @@ func (s *SelectionService) UseTarget(ctx context.Context, ref string, opts UseTa
 		// perfectly good cached answer whenever the diagnostic itself fails —
 		// trading knowledge for `unknown` because a call did not come back.
 		accessReason = live.Reason
-		if live.Mode != "" {
+		if live.Conclusive() {
 			// Overrides rather than merges: two sources for one answer is how
-			// they drift apart.
+			// they drift apart. Gated on Conclusive rather than on "a mode came
+			// back", because `unavailable` is a mode and is not an answer.
 			found.AccessCheck, found.OperableCredentialIDs = live.Mode, live.Operable
+			liveVerdict = true
 		}
 	}
 
 	return UseTargetResult{
 		Target: found, Credential: cred, CredentialSource: source, LostCredentialID: lost,
-		AccessWarning: accessWarning(found, cred, reaching, opts.Refresh),
+		// Keyed on whether a verdict actually arrived, not on whether one was
+		// asked for. A refresh that could not run leaves the cached answer in
+		// place, and rendering that in the present tense is the same stale-reads-
+		// as-current mistake the tense exists to prevent.
+		AccessWarning: accessWarning(found, cred, reaching, liveVerdict),
 		AccessVerdict: found.CredentialAccess(cred.ID),
 		AccessReason:  accessReason,
 	}, nil

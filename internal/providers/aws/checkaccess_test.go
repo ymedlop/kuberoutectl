@@ -101,8 +101,17 @@ func TestCheckAccess_ConfigMapMakesNoCall(t *testing.T) {
 	if n := len(accessEntryCalls(r.Calls)); n != 0 {
 		t.Errorf("made %d calls for a CONFIG_MAP cluster, want 0", n)
 	}
-	if len(got.Operable) != 0 || got.Reason == "" {
-		t.Errorf("want no operable set and an explanation, got %+v", got)
+	// Mode without Reason: the check ran, and "entries do not apply" is the
+	// answer. Reason is reserved for a check that could not run, so setting it
+	// here made a conclusive read indistinguishable from a failure downstream.
+	if got.Mode != domain.AccessCheckConfigMap {
+		t.Errorf("Mode = %q, want %q", got.Mode, domain.AccessCheckConfigMap)
+	}
+	if len(got.Operable) != 0 {
+		t.Errorf("Operable = %v, want none — no entries exist under this mode", got.Operable)
+	}
+	if got.Reason != "" {
+		t.Errorf("Reason = %q, want empty: the check ran and concluded", got.Reason)
 	}
 }
 
@@ -167,11 +176,14 @@ func TestCheckAccess_FormatRegressionReadsDifferentlyFromRoutineSilence(t *testi
 	}
 	malformed, _ := p.CheckAccess(context.Background(), liveTarget("API"), liveCreds())
 
+	// The routine comparison is now a mode that could not be read at all, since
+	// CONFIG_MAP stopped carrying a Reason: both of these are "could not run",
+	// and only one of them is a bug.
 	p2, _ := liveProvider(t)
-	routine, _ := p2.CheckAccess(context.Background(), liveTarget("CONFIG_MAP"), liveCreds())
+	routine, _ := p2.CheckAccess(context.Background(), liveTarget(""), liveCreds())
 
 	if malformed.Reason == routine.Reason {
-		t.Fatalf("a format regression and a CONFIG_MAP cluster read identically: %q", routine.Reason)
+		t.Fatalf("a format regression and an unreadable mode read identically: %q", routine.Reason)
 	}
 	if strings.Contains(routine.Reason, "format change") {
 		t.Errorf("a routine explanation must not cry format change: %q", routine.Reason)

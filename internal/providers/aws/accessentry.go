@@ -249,7 +249,12 @@ func (p *Provider) CheckAccess(ctx context.Context, t domain.Target, creds []dom
 		// remedy matters: a sync fixes it, and nothing else will.
 		return providers.AccessCheck{Reason: "this target predates the access check — run `kuberoutectl sync aws`"}, nil
 	case mode == domain.AccessCheckConfigMap:
-		return providers.AccessCheck{Mode: mode, Reason: "the cluster uses CONFIG_MAP authentication, where access entries do not apply"}, nil
+		// Mode only, no Reason. The check ran and the mode *is* the answer —
+		// entries do not apply here — which is a different thing from a check
+		// that could not run, and callers distinguish the two by whether Reason
+		// is set. Pairing them made a successful, conclusive read look like a
+		// failure.
+		return providers.AccessCheck{Mode: mode}, nil
 	}
 
 	profile := t.Metadata["profile"]

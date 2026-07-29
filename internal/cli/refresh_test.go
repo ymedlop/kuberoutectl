@@ -136,3 +136,159 @@ func TestTargetList_NeverChecksAccess(t *testing.T) {
 		t.Errorf("target list made %d access checks, want 0", prov.calls)
 	}
 }
+
+// The full matrix of what `target use` says about access, cached and refreshed.
+//
+// The rule under test is that the flag changes *freshness*, not whether we
+// speak. Before this, a positive and an inconclusive answer were both silent
+// without --refresh, so silence meant four different things and could not be
+// read as any of them.
+func TestTargetUse_AccessIsReportedCachedAndRefreshed(t *testing.T) {
+	cases := []struct {
+		name       string
+		mode       domain.AccessCheckMode
+		reason     string
+		operable   []domain.CredentialID
+		cachedMode domain.AccessCheckMode
+		cached     []domain.CredentialID
+		profile    string
+		refresh    bool
+		wantIn     []string
+		wantNotIn  []string
+		wantEmpty  bool
+	}{
+		{
+			name: "cached admission is reported as history",
+			mode: domain.AccessCheckAPI, operable: []domain.CredentialID{"aws:ops"}, profile: "ops",
+			wantIn: []string{"ops", "held an access entry", "at the last sync"},
+		},
+		{
+			name: "refreshed admission drops the sync clause",
+			mode: domain.AccessCheckAPI, operable: []domain.CredentialID{"aws:ops"}, profile: "ops", refresh: true,
+			wantIn:    []string{"ops", "holds an access entry"},
+			wantNotIn: []string{"at the last sync"},
+		},
+		{
+			name: "cached refusal warns, in the past tense",
+			mode: domain.AccessCheckAPI, operable: []domain.CredentialID{"aws:ops"}, profile: "dev",
+			wantIn: []string{"Warning", "dev", "had no access entry", "at the last sync", "ops"},
+		},
+		{
+			name: "refreshed refusal warns without it",
+			mode: domain.AccessCheckAPI, operable: []domain.CredentialID{"aws:ops"}, profile: "dev", refresh: true,
+			wantIn:    []string{"Warning", "dev", "has no access entry"},
+			wantNotIn: []string{"at the last sync"},
+		},
+		{
+			// The case that prompted this: their fleet's mode, a profile that is
+			// not admitted, and previously nothing at all on stderr.
+			name: "refreshed inconclusive explains why, and does not read as a refusal",
+			mode: domain.AccessCheckAPIAndConfigMap, operable: []domain.CredentialID{"aws:ops"}, profile: "dev", refresh: true,
+			wantIn: []string{"Could not tell", "dev", "aws-auth"},
+		},
+		{
+			name: "refreshed inconclusive under config_map names the mode",
+			mode: domain.AccessCheckConfigMap, profile: "dev", refresh: true,
+			wantIn: []string{"Could not tell", "CONFIG_MAP"},
+		},
+		{
+			// Mode AND Reason together — the shape the real AWS provider emits
+			// when the entry list could not be fetched. The earlier fixtures never
+			// produced it, so the branch that handles it went untested while a
+			// CONFIG_MAP case that production never emits was asserted instead.
+			// `unavailable` with a NIL operable set — the shape the AWS provider
+			// really emits on a failed listing. Pairing it with an operable set,
+			// as an earlier fixture did, describes a response that cannot occur,
+			// and the branch under test was never reached.
+			//
+			// The cached verdict comes from the seeded snapshot, not from this
+			// response, which is the whole point: a check that could not run must
+			// leave what the last sync knew visible.
+			name: "a refresh that could not run keeps the cached answer visible",
+			mode: domain.AccessCheckUnavailable, reason: "profile ops may lack eks:ListAccessEntries on this cluster",
+			cached: []domain.CredentialID{"aws:ops"}, cachedMode: domain.AccessCheckAPI,
+			profile: "ops", refresh: true,
+			wantIn: []string{
+				"Could not check access entries",
+				"on this cluster.",               // the sentence is closed
+				"ops held one at the last sync.", // and the cached answer survives
+			},
+		},
+		{
+			// Silence keeps exactly one meaning: nothing was established, and you
+			// did not ask. Explaining it on every use would print a line on most
+			// clusters in a real fleet, and a message that always appears stops
+			// being read.
+			name: "cached inconclusive stays silent",
+			mode: domain.AccessCheckAPIAndConfigMap, operable: []domain.CredentialID{"aws:ops"}, profile: "dev",
+			wantEmpty: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			prov := &checkRecordingProvider{
+				stubProvider: stubProvider{id: "aws"},
+				res:          providers.AccessCheck{Mode: tc.mode, Operable: tc.operable, Reason: tc.reason},
+			}
+			a := refreshApp(t, prov)
+			// refreshApp seeds api/aws:dev; override with this case's fixture.
+			snap, err := a.store.LoadSnapshot()
+			if err != nil {
+				t.Fatalf("load: %v", err)
+			}
+			// The cache defaults to mirroring the live answer; cases that need
+			// them to differ — a refresh that could not run — set it explicitly.
+			cachedMode, cached := tc.mode, tc.operable
+			if tc.cachedMode != "" {
+				cachedMode, cached = tc.cachedMode, tc.cached
+			}
+			snap.Targets[0].AccessCheck, snap.Targets[0].OperableCredentialIDs = cachedMode, cached
+			if err := a.store.SaveSnapshot(snap); err != nil {
+				t.Fatalf("save: %v", err)
+			}
+
+			args := []string{"eks-prod", "--profile", tc.profile, "--no-kubeconfig"}
+			if tc.refresh {
+				args = append(args, "--refresh")
+			}
+			_, stderr, err := runCmdSplit(a.targetUseCmd(), args...)
+			if err != nil {
+				t.Fatalf("target use: %v", err)
+			}
+
+			if tc.wantEmpty {
+				if strings.TrimSpace(stderr) != "" {
+					t.Errorf("expected silence, got:\n%s", stderr)
+				}
+				return
+			}
+			for _, want := range tc.wantIn {
+				if !strings.Contains(stderr, want) {
+					t.Errorf("stderr %q missing %q", strings.TrimSpace(stderr), want)
+				}
+			}
+			for _, unwanted := range tc.wantNotIn {
+				if strings.Contains(stderr, unwanted) {
+					t.Errorf("stderr %q must not contain %q", strings.TrimSpace(stderr), unwanted)
+				}
+			}
+			// Nothing inconclusive may read as a refusal.
+			if strings.Contains(stderr, "Could not tell") && strings.Contains(stderr, "Warning") {
+				t.Errorf("an inconclusive answer must not be phrased as a warning: %q", stderr)
+			}
+		})
+	}
+}
+
+// A provider with no access-entry concept must stay silent even under --refresh:
+// there is no question to answer, and explaining the absence of one would invent
+// a subject.
+func TestTargetUse_RefreshOnAProviderWithNoAccessConceptIsSilent(t *testing.T) {
+	if got := describeAccessUnknown("me", ""); got != "" {
+		t.Errorf("want silence for a target with no mode, got %q", got)
+	}
+	if got := describeAccessUnknown("me", domain.AccessCheckUnavailable); got != "" {
+		t.Errorf("an unavailable check reports through AccessReason, not here; got %q", got)
+	}
+}
