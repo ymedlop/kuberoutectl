@@ -11,7 +11,7 @@ kubeconfig — from one operator-focused CLI.** `kuberoutectl` keeps a local
 inventory of your access sources, credentials, scopes, and targets, tells you
 what is valid or expired, and points `kubectl` at the right cluster.
 
-![kuberoutectl demo: sync four providers, list targets, inspect credential health, label and collect, then route kubectl](assets/demo.gif)
+![kuberoutectl demo: sync four providers, list targets with their versions, filter by which AWS profiles a cluster actually admits, inspect credential health and access entries, label and collect, then route kubectl](assets/demo.gif)
 
 ## Quickstart
 

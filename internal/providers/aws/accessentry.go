@@ -131,7 +131,7 @@ func (p *Provider) checkAccessEntries(ctx context.Context, awsBin string, group 
 	}
 
 	profile, region := group[0].Metadata["profile"], group[0].Region
-	prog.Step("checking access entries for %q (%d profiles)", cluster, len(group))
+	prog.Step("checking access entries for %q (%d profile(s))", cluster, len(group))
 
 	entries, ok, _, pErr := p.listAccessEntries(ctx, awsBin, cluster, region, profile)
 	if pErr != nil {
