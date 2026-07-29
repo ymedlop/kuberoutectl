@@ -484,18 +484,8 @@ func (a *app) targetUseCmd() *cobra.Command {
 			// whether or not stdout is being piped into something. It warns rather
 			// than blocks: the verdict is from the last sync and may be stale, and
 			// entering a cluster to diagnose exactly this is legitimate.
-			if res.AccessWarning != "" {
-				fprintln(cmd.ErrOrStderr(), "Warning:", res.AccessWarning)
-			} else if refresh {
-				// Only under --refresh, and in both directions: the operator asked
-				// whether they can operate here, and silence answers half of that.
-				// Without the flag the cached verdict speaks only when it is bad
-				// news, which is the pre-existing behaviour.
-				if res.AccessReason != "" {
-					fprintln(cmd.ErrOrStderr(), "Could not check access entries:", res.AccessReason)
-				} else if res.AccessVerdict == domain.AccessOperable {
-					fprintln(cmd.ErrOrStderr(), res.Credential.Name, "holds an access entry on this cluster.")
-				}
+			if line := describeAccess(res, refresh); line != "" {
+				fprintln(cmd.ErrOrStderr(), line)
 			}
 			if a.output == formatJSON {
 				// The bare target, as this command has always rendered. Wrapping
@@ -522,6 +512,58 @@ func (a *app) targetUseCmd() *cobra.Command {
 	cmd.Flags().StringVar(&profile, "profile", "", "go in through this credential (an AWS profile name) when several reach the target")
 	cmd.Flags().BoolVar(&refresh, "refresh", false, "re-check operability against the provider instead of using the last sync")
 	return cmd
+}
+
+// describeAccess renders what is known about the credential being used, for
+// stderr.
+//
+// One rule, and the flag does not change it: **say what is known, whatever it
+// is.** Silence means "nothing was established" and nothing else — previously it
+// also meant "admitted", "not checked" and "this provider has no such concept",
+// which made it useless as a signal.
+//
+// What --refresh changes is freshness, and whether an inconclusive answer is
+// explained. Explaining it unconditionally would print a line on every `target
+// use` in a fleet where most clusters are inconclusive, and a message that
+// always appears stops being read.
+func describeAccess(res services.UseTargetResult, refreshed bool) string {
+	switch {
+	case res.AccessWarning != "":
+		return "Warning: " + res.AccessWarning
+
+	case res.AccessReason != "":
+		// Only set by a --refresh whose check could not run.
+		return "Could not check access entries: " + res.AccessReason
+
+	case res.AccessVerdict == domain.AccessOperable:
+		if refreshed {
+			return res.Credential.Name + " holds an access entry on this cluster."
+		}
+		// Past tense on purpose: this is cache, and a positive read as current
+		// is the one a reader acts on without checking.
+		return res.Credential.Name + " held an access entry on this cluster at the last sync."
+
+	case refreshed && res.AccessVerdict == domain.AccessUnknown:
+		return describeAccessUnknown(res.Credential.Name, res.Target.AccessCheck)
+	}
+	return ""
+}
+
+// describeAccessUnknown says why a live check could not settle the question, or
+// returns "" when there is genuinely nothing to say — a target whose provider
+// has no access-entry concept at all, where explaining the absence of an answer
+// would invent a subject.
+func describeAccessUnknown(name string, mode domain.AccessCheckMode) string {
+	switch mode {
+	case domain.AccessCheckAPIAndConfigMap:
+		return "Could not tell whether " + name + " can operate here: it holds no access entry, " +
+			"and this cluster also honours aws-auth, which kuberoutectl does not read."
+	case domain.AccessCheckConfigMap:
+		return "Could not tell whether " + name + " can operate here: this cluster uses CONFIG_MAP " +
+			"authentication, where access entries do not apply."
+	default:
+		return ""
+	}
 }
 
 // describeAccessCheck explains a mode in the terms that matter to the reader:

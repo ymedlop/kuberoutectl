@@ -267,7 +267,7 @@ So kuberoutectl reports what it can establish and says nothing where it cannot:
 
 ```console
 $ kuberoutectl target use eks-prod-frankfurt --profile prod-sso
-Warning: prod-sso has no access entry on this cluster at the last sync; kubectl
+Warning: prod-sso had no access entry on this cluster at the last sync; kubectl
          may return Forbidden. ops did have one.
 Now using target: eks-prod-frankfurt (eks-prod-frankfurt) via prod-sso
 ```
@@ -291,9 +291,18 @@ Now using target: eks-prod-frankfurt (eks-prod-frankfurt)
 $ kuberoutectl target inspect eks-prod-frankfurt --refresh
 ```
 
-Under `--refresh` the answer is reported in **both** directions — an admission is
-as much of an answer as a refusal — and the warning omits "at the last sync",
-since the answer is current.
+`target use` reports whatever is known about the profile it is going in through,
+cached or refreshed. Silence means one thing only: nothing was established.
+
+| | without `--refresh` | with `--refresh` |
+|---|---|---|
+| admitted | `ops held an access entry … at the last sync.` | `ops holds an access entry on this cluster.` |
+| refused | warning, past tense | warning, present tense |
+| inconclusive | *(silent)* | explains why it cannot be settled |
+
+The flag changes freshness, and whether an inconclusive answer is spelled out.
+Most clusters in a real fleet are inconclusive, so explaining that on every
+`target use` would print a line nobody keeps reading.
 
 Without the flag nothing is called. Nothing else re-checks either —
 `target list` renders a fleet, and one call per row on every display is the cost

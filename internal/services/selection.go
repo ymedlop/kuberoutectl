@@ -137,13 +137,14 @@ func accessWarning(t domain.Target, used domain.Credential, reaching []domain.Cr
 			alternatives = append(alternatives, c.Name)
 		}
 	}
-	when := " at the last sync"
-	if live {
-		// Under --refresh the answer is current, and saying otherwise would send
-		// the operator to re-sync in search of a fresher one that does not exist.
-		when = ""
+	// Tense follows provenance. A cached answer is reported as history, because
+	// presenting week-old data in the present tense invites the reader to trust
+	// it as current; a --refresh answer was just established and should not send
+	// anyone looking for a fresher one.
+	msg := used.Name + " has no access entry on this cluster; kubectl may return Forbidden."
+	if !live {
+		msg = used.Name + " had no access entry on this cluster at the last sync; kubectl may return Forbidden."
 	}
-	msg := used.Name + " has no access entry on this cluster" + when + "; kubectl may return Forbidden."
 	if len(alternatives) > 0 {
 		msg += " " + strings.Join(alternatives, ", ") + " did have one."
 	}
