@@ -79,12 +79,20 @@ Verifiable:
 3. **`CodeQL` is not required yet.** That is the results check posted by code
    scanning, and it is phase 3 — after the deeper suite has been triaged.
 
-4. **Decide the bypass posture.** The ruleset currently configures no bypass
-   actor at all. Adding required checks to it means no one can merge a red PR
-   under any circumstances, and the only remedy is editing the ruleset itself.
-   Either add `bypass_actors` for the admin role deliberately, or record that the
-   absence is intentional. Doing neither leaves an emergency path that consists
-   of deleting the gate.
+4. **Note the bypass posture, and decide it once.** The ruleset configures no
+   bypass actor. Once checks are required, merging a red PR means disabling the
+   ruleset — which drops `deletion` and `non_fast_forward` on both branches with
+   it, until someone remembers to turn it back on.
+
+   The case that makes this real is not "I want to merge broken code": it is CI
+   being red for reasons unrelated to the change, such as a runner image bumping
+   its Go toolchain. `reproducible-build.yml` exists because that happens.
+
+   Either add `bypass_actors` for the admin role or record that its absence is
+   intentional. **Not a prerequisite for phase 1** — the ruleset can be edited on
+   any calm day, and adding a bypass later is neither harder nor more
+   constrained. For a solo repository, no bypass is defensible: the switch is
+   fine when you are the only person holding it.
 
 5. **`strict` (require branches up to date) is off.** With one maintainer and a
    squash-merge workflow it converts every merge into a rebase, for a race that

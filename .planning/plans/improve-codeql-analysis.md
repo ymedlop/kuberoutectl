@@ -67,6 +67,16 @@ exactly one way to fail.
 
 Folding them together means a failure has three candidate causes.
 
+*Corrected 2026-07-30:* an earlier revision made the bypass decision (task 0) a
+**blocking** prerequisite of phase 1, reasoning that deciding it afterwards
+meant "a second edit made under whatever pressure prompted it". That is not
+true — a ruleset can be edited on any calm day, and adding `bypass_actors` later
+is neither harder nor more constrained than adding it now. There is no
+irreversibility and no ordering constraint, so the dependency was rigour-shaped
+rather than real. It survived three rounds of review, which is worth recording:
+wrong facts get caught because they are checkable, and over-tightened reasoning
+reads as care.
+
 ### D4 — `strict` off, and stated rather than defaulted
 
 `strict_required_status_checks_policy: false` — do not require branches to be up
@@ -104,7 +114,7 @@ hold while there is one suite and no exclusions.
 
 | # | Task | Verifies |
 |---|------|----------|
-| 0 | Decide the bypass posture and apply it — `bypass_actors` is currently `[]`, so once checks are required nobody can merge a red PR and the only remedy is editing the ruleset | spec req 4 — **blocking**, because it cannot be decided after the gate closes without first reopening it |
+| 0 | Note the bypass posture: `bypass_actors` is `[]`, so once checks are required the only way to merge a red PR is disabling the ruleset — which drops `deletion` and `non_fast_forward` with it. Decide whether to add a bypass. **Not blocking** | spec req 4 |
 | 1 | Add `required_status_checks` to ruleset `18918362` with the four contexts from D2, each pinned to `integration_id` 15368, `strict: false` | spec req 1, 5 |
 | 2 | Open a throwaway PR touching only `README.md`; confirm it is **mergeable** and does **not** wait on `reproducible-build` | spec req 2, edge case 1 — the failure mode that makes the repo unmergeable |
 | 3 | On the same PR, push a commit that breaks a test; confirm the merge button is **blocked**; revert and close | spec goal 1 — the gate has never been observed to work until this is done |
@@ -166,7 +176,6 @@ produce three PRs against a file whose diff is easier to read whole.
 
 | Sequential | Depends on | Why |
 |---|---|---|
-| 1 | 0 | the bypass posture is part of the same ruleset write; deciding it afterwards means a second edit made under whatever pressure prompted it |
 | 2 | 1 | run before the rule exists, "it does not wait on `reproducible-build`" is true because **nothing** is required yet. The test passes for the wrong reason and gets ticked as having verified requirement 2 |
 | 3 | 1, 2 | there is nothing to observe until the rule exists |
 | 7 | 4 | the backlog cannot be triaged before the suite that reports it |
@@ -217,7 +226,7 @@ evidence of nothing.
 | `security-extended` reports enough to be ignored rather than triaged | Phase ordering: it does not gate anything until it is at zero, so an untriaged backlog is visible but not obstructive |
 | Fork PRs cannot produce `CodeQL` | Task 8 blocks phase 3 on establishing it |
 | Phase 1 is "done" on paper while the ruleset was never applied | The evidence table above must be filled before phase 1 is complete. Blank cells are the check; "a PR that merges anyway is the failure" was the previous mitigation and relied on someone noticing a negative |
-| No bypass exists, so a wrong context name locks the repository with no escape but editing the ruleset | Task 0 decides this deliberately; task 2 catches a wrong name on a throwaway PR before it matters |
+| No bypass exists, so a wrong context name locks the repository with no escape but disabling the ruleset | Task 2 catches a wrong name on a throwaway PR before it matters. If it is ever needed, disabling the ruleset is a switch rather than a scalpel — it drops the deletion and force-push rules too, on both branches, until someone remembers to re-enable it |
 
 ---
 
@@ -239,7 +248,10 @@ evidence of nothing.
 **Testing**
 - [x] Every spec edge case mapped, including three that are correctly *not*
       testable and say so.
-- [x] The one blocking unknown (fork behaviour) is a task that gates phase 3.
+- [x] The one blocking unknown (fork behaviour) is a task that gates phase 3 —
+      and it is blocking for a reason task 0 was not: its harm is invisible and
+      lands on contributors, where an absent bypass is visible and lands on the
+      person who chose it.
 - [x] Stated that the verification ladder does not cover phases 1 and 3, rather
       than reporting it green and implying it means something.
 
