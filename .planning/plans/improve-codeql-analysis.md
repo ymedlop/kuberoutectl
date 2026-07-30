@@ -122,7 +122,13 @@ is the signal, and it is the only one this plan has:
 | Throwaway PR (tasks 2, 3) | *(URL — leave blank until it exists)* |
 | Task 2: merged without waiting on `reproducible-build`? | *(yes / no + date)* |
 | Task 3: merge blocked while `verify` was red? | *(yes / no + date)* |
-| Ruleset revision after task 1 | *(from `gh api .../rulesets/18918362 --jq .updated_at`)* |
+| Ruleset `updated_at` after task 1 | *(must differ from the baseline below)* |
+
+Baseline, read 2026-07-30: `updated_at` is **`2026-07-15T18:52:07.376Z`** — the
+ruleset has not been touched in two weeks. Recording the baseline is what makes
+that row falsifiable: a timestamp on its own can be filled in with anything,
+while "differs from 2026-07-15T18:52:07.376Z" cannot be satisfied without the
+write having happened.
 
 Prose describing an audit trail is not an audit trail. An earlier revision of
 this plan said "the PR URL is the evidence" without saying where it goes, which
