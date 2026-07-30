@@ -117,12 +117,16 @@ did it.
 **Record it here.** Fill this table before marking phase 1 complete; a blank cell
 is the signal, and it is the only one this plan has:
 
-| Evidence | Value |
-|---|---|
-| Throwaway PR (tasks 2, 3) | *(URL — leave blank until it exists)* |
-| Task 2: merged without waiting on `reproducible-build`? | *(yes / no + date)* |
-| Task 3: merge blocked while `verify` was red? | *(yes / no + date)* |
-| Ruleset `updated_at` after task 1 | *(must differ from the baseline below)* |
+Every row records a **commit SHA or a timestamp**, never a yes/no. A yes/no is
+satisfiable by typing it; a SHA is a handle anyone can re-derive the answer from,
+a year later, without asking whoever filled it in.
+
+| Evidence | Value | How anyone re-checks it |
+|---|---|---|
+| Throwaway PR (tasks 2, 3) | *(URL)* | open it |
+| Task 2 — the clean commit | *(SHA)* | `gh api repos/ymedlop/kuberoutectl/commits/<SHA>/check-runs --jq '[.check_runs[].name]'` must **not** contain `reproducible-build` |
+| Task 3 — the breaking commit | *(SHA)* | the same call must show `verify` with `conclusion: failure`, which is what the merge was blocked on |
+| Ruleset `updated_at` after task 1 | *(timestamp)* | must differ from the baseline below |
 
 Baseline, read 2026-07-30: `updated_at` is **`2026-07-15T18:52:07.376Z`** — the
 ruleset has not been touched in two weeks. Recording the baseline is what makes
