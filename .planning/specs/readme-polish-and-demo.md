@@ -1,7 +1,7 @@
 # Spec: README polish + demo GIF
 
 **Created**: 2026-07-20
-**Status**: draft
+**Status**: shipped in #73
 **Author**: Yeray Medina López
 **Epic**: none
 

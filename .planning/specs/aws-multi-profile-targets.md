@@ -1,7 +1,7 @@
 # Spec: AWS multi-profile targets
 
 **Created**: 2026-07-27
-**Status**: draft
+**Status**: shipped in #109 + #110
 **Author**: Yeray Medina López
 **Epic**: none
 **Target release**: 1.2.0

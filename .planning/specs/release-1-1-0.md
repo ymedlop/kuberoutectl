@@ -1,7 +1,7 @@
 # Spec: Release v1.1.0 — MCP server + provider diagnostics
 
 **Created**: 2026-07-26
-**Status**: draft
+**Status**: shipped in #102
 **Author**: Yeray Medina López
 **Epic**: none
 

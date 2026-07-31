@@ -3,7 +3,7 @@
 **Spec**: `.planning/specs/release-1-1-0.md`
 **Epic**: none
 **Created**: 2026-07-26
-**Status**: draft
+**Status**: shipped in #102
 
 ---
 

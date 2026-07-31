@@ -1,7 +1,7 @@
 # Spec: MCP server for kuberoutectl
 
 **Created**: 2026-07-24
-**Status**: draft
+**Status**: shipped in #98
 **Author**: Yeray Medina López
 **Epic**: none
 **Issue**: https://github.com/ymedlop/kuberoutectl/issues/44

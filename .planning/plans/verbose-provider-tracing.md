@@ -3,7 +3,7 @@
 **Spec**: .planning/specs/verbose-provider-tracing.md
 **Epic**: none
 **Created**: 2026-07-24
-**Status**: draft
+**Status**: shipped in #99
 **Stack**: Go CLI (Cobra + layered services/providers/execx)
 
 ---

@@ -3,7 +3,7 @@
 **Spec**: `.planning/specs/aws-access-entry-operability.md`
 **Epic**: none
 **Created**: 2026-07-27
-**Status**: draft
+**Status**: shipped in #112, #116, #117, #118, #121
 **Target release**: 1.2.0
 **Builds on**: #109 (the fold) and #110 (`--profile` selection), both merged
 

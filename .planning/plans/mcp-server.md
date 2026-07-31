@@ -4,7 +4,7 @@
 **Epic**: none
 **Issue**: https://github.com/ymedlop/kuberoutectl/issues/44
 **Created**: 2026-07-24
-**Status**: draft
+**Status**: shipped in #98
 **Stack**: Go (Cobra CLI + layered services); new dep: official MCP Go SDK
 
 ---

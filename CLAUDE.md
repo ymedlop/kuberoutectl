@@ -111,6 +111,17 @@ assertion. Injection is the only check that finds them.
   the branch-off-`main` recipe in `RELEASING.md` (§Promoting development to main).
 - Read `README.md` and `ARCHITECTURE.md` before major changes; evolving
   implementation prompts live in `prompts/claude-code/`.
+- **`.planning/` travels with the code.** A feature's spec and plan belong in
+  the same PR as the implementation, so they cannot land late or not at all.
+  Split onto their own branch once, the spec never got pushed while the feature
+  shipped without it. A standalone docs PR is only for work with no
+  implementation to ride along with — a ruleset change, a process decision.
+- **A shipped spec says so.** On merge, set `**Status**: shipped in #NNN`, and
+  amend the body *in place* rather than stacking a correction onto text it now
+  contradicts. Until this rule, all seven merged specs still read `draft` while
+  describing shipped behaviour. The usual reader of `.planning/` is the next
+  agent session, and `draft` reads as live intent — near enough to current to
+  be cited as precedent, which is a fabrication with a citation attached.
 - Report honestly: failing tests are reported with output, skipped steps are
   named, sandbox limitations are stated as caveats, not hidden.
 

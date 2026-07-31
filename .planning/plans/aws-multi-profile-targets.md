@@ -3,7 +3,7 @@
 **Spec**: `.planning/specs/aws-multi-profile-targets.md`
 **Epic**: none
 **Created**: 2026-07-27
-**Status**: draft
+**Status**: shipped in #109 + #110
 **Target release**: 1.2.0
 
 ## Stack note
