@@ -1,7 +1,7 @@
 # Spec: improve CodeQL analysis
 
 **Created**: 2026-07-29
-**Status**: phase 1 done (ruleset gated + verified); phases 2 and 3 open
+**Status**: phases 1 and 2 done; phase 3 blocked on the fork question (task 8)
 **Author**: Yeray Medina López
 **Epic**: none
 **Target release**: 1.2.0
