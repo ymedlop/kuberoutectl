@@ -3,7 +3,7 @@
 **Spec**: `.planning/specs/improve-codeql-analysis.md`
 **Epic**: none
 **Created**: 2026-07-29
-**Status**: phase 1 done (ruleset gated + verified); phases 2 and 3 open
+**Status**: phases 1 and 2 done; phase 3 blocked on the fork question (task 8)
 **Target release**: 1.2.0
 
 ## Stack note
@@ -186,6 +186,30 @@ left the requirement satisfiable by agreeing with it.
 
 Tasks 4–6 are one commit: same file, one logical change, and splitting them would
 produce three PRs against a file whose diff is easier to read whole.
+
+**Phase 2 evidence** (PR #131, observed 2026-07-31):
+
+| Evidence | Value | How anyone re-checks it |
+|---|---|---|
+| Both legs pass under the deeper suite | `Analyze (go)` and `Analyze (actions)` both `success` | `gh api repos/ymedlop/kuberoutectl/commits/<SHA>/check-runs` |
+| Task 7 — the backlog | **0 open alerts**, on `refs/pull/131/merge` and repo-wide | `gh api 'repos/ymedlop/kuberoutectl/code-scanning/alerts?state=open'` |
+
+Two things this settled that the plan had left open:
+
+- **The `actions` language does ship a `security-extended` suite.** `queries:`
+  applies to both matrix legs, and it was not confirmed beforehand that the
+  newer `actions` pack defines the suite. It does; `Analyze (actions)` passed.
+- **Task 7 is satisfied trivially.** `security-extended` reported nothing to
+  triage. Worth stating plainly rather than as a win: this is a small Go CLI
+  that shells out to provider binaries through `execx` instead of parsing
+  untrusted input, and its own rule forbids network calls outside
+  `internal/cli`. That is close to the shape a security suite has least to say
+  about — the empty result describes the codebase, not the suite's depth.
+
+Phase 3 is therefore unblocked on findings, and still blocked on task 8: whether
+a **fork** PR produces the `CodeQL` check. Every PR observed so far came from a
+branch in this repository, which says nothing about forks — the permissions
+differ, and that is the whole question.
 
 ### Phase 3 — gate on CodeQL (depends on 1 and 7)
 
