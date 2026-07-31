@@ -2,7 +2,7 @@
 
 **Spec**: `.planning/specs/access-check-on-use.md`
 **Created**: 2026-07-28
-**Status**: draft
+**Status**: shipped in #117, #118, #121
 **Target release**: 1.2.0
 **Builds on**: #112 (the check), #116 (the listing columns)
 
