@@ -80,9 +80,9 @@ func AccessVerdictFor(listed bool, check AccessCheckMode) AccessVerdict {
 func (v AccessVerdict) SelectorValue() string {
 	switch v {
 	case AccessOperable:
-		return "true"
-	case AccessNotOperable:
 		return "false"
+	case AccessNotOperable:
+		return "true"
 	default:
 		return "unknown"
 	}
