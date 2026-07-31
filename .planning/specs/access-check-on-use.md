@@ -1,7 +1,7 @@
 # Spec: live access check on `target use` and `target inspect`
 
 **Created**: 2026-07-28
-**Status**: draft
+**Status**: shipped in #117, #118, #121
 **Author**: Yeray Medina López
 **Epic**: none
 **Target release**: v1.2.0
