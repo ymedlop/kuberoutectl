@@ -1,7 +1,7 @@
 # Spec: Verbose provider CLI tracing + AWS expired-token visibility
 
 **Created**: 2026-07-24
-**Status**: draft
+**Status**: shipped in #99
 **Author**: Yeray Medina López
 **Epic**: none
 

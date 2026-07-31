@@ -3,7 +3,7 @@
 **Spec**: .planning/specs/readme-polish-and-demo.md
 **Epic**: none
 **Created**: 2026-07-20
-**Status**: draft
+**Status**: shipped in #73
 **Stack**: Go CLI repo — but this task is **docs + tooling** (Markdown, shell, a
 vhs tape). No Go code changes. Phase structure is asset → docs → verify, not
 DB→API→UI.

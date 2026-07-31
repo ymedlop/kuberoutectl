@@ -2,7 +2,7 @@
 
 **Spec**: `.planning/specs/update-check-on-demand.md`
 **Created**: 2026-07-28
-**Status**: draft
+**Status**: shipped in #114
 **Target release**: 1.2.0
 
 ## Stack note

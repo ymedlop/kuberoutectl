@@ -1,7 +1,7 @@
 # Spec: on-demand update check
 
 **Created**: 2026-07-26 (rewritten 2026-07-28)
-**Status**: draft
+**Status**: shipped in #114
 **Author**: Yeray Medina López
 **Epic**: none
 **Target release**: v1.2.0

@@ -3,7 +3,7 @@
 **Spec**: none (planned from the request "landing page has too much information")
 **Epic**: none
 **Created**: 2026-07-21
-**Status**: draft
+**Status**: shipped in #83
 **Stack**: docs only — one Jekyll page (`docs/index.md`). No code, no CSS change.
 
 ## Goal

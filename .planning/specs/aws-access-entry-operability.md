@@ -1,7 +1,7 @@
 # Spec: AWS access-entry operability
 
 **Created**: 2026-07-27
-**Status**: draft
+**Status**: shipped in #112, #116, #117, #118, #121
 **Author**: Yeray Medina López
 **Epic**: none
 **Target release**: 1.2.0
