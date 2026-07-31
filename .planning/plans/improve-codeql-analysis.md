@@ -3,7 +3,7 @@
 **Spec**: `.planning/specs/improve-codeql-analysis.md`
 **Epic**: none
 **Created**: 2026-07-29
-**Status**: draft
+**Status**: phase 1 done (ruleset gated + verified); phases 2 and 3 open
 **Target release**: 1.2.0
 
 ## Stack note
@@ -133,10 +133,37 @@ a year later, without asking whoever filled it in.
 
 | Evidence | Value | How anyone re-checks it |
 |---|---|---|
-| Throwaway PR (tasks 2, 3) | *(URL)* | open it |
-| Task 2 — the clean commit | *(SHA)* | `gh api repos/ymedlop/kuberoutectl/commits/<SHA>/check-runs --jq '[.check_runs[].name]'` must **not** contain `reproducible-build` |
-| Task 3 — the breaking commit | *(SHA)* | the same call must show `verify` with `conclusion: failure`, which is what the merge was blocked on |
-| Ruleset `updated_at` after task 1 | *(timestamp)* | must differ from the baseline below |
+| Throwaway PR (tasks 2, 3) | [#129](https://github.com/ymedlop/kuberoutectl/pull/129), closed unmerged | open it |
+| Task 2 — the clean commit | `679439b7ef1f675f7637983790b582ba559e2afc` | `gh api repos/ymedlop/kuberoutectl/commits/<SHA>/check-runs --jq '[.check_runs[].name]'` must **not** contain `reproducible-build` |
+| Task 3 — the breaking commit | `62d924bb62b1fc61d0093bc5f2c6c829537bd29d` | the same call must show `verify` with `conclusion: failure`, which is what the merge was blocked on |
+| Ruleset `updated_at` after task 1 | `2026-07-31T14:17:59.776Z` | must differ from the baseline below |
+
+Observed on 2026-07-31, in this order:
+
+- On `679439b` — a README-only diff — the check set was exactly
+  `Analyze (actions)`, `Analyze (go)`, `CodeQL`, `goreleaser-check`, `verify`.
+  `reproducible-build` is absent, so the path filter holds and requiring it
+  would have hung this PR forever. `mergeStateStatus` moved `BLOCKED → CLEAN`
+  as the checks landed.
+- On `62d924b` — `AccessVerdict.SelectorValue` inverted so `true`/`false` swap
+  — `verify` reported `failure` and `mergeStateStatus` stayed `BLOCKED` with
+  **zero checks pending**. Pending-zero is the load-bearing part: it separates
+  "blocked because a check failed" from "blocked because something never
+  reported", which look identical in the UI.
+
+Note `mergeable` stays `MERGEABLE` in both cases. That field is git-level
+(no conflicts) and says nothing about the ruleset; `mergeStateStatus` is the one
+that moves. Reading the wrong field would have shown the gate passing while it
+did nothing.
+
+Task 0 resolved by the repository owner: `bypass_actors` stays `[]`. The escape
+hatch for a red PR remains disabling the ruleset, which drops `deletion` and
+`non_fast_forward` with it until re-enabled.
+
+One difference from what this plan proposed: `do_not_enforce_on_create` is
+`true`, not `false`. It only governs branch/tag *creation*, and both target
+branches already exist, so it changes nothing here — recorded so the drift is
+not mistaken later for a mis-set field.
 
 Baseline, read 2026-07-30: `updated_at` is **`2026-07-15T18:52:07.376Z`** — the
 ruleset has not been touched in two weeks. Recording the baseline is what makes
