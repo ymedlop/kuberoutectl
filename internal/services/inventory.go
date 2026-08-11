@@ -102,9 +102,17 @@ func (s *CredentialService) Renew(ctx context.Context, id domain.CredentialID) e
 }
 
 // TargetService lists and inspects Kubernetes targets.
-type TargetService struct{ store cache.CacheStore }
+// TargetService reads and organizes the target inventory. The registry is only
+// needed for the live access check (ResolveWithAccessCheck) and may be nil —
+// every other method is a pure cache projection and makes no external call.
+type TargetService struct {
+	store    cache.CacheStore
+	registry *providers.Registry
+}
 
-func NewTargetService(store cache.CacheStore) *TargetService { return &TargetService{store: store} }
+func NewTargetService(store cache.CacheStore, reg *providers.Registry) *TargetService {
+	return &TargetService{store: store, registry: reg}
+}
 
 // TargetFilter narrows a target listing. A zero value matches everything except
 // hidden targets (see IncludeHidden).
@@ -128,6 +136,14 @@ func (s *TargetService) all() ([]domain.Target, error) {
 	if err != nil {
 		return nil, err
 	}
+	return s.decorate(snap)
+}
+
+// decorate turns a loaded snapshot's targets into the read-time view: a fresh
+// copy with aliases and visibility applied. Split out of all() so callers that
+// need the snapshot's credentials too can share one read with it rather than
+// loading the file again.
+func (s *TargetService) decorate(snap domain.InventorySnapshot) ([]domain.Target, error) {
 	targets := make([]domain.Target, len(snap.Targets))
 	copy(targets, snap.Targets)
 	AssignAliases(targets)
@@ -147,6 +163,13 @@ func (s *TargetService) List(f TargetFilter) ([]domain.Target, error) {
 	if err != nil {
 		return nil, err
 	}
+	targets = applyTargetFilter(targets, f)
+	return targets, nil
+}
+
+// applyTargetFilter narrows a decorated target set. Shared by List and
+// ListWithCredentials so the two can never disagree about what a filter means.
+func applyTargetFilter(targets []domain.Target, f TargetFilter) []domain.Target {
 	if f.Provider != "" {
 		kept := make([]domain.Target, 0, len(targets))
 		for _, t := range targets {
@@ -168,7 +191,7 @@ func (s *TargetService) List(f TargetFilter) ([]domain.Target, error) {
 		}
 		targets = kept
 	}
-	return targets, nil
+	return targets
 }
 
 // selectorConstrainsVisibility reports whether the selector already filters on a
@@ -201,6 +224,71 @@ func (s *TargetService) Resolve(ref string) (domain.Target, error) {
 		return domain.Target{}, err
 	}
 	return ResolveTargetRef(targets, ref)
+}
+
+// TargetWithCredentials pairs a target with the credentials that can reach it,
+// primary first. Health per credential is joined from the snapshot on read
+// rather than copied onto the target, so there is no second copy to drift —
+// the same rule the target's own Health follows.
+type TargetWithCredentials struct {
+	Target      domain.Target       `json:"target"`
+	Credentials []domain.Credential `json:"credentials"`
+	// AccessReason explains why a live check could not conclude, and is empty
+	// both when it did and when none was asked for.
+	AccessReason string `json:"access_reason,omitempty"`
+}
+
+// CredentialNames renders the reaching credentials for display, primary first.
+func (t TargetWithCredentials) CredentialNames() []string {
+	out := make([]string, 0, len(t.Credentials))
+	for _, c := range t.Credentials {
+		out = append(out, c.Name)
+	}
+	return out
+}
+
+// ResolveWithCredentials resolves a target reference and joins in every
+// credential that can reach it.
+//
+// The snapshot is read once and both halves derive from it. Loading separately
+// for the target and for the credentials would let a concurrent `sync` land
+// between the two reads, joining one generation's targets against another's
+// credentials.
+func (s *TargetService) ResolveWithCredentials(ref string) (TargetWithCredentials, error) {
+	snap, err := s.store.LoadSnapshot()
+	if err != nil {
+		return TargetWithCredentials{}, err
+	}
+	targets, err := s.decorate(snap)
+	if err != nil {
+		return TargetWithCredentials{}, err
+	}
+	t, err := ResolveTargetRef(targets, ref)
+	if err != nil {
+		return TargetWithCredentials{}, err
+	}
+	return TargetWithCredentials{Target: t, Credentials: credentialsFor(t, snap.Credentials)}, nil
+}
+
+// ListWithCredentials is List plus the credential join, for callers that need
+// to show how each target is reached. Same single-read rule as
+// ResolveWithCredentials.
+func (s *TargetService) ListWithCredentials(f TargetFilter) ([]TargetWithCredentials, error) {
+	snap, err := s.store.LoadSnapshot()
+	if err != nil {
+		return nil, err
+	}
+	targets, err := s.decorate(snap)
+	if err != nil {
+		return nil, err
+	}
+	targets = applyTargetFilter(targets, f)
+
+	out := make([]TargetWithCredentials, 0, len(targets))
+	for _, t := range targets {
+		out = append(out, TargetWithCredentials{Target: t, Credentials: credentialsFor(t, snap.Credentials)})
+	}
+	return out, nil
 }
 
 // Delete removes the target matching ref (id, alias, or name) from the cached
@@ -249,4 +337,69 @@ func (s *TargetService) Clear() (int, error) {
 		return 0, err
 	}
 	return n, nil
+}
+
+// checkAccess asks a target's provider, live, which of the given credentials it
+// admits from inside.
+//
+// One function rather than one per caller: `target use` and `target inspect`
+// need the same call with the same inputs, and two entry points is how their
+// answers eventually stop agreeing.
+//
+// A provider that cannot be reached at all — no registry, no such provider, or
+// no such capability — yields the zero AccessCheck. Callers therefore never
+// branch on provider identity, which is what keeps this layer provider-agnostic,
+// and "not attempted" and "this provider has no such concept" are deliberately
+// the same value: neither tells you anything about the target.
+//
+// A provider that answers with an *error* is different, and callers must treat
+// it as such: it yields a Reason but no Mode, meaning "there is something to
+// report, and nothing to substitute". Blanking a cached verdict because the
+// diagnostic failed would replace knowledge with `unknown`.
+func checkAccess(ctx context.Context, reg *providers.Registry, t domain.Target, creds []domain.Credential) providers.AccessCheck {
+	if reg == nil {
+		return providers.AccessCheck{}
+	}
+	p, ok := reg.Get(t.ProviderID)
+	if !ok {
+		return providers.AccessCheck{}
+	}
+	checker, ok := p.(providers.AccessChecker)
+	if !ok {
+		return providers.AccessCheck{}
+	}
+	res, err := checker.CheckAccess(ctx, t, creds)
+	if err != nil {
+		// A provider signalling a caller mistake. Surfaced as a reason rather than
+		// propagated: no command should fail because a diagnostic could not be
+		// produced.
+		return providers.AccessCheck{Reason: err.Error()}
+	}
+	return res
+}
+
+// ResolveWithAccessCheck is ResolveWithCredentials plus a live operability
+// check, replacing whatever the last sync established.
+//
+// A separate method rather than a boolean on ResolveWithCredentials: a bare
+// `true` at a call site says nothing about what it selects, and these two differ
+// in whether they touch the network — which is exactly the kind of thing a
+// reader should not have to look up.
+func (s *TargetService) ResolveWithAccessCheck(ctx context.Context, ref string) (TargetWithCredentials, error) {
+	joined, err := s.ResolveWithCredentials(ref)
+	if err != nil {
+		return TargetWithCredentials{}, err
+	}
+	live := checkAccess(ctx, s.registry, joined.Target, joined.Credentials)
+	// A reason is always worth reporting; a verdict is only worth *substituting*
+	// when one was established. See UseTarget for why those are not one decision.
+	joined.AccessReason = live.Reason
+	if live.Conclusive() {
+		// Override rather than merge: two sources for one answer is how they
+		// drift. See AccessCheck.Conclusive: `unavailable` is a mode but not an
+		// answer, and must not blank what the last sync established.
+		joined.Target.AccessCheck = live.Mode
+		joined.Target.OperableCredentialIDs = live.Operable
+	}
+	return joined, nil
 }

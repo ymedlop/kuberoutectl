@@ -78,13 +78,29 @@ func (h *handler) listTargets(_ context.Context, _ *mcp.CallToolRequest, in List
 
 type GetTargetInput struct {
 	Ref string `json:"ref" jsonschema:"target reference: full id, alias, or name"`
+	// Refresh mirrors the CLI's `target inspect --refresh`: same name, same
+	// default, same meaning, so a client and a human are never told different
+	// things about the same cluster. Off by default because an agent may poll
+	// this tool, and every other read tool here is a pure cache projection.
+	Refresh bool `json:"refresh,omitempty" jsonschema:"re-check operability against the provider instead of using the last sync (default false)"`
 }
 type GetTargetOutput struct {
 	Target domain.Target `json:"target"`
 }
 
-func (h *handler) getTarget(_ context.Context, _ *mcp.CallToolRequest, in GetTargetInput) (*mcp.CallToolResult, GetTargetOutput, error) {
-	t, err := h.d.Targets.Resolve(in.Ref)
+func (h *handler) getTarget(ctx context.Context, _ *mcp.CallToolRequest, in GetTargetInput) (*mcp.CallToolResult, GetTargetOutput, error) {
+	// ResolveWithCredentials, not Resolve: the plain Resolve is shared with the
+	// three `target label` commands, and teaching it to check access would give
+	// them a cloud call none of them asked for.
+	joined, err := services.TargetWithCredentials{}, error(nil)
+	if in.Refresh {
+		joined, err = h.d.Targets.ResolveWithAccessCheck(ctx, in.Ref)
+	} else {
+		// ResolveWithAccessCheck calls this itself, so the two are exclusive:
+		// running both would load the snapshot twice for one request.
+		joined, err = h.d.Targets.ResolveWithCredentials(in.Ref)
+	}
+	t := joined.Target
 	if err != nil {
 		return nil, GetTargetOutput{}, err
 	}

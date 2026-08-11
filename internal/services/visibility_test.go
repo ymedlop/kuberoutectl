@@ -21,7 +21,7 @@ func TestVisibilityService_HideUnhideByRef(t *testing.T) {
 		t.Fatalf("hidden set = %v", ids)
 	}
 	// Now the default list drops it.
-	list, _ := NewTargetService(store).List(TargetFilter{})
+	list, _ := NewTargetService(store, nil).List(TargetFilter{})
 	if contains(targetIDs(list), "aws:eks-1") {
 		t.Errorf("hidden target still in default list")
 	}
@@ -56,7 +56,7 @@ func TestVisibilityService_HideBySelectorIsBulkAndIdempotent(t *testing.T) {
 		t.Fatalf("hidden set should have 2 unique IDs, got %v", ids)
 	}
 	// azure target untouched, aws ones hidden.
-	list, _ := NewTargetService(store).List(TargetFilter{})
+	list, _ := NewTargetService(store, nil).List(TargetFilter{})
 	if !contains(targetIDs(list), "azure:aks-1") {
 		t.Errorf("azure target wrongly hidden")
 	}
@@ -89,7 +89,7 @@ func TestVisibilityService_OrphanHiddenIDPersists(t *testing.T) {
 	store := newMemStore()
 	store.hidden = []domain.TargetID{"aws:ghost"}
 	// No targets in the snapshot; listing must not choke.
-	if _, err := NewTargetService(store).List(TargetFilter{}); err != nil {
+	if _, err := NewTargetService(store, nil).List(TargetFilter{}); err != nil {
 		t.Fatalf("List with orphan hidden ID: %v", err)
 	}
 	if ids, _ := store.LoadHiddenTargets(); len(ids) != 1 {

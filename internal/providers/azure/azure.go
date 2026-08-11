@@ -128,6 +128,12 @@ func (p *Provider) Discover(ctx context.Context, in providers.DiscoveryInput) (p
 		}
 		clusters, pErr := parseAKSClusters(clustersOut)
 		if pErr != nil {
+			// Resilient like the command failure above — one malformed
+			// subscription must not sink the whole sync — but never silent. The
+			// command succeeded, so --verbose shows nothing wrong either, and
+			// without this an az output-format change would read as "this
+			// subscription has no clusters".
+			prog.Step("could not parse the cluster list for subscription %q (%v) — possible az CLI format change; skipping this subscription", acc.Name, pErr)
 			continue
 		}
 		res.Targets = append(res.Targets, buildTargets(acc, clusters, health, action, now)...)

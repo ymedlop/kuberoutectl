@@ -1,0 +1,10 @@
+{
+  "url": "https://api.github.com/repos/ymedlop/kuberoutectl/releases/223344",
+  "html_url": "https://github.com/ymedlop/kuberoutectl/releases/tag/v1.2.0",
+  "tag_name": "v1.2.0",
+  "name": "v1.2.0",
+  "draft": false,
+  "prerelease": false,
+  "created_at": "2026-07-28T09:00:00Z",
+  "published_at": "2026-07-28T09:15:00Z"
+}

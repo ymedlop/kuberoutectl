@@ -88,6 +88,10 @@ func (p *Provider) Discover(ctx context.Context, in providers.DiscoveryInput) (p
 
 	res := providers.DiscoveryResult{}
 	scopeSeen := map[domain.ScopeID]bool{}
+	// Each profile's identity, reduced to the form an access entry can be
+	// compared against. Collected here because the access-entry check runs after
+	// the per-profile loop, by which point the STS responses are gone.
+	principalKeys := map[domain.CredentialID]string{}
 
 	for i, profile := range profiles {
 		res.Sources = append(res.Sources, buildSource(profile, now))
@@ -113,6 +117,7 @@ func (p *Provider) Discover(ctx context.Context, in providers.DiscoveryInput) (p
 		if stsErr != nil || identity.Account == "" {
 			continue // unusable identity: no scope, no targets
 		}
+		principalKeys[credentialID(profile)] = principalKey(identity.Arn)
 		if scope, ok := buildScope(identity.Account); ok && !scopeSeen[scope.ID] {
 			scopeSeen[scope.ID] = true
 			res.Scopes = append(res.Scopes, scope)
@@ -123,32 +128,89 @@ func (p *Provider) Discover(ctx context.Context, in providers.DiscoveryInput) (p
 			continue // cannot list regional EKS without a region
 		}
 		prog.Step("listing EKS clusters for profile %q in %s", profile, region)
-		res.Targets = append(res.Targets, p.discoverClusters(ctx, awsBin, profile, region, identity, health, action, now)...)
+		res.Targets = append(res.Targets, p.discoverClusters(ctx, awsBin, profile, region, identity, health, action, now, prog)...)
 	}
 
+	// Several profiles into one account see the same cluster, and an EKS ARN is
+	// account-scoped — so the per-profile targets above can share an ID. Group
+	// them, ask which profiles the cluster actually admits, then fold each group
+	// into one target.
+	//
+	// The check sits between the two halves on purpose: its answer feeds the
+	// ranking, which the fold performs. Folding first and re-ranking afterwards
+	// is impossible — the fold keeps the winner's own struct and discards the
+	// losing candidates'.
+	//
+	// Every cluster is checked, not only those several profiles reach. The
+	// original bound reasoned that with one way in there is nothing to choose,
+	// which is true — but there is still something to know: whether that one way
+	// in will be refused. A fleet where each cluster has a single profile got no
+	// verdict at all under the old rule, which is most of the value of having the
+	// check. `CONFIG_MAP` clusters still cost nothing, since the mode comes from
+	// the describe response already in hand.
+	groups := groupTargetsByID(res.Targets)
+	folded := make([]domain.Target, 0, len(groups))
+	checked := 0
+	for _, group := range groups {
+		access, cErr := p.checkAccessEntries(ctx, awsBin, group, principalKeys, prog)
+		if cErr != nil {
+			return providers.DiscoveryResult{}, cErr
+		}
+		// Counting the clusters an entry list was actually fetched for, not the
+		// ones a verdict was reached about: a CONFIG_MAP cluster yields a verdict
+		// from the describe response already in hand and costs nothing, so
+		// including it would overstate what the sync spent.
+		switch access.check {
+		case domain.AccessCheckAPI, domain.AccessCheckAPIAndConfigMap, domain.AccessCheckUnavailable:
+			checked++
+		}
+		folded = append(folded, foldGroup(group, access))
+	}
+	res.Targets = folded
+
 	sort.Slice(res.Targets, func(i, j int) bool { return res.Targets[i].ID < res.Targets[j].ID })
-	prog.Step("discovered %d cluster(s)", len(res.Targets))
+	prog.Step("discovered %d cluster(s); listed access entries for %d", len(res.Targets), checked)
 	return res, nil
 }
 
 // discoverClusters lists and describes EKS clusters for one profile/region.
-func (p *Provider) discoverClusters(ctx context.Context, awsBin, profile, region string, identity awsIdentity, health domain.AccessHealth, action domain.ActionHint, now time.Time) []domain.Target {
+//
+// The two calls fail for different reasons, and the difference is the whole
+// reason reachability is knowable: eks:ListClusters takes no cluster in its
+// request, so IAM cannot scope it below account/region, while
+// eks:DescribeCluster names the cluster in its resource ARN and IAM does scope
+// it per cluster. So a profile that lists everything may still be denied on
+// individual clusters — which is exactly how a fleet with no documented access
+// pattern gets mapped. Each denial is reported through prog rather than
+// silently skipped: that step output is the access map.
+func (p *Provider) discoverClusters(ctx context.Context, awsBin, profile, region string, identity awsIdentity, health domain.AccessHealth, action domain.ActionHint, now time.Time, prog providers.Progress) []domain.Target {
 	listOut, _, err := p.runner.Run(ctx, awsBin, "eks", "list-clusters", "--profile", profile, "--region", region, "--output", "json")
 	if err != nil {
 		return nil
 	}
 	names, err := parseEKSList(listOut)
 	if err != nil {
+		// Resilient like the command failure above — one profile's unreadable
+		// listing must not sink the whole sync — but never silent. The command
+		// succeeded, so `--verbose` shows nothing wrong either, and without this
+		// an aws CLI output-format change reads as "you have no clusters".
+		prog.Step("could not parse the cluster list for profile %q in %s (%v) — possible aws CLI format change; skipping this profile", profile, region, err)
 		return nil
 	}
 	var targets []domain.Target
 	for _, name := range names {
 		descOut, _, derr := p.runner.Run(ctx, awsBin, "eks", "describe-cluster", "--profile", profile, "--region", region, "--name", name, "--output", "json")
 		if derr != nil {
+			prog.Step("profile %q cannot describe cluster %q in %s — skipping it for this profile", profile, name, region)
 			continue
 		}
 		cluster, perr := parseEKSDescribe(descOut)
 		if perr != nil {
+			// Deliberately worded differently from the access denial above: that
+			// one is routine in a fleet with uneven permissions, this one is a
+			// format regression worth investigating. Same wording for both would
+			// bury the rare case in the common one.
+			prog.Step("could not parse the description of cluster %q for profile %q (%v) — possible aws CLI format change; skipping this cluster", name, profile, perr)
 			continue
 		}
 		targets = append(targets, buildTarget(profile, region, identity, cluster, health, action, now))

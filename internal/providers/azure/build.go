@@ -99,6 +99,10 @@ func buildTargets(acc azAccount, clusters []azCluster, health domain.AccessHealt
 			domain.LabelSource:   string(sourceID),
 			domain.LabelPlatform: "aks",
 			domain.LabelHealth:   string(health),
+			// Set in every provider, not only where several credentials can reach a
+			// target: a system label one provider leaves unset makes a selector on
+			// it silently return "no match" instead of "not implemented".
+			domain.LabelCredential: acc.User.Name,
 		}
 		if c.Location != "" {
 			sys[domain.LabelRegion] = c.Location

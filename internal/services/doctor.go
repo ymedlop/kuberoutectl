@@ -29,6 +29,11 @@ type Check struct {
 // DoctorService inspects local prerequisites: which registered providers have
 // their required CLI resolvable. It does not attempt discovery or network
 // calls — it only answers "is the environment set up".
+//
+// That is a promise about this type, not about the `doctor` command: internal/cli
+// appends further checks to what Run returns, including a network-based update
+// check. A new consumer of this service therefore inherits no outbound request
+// unless it opts in by composing one itself.
 type DoctorService struct {
 	registry *providers.Registry
 	resolver execx.BinaryResolver

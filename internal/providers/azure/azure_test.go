@@ -83,6 +83,15 @@ func TestMapHealth(t *testing.T) {
 // command outputs, with a fixed clock that makes the token look valid.
 func newFakeAzProvider(t *testing.T) *Provider {
 	t.Helper()
+	p, _ := newFakeAzProviderWithRunner(t)
+	return p
+}
+
+// newFakeAzProviderWithRunner is newFakeAzProvider plus its runner, for tests
+// that need to break one canned response. Shares the one builder rather than
+// forking a partial copy.
+func newFakeAzProviderWithRunner(t *testing.T) (*Provider, *execx.FakeRunner) {
+	t.Helper()
 	runner := execx.NewFakeRunner()
 	runner.Responses["az account list --output json"] = execx.FakeResponse{Stdout: readFixture(t, "account-list.json")}
 	runner.Responses["az account get-access-token --output json"] = execx.FakeResponse{Stdout: readFixture(t, "access-token.json")}
@@ -92,7 +101,7 @@ func newFakeAzProvider(t *testing.T) *Provider {
 	p := New(fakeResolver{path: "az"}, runner)
 	// Fix the clock an hour before token expiry -> token is valid.
 	p.now = func() time.Time { return time.Unix(tokenEpoch, 0).UTC().Add(-1 * time.Hour) }
-	return p
+	return p, runner
 }
 
 func TestDiscover_FullInventory(t *testing.T) {

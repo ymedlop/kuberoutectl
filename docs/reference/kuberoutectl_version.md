@@ -9,6 +9,15 @@ description: "Print build version information"
 
 Print build version information
 
+### Synopsis
+
+Print build version information.
+
+With --check-update, also ask GitHub whether a newer stable release exists.
+That request happens only when you ask for it: `version` on its own — and
+every command except `doctor` — makes no network call of its own. Set
+KUBEROUTECTL_NO_UPDATE_CHECK to any value to disable the check everywhere.
+
 ```
 kuberoutectl version [flags]
 ```
@@ -16,7 +25,8 @@ kuberoutectl version [flags]
 ### Options
 
 ```
-  -h, --help   help for version
+      --check-update   also check whether a newer stable release is available
+  -h, --help           help for version
 ```
 
 ### Options inherited from parent commands

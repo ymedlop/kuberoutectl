@@ -60,8 +60,13 @@ EOF
 cat > "$WORK/bin/aws" <<EOF
 #!/usr/bin/env bash
 SSO="https://my-sso.awsapps.com/start"
+# frankfurt runs API authentication, where the entry list is authoritative both
+# ways; ireland runs API_AND_CONFIG_MAP, where an absent principal proves
+# nothing. Two clusters, two honest answers — which is the point being shown.
+FRA_ENTRIES='{"accessEntries":["arn:aws:iam::111111111111:role/eks-node-group-prod","arn:aws:iam::111111111111:role/aws-reserved/sso.amazonaws.com/eu-central-1/AWSReservedSSO_Platform"]}'
+IRE_ENTRIES='{"accessEntries":["arn:aws:iam::111111111111:role/eks-node-group-prod"]}'
 case "\$*" in
-  "configure list-profiles") printf 'default\nprod-sso\nlegacy-static\n' ;;
+  "configure list-profiles") printf 'default\nops\nprod-sso\nlegacy-static\n' ;;
   "sts get-caller-identity --profile default --output json") exit 1 ;;
   "configure get sso_start_url --profile default") echo "\$SSO" ;;
   "sts get-caller-identity --profile legacy-static --output json") cat "$AWS_FIX/identity-static.json" ;;
@@ -74,6 +79,21 @@ case "\$*" in
   "eks list-clusters --profile prod-sso --region eu-central-1 --output json") cat "$AWS_FIX/eks-list-prod.json" ;;
   "eks describe-cluster --profile prod-sso --region eu-central-1 --name eks-prod-frankfurt --output json") cat "$AWS_FIX/eks-describe-frankfurt.json" ;;
   "eks describe-cluster --profile prod-sso --region eu-central-1 --name eks-prod-ireland --output json") cat "$AWS_FIX/eks-describe-ireland.json" ;;
+  # ops: a second SSO profile into the SAME account, so frankfurt is one cluster
+  # reachable two ways rather than two clusters. IAM denies it describe on
+  # ireland, which is the no-pattern access map a real fleet has.
+  "sts get-caller-identity --profile ops --output json") cat "$AWS_FIX/identity-ops.json" ;;
+  "configure get sso_start_url --profile ops") echo "\$SSO" ;;
+  "configure get region --profile ops") echo "eu-central-1" ;;
+  "eks list-clusters --profile ops --region eu-central-1 --output json") cat "$AWS_FIX/eks-list-prod.json" ;;
+  "eks describe-cluster --profile ops --region eu-central-1 --name eks-prod-frankfurt --output json") cat "$AWS_FIX/eks-describe-frankfurt.json" ;;
+  "eks describe-cluster --profile ops --region eu-central-1 --name eks-prod-ireland --output json") exit 1 ;;
+  # The entry list is asked for once per cluster, through the group's first
+  # profile in discovery order — `ops` for frankfurt, `prod-sso` for the cluster
+  # only it reaches. prod-sso holds an entry on frankfurt and ops does not, so
+  # the operable profile becomes the primary even though ops sorts first.
+  "eks list-access-entries --cluster-name eks-prod-frankfurt --profile ops --region eu-central-1 --output json") echo "\$FRA_ENTRIES" ;;
+  "eks list-access-entries --cluster-name eks-prod-ireland --profile prod-sso --region eu-central-1 --output json") echo "\$IRE_ENTRIES" ;;
   *) exit 1 ;;
 esac
 EOF
@@ -138,7 +158,9 @@ type_cmd "kuberoutectl sync azure";                               beat 0.8
 type_cmd "kuberoutectl sync aws";                                 beat 0.8
 type_cmd "kuberoutectl sync gcp";                                 beat 0.8
 type_cmd "kuberoutectl sync kubeconfig";                          beat
-type_cmd "kuberoutectl target list";                              beat 1.6
+type_cmd "kuberoutectl target list";                              beat 1.8
+type_cmd "kuberoutectl target list -l operable=true";             beat 1.6
+type_cmd "kuberoutectl target inspect eks-prod-frankfurt";        beat 2.0
 type_cmd "kuberoutectl credential list --provider aws";           beat 1.6
 type_cmd "kuberoutectl target label add aks-prod-weu env=prod";   beat
 type_cmd "kuberoutectl collection create prod --selector env=prod"; beat 1.2

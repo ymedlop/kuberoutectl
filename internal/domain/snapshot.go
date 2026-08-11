@@ -16,7 +16,14 @@ type InventorySnapshot struct {
 
 // Selection records the operator's current target/collection choice.
 type Selection struct {
-	TargetID     TargetID     `json:"target_id,omitempty"`
+	TargetID TargetID `json:"target_id,omitempty"`
+
+	// CredentialID records which of the target's access paths the selection was
+	// activated through, so `current` can report how the kubeconfig was actually
+	// written rather than assuming the default. Empty means "the primary", which
+	// is also what every selection written before this field existed decodes to.
+	CredentialID CredentialID `json:"credential_id,omitempty"`
+
 	CollectionID CollectionID `json:"collection_id,omitempty"`
 	UpdatedAt    time.Time    `json:"updated_at"`
 }
