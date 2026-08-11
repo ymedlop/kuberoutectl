@@ -4,6 +4,9 @@
     "arn": "arn:aws:eks:eu-central-1:111111111111:cluster/eks-prod-frankfurt",
     "endpoint": "https://ABC123.gr7.eu-central-1.eks.amazonaws.com",
     "version": "1.29",
-    "status": "ACTIVE"
+    "status": "ACTIVE",
+    "accessConfig": {
+      "authenticationMode": "API"
+    }
   }
 }

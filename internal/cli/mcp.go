@@ -33,7 +33,7 @@ func (a *app) mcpCmd() *cobra.Command {
 				Sources:     services.NewSourceService(a.store),
 				Scopes:      services.NewScopeService(a.store),
 				Credentials: services.NewCredentialService(a.store, a.registry),
-				Targets:     services.NewTargetService(a.store),
+				Targets:     services.NewTargetService(a.store, a.registry),
 				Selection:   services.NewSelectionService(a.store, a.registry, nil),
 				Collections: services.NewCollectionService(a.store, services.NewSelectorEngine()),
 			}

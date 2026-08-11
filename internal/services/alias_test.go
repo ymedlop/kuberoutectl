@@ -95,7 +95,7 @@ func TestListFilters(t *testing.T) {
 		{ID: "aw1", ProviderID: "aws", Name: "eks-prod", Region: "eu-central-1"},
 		{ID: "aw2", ProviderID: "aws", Name: "eks-lab", Region: "eu-central-1"},
 	}}
-	svc := NewTargetService(m)
+	svc := NewTargetService(m, nil)
 
 	all, _ := svc.List(TargetFilter{})
 	if len(all) != 3 {

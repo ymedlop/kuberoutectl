@@ -66,14 +66,29 @@ what "ready" means):
       deb/rpm/apk).
 - [ ] Release automation working + repeatable (proven by a pre-release tag).
 - [ ] Tests pass in CI and locally (`make check`, `scripts/e2e.sh`).
-- [ ] Working tree clean; **reproducible builds verified** (see below).
+- [ ] Working tree clean; **reproducible builds verified** — run the
+      `reproducible-build` workflow (`workflow_dispatch`) and confirm it is
+      green (see below).
 - [ ] The tap + bucket + Cloudsmith repos and their secrets exist (Homebrew,
       Scoop, apt sections).
 
 ## Reproducible builds
 
-The same commit produces byte-identical artifacts. This needs two independent
-settings — verify by running `make snapshot` twice and diffing `dist/checksums.txt`:
+The same commit produces byte-identical artifacts.
+
+**This is checked by CI, not by hand.** The `reproducible-build` workflow builds
+the full snapshot twice and diffs `dist/checksums.txt`. It runs on
+`workflow_dispatch` (trigger it before cutting a tag), on pull requests that
+touch `.goreleaser.yaml` / `Makefile` / `go.mod`, and weekly — a runner image
+bumping its Go toolchain can break reproducibility without the repo changing.
+
+It was a manual step until v1.1.1, which meant it depended on someone
+remembering; it was skipped for v1.1.0 and those release notes had to record the
+guarantee as unproven for that tag.
+
+To reproduce locally, run `make snapshot` twice and diff `dist/checksums.txt`
+(copy the first one aside — `--clean` wipes `dist/` on the second run). The
+guarantee needs two independent settings:
 
 - `.goreleaser.yaml` pins the Go binary's mtime with
   `mod_timestamp: '{{ .CommitTimestamp }}'` and embeds `{{ .CommitDate }}`.

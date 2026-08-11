@@ -87,8 +87,8 @@ Synced provider: aws
 
 ```console
 $ kuberoutectl target list --provider aws
-ALIAS               PLATFORM  REGION        HEALTH  PROVIDER
-eks-prod-frankfurt  eks       eu-central-1  valid   aws
+ALIAS               PLATFORM  VERSION  REGION        HEALTH  PROVIDER
+eks-prod-frankfurt  eks       1.29     eu-central-1  valid   aws
 ```
 
 The **ALIAS** is a short, stable handle you can pass to `target use`,
@@ -156,6 +156,165 @@ record the selection without touching your kubeconfig.
 kubectl config current-context
 kubectl get nodes
 ```
+
+### When several profiles reach the same cluster
+
+An EKS cluster ARN identifies the **account**, not the profile. So if two
+profiles authenticate into the same account and both can describe a cluster, they
+are two ways into one cluster — not two clusters. `kuberoutectl` lists it once
+and records every profile that reaches it:
+
+```console
+$ kuberoutectl target list --provider aws
+ALIAS               PLATFORM  VERSION  REGION        HEALTH  PROVIDER  PROFILES
+eks-prod-frankfurt  eks       1.29     eu-central-1  valid   aws       ops,prod-sso
+eks-prod-ireland    eks       1.30     eu-central-1  valid   aws       prod-sso
+```
+
+The `PROFILES` column appears only when some cluster has a choice. Operability is
+not a column; ask it as a question instead:
+
+```console
+$ kuberoutectl target list --provider aws -l operable=true      # I am admitted to these
+$ kuberoutectl target list --provider aws -l operable=unknown   # nothing could be told
+$ kuberoutectl target list --provider aws -l operable=false     # confirmed refusals
+```
+
+`operable` sits alongside `region`, `platform` and `health` as a selector key, so
+it composes with the rest of the grammar and with collections. Its three values
+are `true`, `false` and `unknown`, and `unknown` is always queryable rather than
+absent — in most fleets it is the largest of the three, and the one worth
+enumerating.
+
+Per profile, the verdict lives in `target inspect`, which breaks down each
+profile's health *and* whether the cluster admits it — two different questions,
+answered separately:
+
+```console
+$ kuberoutectl target inspect eks-prod-frankfurt
+...
+Access check  api (a profile absent from the list will be refused)
+profile  ops       valid    use    operable      (primary)
+profile  prod-sso  expired  renew  not operable
+```
+
+Pick one with `--profile`. The choice is remembered, so a later bare
+`target use` reuses it:
+
+```console
+$ kuberoutectl target use eks-prod-frankfurt --profile prod-sso
+Now using target: eks-prod-frankfurt (eks-prod-frankfurt) via prod-sso
+kubeconfig updated and set as the current context.
+
+$ kuberoutectl current
+Target   eks-prod-frankfurt (eks-prod-frankfurt)
+Provider aws
+Profile  prod-sso
+```
+
+A profile that cannot reach the cluster is rejected before anything runs, naming
+the ones that would work.
+
+**Which clusters a profile reaches is discovered, not assumed.** `eks:ListClusters`
+cannot be scoped below account/region, but `eks:DescribeCluster` is evaluated per
+cluster — so a profile that lists everything may still be denied on individual
+clusters. Each denial is reported during sync, which turns an undocumented access
+map into ordinary output:
+
+```console
+$ kuberoutectl sync aws
+  → profile "ops" cannot describe cluster "eks-prod-ireland" in eu-central-1 — skipping it for this profile
+```
+
+### Authenticating is not the same as being admitted
+
+Everything above is **IAM** reachability. Operating *inside* a cluster
+additionally requires an EKS **access entry** — a Kubernetes-side authorization
+layer. A profile can describe a cluster, activate cleanly, and still get
+`Forbidden` from `kubectl`.
+
+`sync aws` reads that layer too — `aws eks list-access-entries`, **one call per
+cluster**, for every cluster whose authentication mode permits a conclusion — and
+prefers a profile the cluster actually admits, **even over a healthier one**.
+Renewing an expired session is one `aws sso login`; a missing access entry cannot
+be fixed from this CLI at all.
+
+Clusters reached by a single profile are checked as well — knowing that your one
+way in will be refused is worth as much as choosing between two. `sync` reports
+how many clusters it listed entries for, so the cost is visible:
+
+```console
+$ kuberoutectl sync aws
+  → discovered 12 cluster(s); listed access entries for 9
+```
+
+The three that cost nothing are `CONFIG_MAP` clusters, where the mode already
+came back with `describe-cluster` and access entries do not apply.
+
+What can be concluded depends on the cluster's `authenticationMode`, and only a
+*negative* answer depends on it:
+
+| `authenticationMode` | Profile listed | Profile absent |
+|---|---|---|
+| `API`                | operable       | **not operable** |
+| `API_AND_CONFIG_MAP` | operable       | **unknown** — `aws-auth` may still grant it |
+| `CONFIG_MAP`         | *(no entries exist)* | **unknown** — access entries do not apply |
+
+**`unknown` is the normal answer, not a failure.** Clusters created through the
+API, the SDKs or CloudFormation default to `CONFIG_MAP`, and reading `aws-auth`
+would require working `kubectl` access to the very cluster being asked about.
+So kuberoutectl reports what it can establish and says nothing where it cannot:
+
+```console
+$ kuberoutectl target use eks-prod-frankfurt --profile prod-sso
+Warning: prod-sso had no access entry on this cluster at the last sync; kubectl
+         may return Forbidden. ops did have one.
+Now using target: eks-prod-frankfurt (eks-prod-frankfurt) via prod-sso
+```
+
+It warns rather than refuses — the verdict is from the last sync and may be
+stale, and going into a cluster to diagnose exactly this is legitimate. A profile
+whose verdict is `unknown` produces no warning at all.
+
+### Asking again, without a full resync
+
+`target use` and `target inspect` take **`--refresh`**, which re-establishes
+operability against the cluster instead of trusting the last sync — one API call,
+for the cluster you named. The case it exists for is narrow and common: *you have
+just been granted access and want to know whether it landed.*
+
+```console
+$ kuberoutectl target use eks-prod-frankfurt --refresh
+ops holds an access entry on this cluster.
+Now using target: eks-prod-frankfurt (eks-prod-frankfurt)
+
+$ kuberoutectl target inspect eks-prod-frankfurt --refresh
+```
+
+`target use` reports whatever is known about the profile it is going in through,
+cached or refreshed. Silence means one thing only: nothing was established.
+
+| | without `--refresh` | with `--refresh` |
+|---|---|---|
+| admitted | `ops held an access entry … at the last sync.` | `ops holds an access entry on this cluster.` |
+| refused | warning, past tense | warning, present tense |
+| inconclusive | *(silent)* | explains why it cannot be settled |
+
+The flag changes freshness, and whether an inconclusive answer is spelled out.
+Most clusters in a real fleet are inconclusive, so explaining that on every
+`target use` would print a line nobody keeps reading.
+
+Without the flag nothing is called. Nothing else re-checks either —
+`target list` renders a fleet, and one call per row on every display is the cost
+that is never worth paying. The MCP `use_target` and `get_target` tools take the
+same `refresh` argument with the same default, so an agent and a human are never
+told different things about the same cluster.
+
+> **Still not covered.** An access entry answers "are you admitted", not "may
+> you do X" — a restrictive access policy still yields `Forbidden` on specific
+> verbs. `kubectl auth can-i` remains the way to check that. Checking also needs
+> `eks:ListAccessEntries`; without it the verdict is `unavailable` and every
+> profile reads `unknown`, which `sync` names.
 
 ## 6. Corporate SSO: discover every account you can reach (Entra / IAM Identity Center)
 

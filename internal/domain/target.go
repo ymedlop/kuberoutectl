@@ -23,9 +23,35 @@ type Target struct {
 	ProviderID   ProviderID   `json:"provider_id"`
 	SourceID     SourceID     `json:"source_id"`
 	CredentialID CredentialID `json:"credential_id"`
-	ScopeID      ScopeID      `json:"scope_id"`
-	Kind         string       `json:"kind"`
-	Name         string       `json:"name"`
+
+	// CredentialIDs lists every credential that can reach this target, primary
+	// first, for providers where several identities see the same cluster (AWS
+	// profiles sharing an account). CredentialID always equals CredentialIDs[0]
+	// when this is set; both exist so readers written before multi-credential
+	// targets keep working.
+	//
+	// Providers exposing exactly one way in leave it nil, and a snapshot written
+	// before this field existed decodes to nil — so nil means "just the one in
+	// CredentialID", not "unreachable". That is what makes the upgrade need no
+	// migration step.
+	CredentialIDs []CredentialID `json:"credential_ids,omitempty"`
+
+	// OperableCredentialIDs lists the credentials confirmed to hold an access
+	// entry on this target — that is, admitted by the cluster, not merely able
+	// to call the provider API about it. A credential in CredentialIDs but
+	// absent here is NOT necessarily refused; AccessCheck says whether its
+	// absence means anything. Use CredentialAccess rather than reading this
+	// directly, so the two fields are never interpreted apart.
+	OperableCredentialIDs []CredentialID `json:"operable_credential_ids,omitempty"`
+
+	// AccessCheck records what the operability check could establish, or is
+	// empty when none was attempted — which is the case for every target
+	// reachable by a single credential, and for every provider but AWS.
+	AccessCheck AccessCheckMode `json:"access_check,omitempty"`
+
+	ScopeID ScopeID `json:"scope_id"`
+	Kind    string  `json:"kind"`
+	Name    string  `json:"name"`
 	// Alias is a short, stable, human-friendly handle for the target, usable
 	// anywhere the full ID is (use/inspect/label). It is derived from the name
 	// and made unique across the fleet, so it is a presentation/service concern
@@ -89,6 +115,12 @@ func (t Target) SelectionLabels() map[string]string {
 	setNonEmpty("provider", string(t.ProviderID))
 	setNonEmpty("kind", t.Kind)
 	setNonEmpty("health", string(t.Health))
+	// Always set, never conditional: `operable=unknown` has to be queryable, and
+	// a target nothing was concluded about is the case an operator most wants to
+	// enumerate. The verdict is that of the *primary* credential, because a
+	// selector matches a target rather than a (target, credential) pair — the
+	// per-credential breakdown lives in `target inspect` and `-o json`.
+	out["operable"] = t.CredentialAccess(t.CredentialID).SelectorValue()
 	for k, v := range t.SystemLabels {
 		out[k] = v
 	}

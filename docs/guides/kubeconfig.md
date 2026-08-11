@@ -63,9 +63,9 @@ read out of the file — only *how* each user authenticates, to classify health.
 
 ```console
 $ kuberoutectl target list --provider kubeconfig
-ALIAS     PLATFORM    REGION  HEALTH   PROVIDER
-homelab   kubeconfig          static   kubeconfig
-prod-eks  kubeconfig          unknown  kubeconfig
+ALIAS     PLATFORM    VERSION  REGION  HEALTH   PROVIDER
+homelab   kubeconfig  unknown          static   kubeconfig
+prod-eks  kubeconfig  unknown          unknown  kubeconfig
 ```
 
 The **ALIAS** is the context name (kubeconfig names are already short), usable

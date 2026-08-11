@@ -37,6 +37,16 @@ func (f *fakeProvider) Activate(_ context.Context, t domain.Target) error {
 // snap and a registry containing provs.
 func newTestHandler(t *testing.T, snap domain.InventorySnapshot, provs ...providers.Provider) *handler {
 	t.Helper()
+	h, _ := newTestHandlerWithStore(t, snap, provs...)
+	return h
+}
+
+// newTestHandlerWithStore is newTestHandler plus the backing store, for tests
+// that need to rewrite the snapshot mid-test (simulating a resync). It shares
+// the one Deps literal on purpose: a forked builder with a partial Deps is a
+// nil-pointer trap for whoever adds the next test through it.
+func newTestHandlerWithStore(t *testing.T, snap domain.InventorySnapshot, provs ...providers.Provider) (*handler, *jsonstore.Store) {
+	t.Helper()
 	dir := t.TempDir()
 	store := jsonstore.New(dir, dir)
 	if err := store.SaveSnapshot(snap); err != nil {
@@ -56,10 +66,12 @@ func newTestHandler(t *testing.T, snap domain.InventorySnapshot, provs ...provid
 		Sources:     services.NewSourceService(store),
 		Scopes:      services.NewScopeService(store),
 		Credentials: services.NewCredentialService(store, reg),
-		Targets:     services.NewTargetService(store),
+		// The real registry, as internal/cli/mcp.go wires it: a nil here would
+		// make every "no live check happened" assertion pass for the wrong reason.
+		Targets:     services.NewTargetService(store, reg),
 		Selection:   services.NewSelectionService(store, reg, now),
 		Collections: services.NewCollectionService(store, services.NewSelectorEngine()),
-	}}
+	}}, store
 }
 
 // seedTargets is a small two-provider inventory used across tests.

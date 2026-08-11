@@ -23,7 +23,7 @@ func seededTargetStore() *memStore {
 
 func TestTargetService_Delete_ByName(t *testing.T) {
 	store := seededTargetStore()
-	removed, err := NewTargetService(store).Delete("eks-prod")
+	removed, err := NewTargetService(store, nil).Delete("eks-prod")
 	if err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
@@ -45,7 +45,7 @@ func TestTargetService_Delete_ByName(t *testing.T) {
 
 func TestTargetService_Delete_ByID(t *testing.T) {
 	store := seededTargetStore()
-	removed, err := NewTargetService(store).Delete("azure:aks-1")
+	removed, err := NewTargetService(store, nil).Delete("azure:aks-1")
 	if err != nil {
 		t.Fatalf("Delete by id: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestTargetService_Delete_ByID(t *testing.T) {
 
 func TestTargetService_Delete_NotFound(t *testing.T) {
 	store := seededTargetStore()
-	if _, err := NewTargetService(store).Delete("does-not-exist"); err == nil {
+	if _, err := NewTargetService(store, nil).Delete("does-not-exist"); err == nil {
 		t.Fatal("expected error for unknown ref")
 	}
 	if len(store.snap.Targets) != 3 {
@@ -75,7 +75,7 @@ func TestTargetService_Delete_AmbiguousName(t *testing.T) {
 		{ID: "aws:dup-1", ProviderID: "aws", Name: "dup"},
 		{ID: "aws:dup-2", ProviderID: "aws", Name: "dup"},
 	}}
-	if _, err := NewTargetService(store).Delete("dup"); err == nil {
+	if _, err := NewTargetService(store, nil).Delete("dup"); err == nil {
 		t.Fatal("expected error deleting an ambiguous name")
 	}
 	if len(store.snap.Targets) != 2 {
@@ -85,7 +85,7 @@ func TestTargetService_Delete_AmbiguousName(t *testing.T) {
 
 func TestTargetService_Delete_PreservesOrder(t *testing.T) {
 	store := seededTargetStore()
-	if _, err := NewTargetService(store).Delete("eks-staging"); err != nil {
+	if _, err := NewTargetService(store, nil).Delete("eks-staging"); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
 	got := targetIDs(store.snap.Targets)
@@ -109,7 +109,7 @@ func TestApplyVisibility(t *testing.T) {
 func TestTargetService_List_HidesHiddenByDefault(t *testing.T) {
 	store := seededTargetStore()
 	store.hidden = []domain.TargetID{"aws:eks-1"}
-	svc := NewTargetService(store)
+	svc := NewTargetService(store, nil)
 
 	def, err := svc.List(TargetFilter{})
 	if err != nil {
@@ -143,7 +143,7 @@ func TestTargetService_HiddenNotPersistedToSnapshot(t *testing.T) {
 	store := seededTargetStore()
 	store.hidden = []domain.TargetID{"aws:eks-1"}
 
-	got, err := NewTargetService(store).List(TargetFilter{IncludeHidden: true})
+	got, err := NewTargetService(store, nil).List(TargetFilter{IncludeHidden: true})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestTargetService_List_HiddenSelectorIsolatesHidden(t *testing.T) {
 	store := seededTargetStore()
 	store.hidden = []domain.TargetID{"aws:eks-1"}
 	sel := domain.LabelSelector{MatchLabels: map[string]string{"hidden": "true"}}
-	got, err := NewTargetService(store).List(TargetFilter{Selector: &sel})
+	got, err := NewTargetService(store, nil).List(TargetFilter{Selector: &sel})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -182,7 +182,7 @@ func TestTargetService_List_NonVisibilitySelectorStillDropsHidden(t *testing.T) 
 	store := seededTargetStore()
 	store.hidden = []domain.TargetID{"aws:eks-1"}
 	sel := domain.LabelSelector{MatchLabels: map[string]string{"provider": "aws"}}
-	got, err := NewTargetService(store).List(TargetFilter{Selector: &sel})
+	got, err := NewTargetService(store, nil).List(TargetFilter{Selector: &sel})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestTargetService_List_NonVisibilitySelectorStillDropsHidden(t *testing.T) 
 
 func TestTargetService_Clear(t *testing.T) {
 	store := seededTargetStore()
-	n, err := NewTargetService(store).Clear()
+	n, err := NewTargetService(store, nil).Clear()
 	if err != nil {
 		t.Fatalf("Clear: %v", err)
 	}
@@ -214,7 +214,7 @@ func TestTargetService_Clear(t *testing.T) {
 
 func TestTargetService_Clear_Empty(t *testing.T) {
 	store := newMemStore()
-	n, err := NewTargetService(store).Clear()
+	n, err := NewTargetService(store, nil).Clear()
 	if err != nil {
 		t.Fatalf("Clear on empty: %v", err)
 	}
@@ -232,7 +232,7 @@ func TestTargetService_Delete_CollectionStaticMemberTolerated(t *testing.T) {
 		Name:      "keep",
 		StaticIDs: []domain.TargetID{"aws:eks-1", "azure:aks-1"},
 	}}
-	if _, err := NewTargetService(store).Delete("aws:eks-1"); err != nil {
+	if _, err := NewTargetService(store, nil).Delete("aws:eks-1"); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
 	members, err := NewCollectionService(store, nil).Resolve("keep")
@@ -253,7 +253,7 @@ func TestTargetService_Delete_CollectionStaticMemberTolerated(t *testing.T) {
 func TestTargetService_Delete_StaleSelectionTolerated(t *testing.T) {
 	store := seededTargetStore()
 	_ = store.SaveSelection(domain.Selection{TargetID: "aws:eks-1"})
-	if _, err := NewTargetService(store).Delete("aws:eks-1"); err != nil {
+	if _, err := NewTargetService(store, nil).Delete("aws:eks-1"); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
 	st, err := NewSelectionService(store, nil, nil).Status()

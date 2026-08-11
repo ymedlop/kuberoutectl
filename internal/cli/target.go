@@ -56,9 +56,16 @@ func (a *app) targetListCmd() *cobra.Command {
 				}
 				filter.Selector = &sel
 			}
-			targets, err := services.NewTargetService(a.store).List(filter)
+			// One call, one snapshot read: deriving the rows and the profile
+			// names from the same result keeps them from describing two
+			// different generations if a `sync` lands mid-command.
+			rows, err := services.NewTargetService(a.store, a.registry).ListWithCredentials(filter)
 			if err != nil {
 				return err
+			}
+			targets := make([]domain.Target, 0, len(rows))
+			for _, r := range rows {
+				targets = append(targets, r.Target)
 			}
 			out := cmd.OutOrStdout()
 			if a.output == formatJSON {
@@ -77,8 +84,23 @@ func (a *app) targetListCmd() *cobra.Command {
 					break
 				}
 			}
+			// Same rule for PROFILES: only worth a column when some target really
+			// has a choice of access path. The names come from a live join, not
+			// from a denormalized field on the target.
+			profiles := make(map[domain.TargetID][]string, len(rows))
+			anyMulti := false
+			for _, r := range rows {
+				names := r.CredentialNames()
+				profiles[r.Target.ID] = names
+				if len(names) > 1 {
+					anyMulti = true
+				}
+			}
 			tw := newTabWriter(out)
-			header := "ALIAS\tPLATFORM\tREGION\tHEALTH\tPROVIDER"
+			header := "ALIAS\tPLATFORM\tVERSION\tREGION\tHEALTH\tPROVIDER"
+			if anyMulti {
+				header += "\tPROFILES"
+			}
 			if anyHidden {
 				header += "\tHIDDEN"
 			}
@@ -87,7 +109,17 @@ func (a *app) targetListCmd() *cobra.Command {
 			}
 			fprintln(tw, header)
 			for _, t := range targets {
-				row := t.Alias + "\t" + t.Platform + "\t" + t.Region + "\t" + string(t.Health) + "\t" + string(t.ProviderID)
+				// Same fallback `inspect` uses: a target cached before versions were
+				// tracked has an empty field, and a blank cell in a table reads as a
+				// value rather than as an absence.
+				version := t.KubernetesVersion
+				if version == "" {
+					version = domain.VersionUnknown
+				}
+				row := t.Alias + "\t" + t.Platform + "\t" + version + "\t" + t.Region + "\t" + string(t.Health) + "\t" + string(t.ProviderID)
+				if anyMulti {
+					row += "\t" + strings.Join(profiles[t.ID], ",")
+				}
 				if anyHidden {
 					mark := ""
 					if t.Hidden {
@@ -111,17 +143,38 @@ func (a *app) targetListCmd() *cobra.Command {
 }
 
 func (a *app) targetInspectCmd() *cobra.Command {
-	return &cobra.Command{
+	var refresh bool
+	cmd := &cobra.Command{
 		Use:   "inspect <alias|id|name>",
 		Short: "Show a single target in detail, including labels",
-		Args:  cobra.ExactArgs(1),
+		Long: "Show a single target in detail, including labels.\n\n" +
+			"Operability comes from the last `sync`. Pass --refresh to re-establish it\n" +
+			"against the provider instead — one extra API call, for the cluster named.",
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			target, err := services.NewTargetService(a.store).Resolve(args[0])
+			svc := services.NewTargetService(a.store, a.registry)
+			// Either path, never both: ResolveWithAccessCheck calls
+			// ResolveWithCredentials itself, so running both loaded the snapshot
+			// twice for one command.
+			joined, err := services.TargetWithCredentials{}, error(nil)
+			if refresh {
+				joined, err = svc.ResolveWithAccessCheck(cmd.Context(), args[0])
+			} else {
+				joined, err = svc.ResolveWithCredentials(args[0])
+			}
 			if err != nil {
 				return err
 			}
+			if joined.AccessReason != "" {
+				fprintln(cmd.ErrOrStderr(), "Note:", joined.AccessReason)
+			}
+			target := joined.Target
 			out := cmd.OutOrStdout()
 			if a.output == formatJSON {
+				// Deliberately the bare target, not the join: wrapping it would
+				// change this command's JSON shape for anything already parsing
+				// it. credential_ids is additive and ships; per-credential health
+				// is available from `credential list`.
 				return renderJSON(out, target)
 			}
 			tw := newTabWriter(out)
@@ -142,6 +195,28 @@ func (a *app) targetInspectCmd() *cobra.Command {
 			fprintln(tw, "Action\t"+string(target.ActionHint))
 			fprintln(tw, "Scope\t"+string(target.ScopeID))
 			fprintln(tw, "Credential\t"+string(target.CredentialID))
+			// Only worth listing when there is a choice. Health per credential is
+			// joined live from the snapshot, so an expired alternative shows as
+			// expired here even though the target itself reports the primary's
+			// health.
+			// Only printed when a check actually ran, so a target nobody had to
+			// disambiguate reads exactly as it did before this existed.
+			if target.AccessCheck != "" {
+				fprintln(tw, "Access check\t"+describeAccessCheck(target.AccessCheck))
+			}
+			if len(joined.Credentials) > 1 {
+				for i, c := range joined.Credentials {
+					mark := ""
+					if i == 0 {
+						mark = "  (primary)"
+					}
+					// The verdict sits next to health because they answer different
+					// questions — health is whether the profile can authenticate to
+					// AWS at all, operability whether the cluster admits it.
+					verdict := "  " + string(target.CredentialAccess(c.ID))
+					fprintln(tw, "profile\t"+c.Name+"  "+string(c.Health)+"  "+string(c.ActionHint)+verdict+mark)
+				}
+			}
 			for k, v := range target.SystemLabels {
 				fprintln(tw, "system-label\t"+k+"="+v)
 			}
@@ -151,6 +226,8 @@ func (a *app) targetInspectCmd() *cobra.Command {
 			return tw.Flush()
 		},
 	}
+	cmd.Flags().BoolVar(&refresh, "refresh", false, "re-check operability against the provider instead of using the last sync")
+	return cmd
 }
 
 func (a *app) targetLabelCmd() *cobra.Command {
@@ -169,7 +246,7 @@ func (a *app) targetLabelAddCmd() *cobra.Command {
 			if !ok {
 				return fmt.Errorf("label must be key=value, got %q", args[1])
 			}
-			target, err := services.NewTargetService(a.store).Resolve(args[0])
+			target, err := services.NewTargetService(a.store, a.registry).Resolve(args[0])
 			if err != nil {
 				return err
 			}
@@ -188,7 +265,7 @@ func (a *app) targetLabelRemoveCmd() *cobra.Command {
 		Short: "Remove a user label from a target",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			target, err := services.NewTargetService(a.store).Resolve(args[0])
+			target, err := services.NewTargetService(a.store, a.registry).Resolve(args[0])
 			if err != nil {
 				return err
 			}
@@ -207,7 +284,7 @@ func (a *app) targetLabelListCmd() *cobra.Command {
 		Short: "List user labels on a target",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			target, err := services.NewTargetService(a.store).Resolve(args[0])
+			target, err := services.NewTargetService(a.store, a.registry).Resolve(args[0])
 			if err != nil {
 				return err
 			}
@@ -242,7 +319,7 @@ func (a *app) targetDeleteCmd() *cobra.Command {
 			"exists. Scopes, credentials, and sources are left untouched.",
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			removed, err := services.NewTargetService(a.store).Delete(args[0])
+			removed, err := services.NewTargetService(a.store, a.registry).Delete(args[0])
 			if err != nil {
 				return err
 			}
@@ -262,7 +339,7 @@ func (a *app) targetClearCmd() *cobra.Command {
 			"unless --yes is given.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			svc := services.NewTargetService(a.store)
+			svc := services.NewTargetService(a.store, a.registry)
 			targets, err := svc.List(services.TargetFilter{})
 			if err != nil {
 				return err
@@ -373,7 +450,11 @@ func (a *app) toggleVisibility(cmd *cobra.Command, args, selectors []string, hid
 }
 
 func (a *app) targetUseCmd() *cobra.Command {
-	var noKubeconfig bool
+	var (
+		noKubeconfig bool
+		profile      string
+		refresh      bool
+	)
 	cmd := &cobra.Command{
 		Use:   "use <alias|id|name>",
 		Short: "Select a target and fetch its credentials into ~/.kube/config",
@@ -388,20 +469,38 @@ func (a *app) targetUseCmd() *cobra.Command {
 			if activate {
 				fprintln(cmd.ErrOrStderr(), "Fetching credentials into ~/.kube/config ...")
 			}
-			target, err := services.NewSelectionService(a.store, a.registry, nil).
-				UseTarget(cmd.Context(), args[0], activate)
+			res, err := services.NewSelectionService(a.store, a.registry, nil).
+				UseTarget(cmd.Context(), args[0], services.UseTargetOptions{
+					Activate:       activate,
+					CredentialName: profile,
+					Refresh:        refresh,
+				})
 			if err != nil {
 				return err
 			}
+			target := res.Target
 			out := cmd.OutOrStdout()
+			// On stderr, and ahead of the JSON branch, so it reaches the operator
+			// whether or not stdout is being piped into something. It warns rather
+			// than blocks: the verdict is from the last sync and may be stale, and
+			// entering a cluster to diagnose exactly this is legitimate.
+			if line := describeAccess(res, refresh); line != "" {
+				fprintln(cmd.ErrOrStderr(), line)
+			}
 			if a.output == formatJSON {
+				// The bare target, as this command has always rendered. Wrapping
+				// it to add the credential would break the shape for anything
+				// already parsing it — the same reasoning applied to `target
+				// inspect`. Which credential was used is reported by
+				// `current -o json`, whose selection object carries it.
 				return renderJSON(out, target)
 			}
+			via := describeCredentialChoice(res)
 			if activate {
-				fprintln(out, "Now using target:", target.Alias, "("+target.Name+")")
+				fprintln(out, "Now using target:", target.Alias, "("+target.Name+")"+via)
 				fprintln(out, "kubeconfig updated and set as the current context.")
 			} else {
-				fprintln(out, "Recorded selection:", target.Alias, "("+target.Name+") — kubeconfig unchanged.")
+				fprintln(out, "Recorded selection:", target.Alias, "("+target.Name+")"+via+" — kubeconfig unchanged.")
 			}
 			if target.ActionHint == domain.ActionRenew {
 				fprintln(out, "Note: this target's credential needs renewal — run `kuberoutectl credential renew`.")
@@ -410,5 +509,121 @@ func (a *app) targetUseCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&noKubeconfig, "no-kubeconfig", false, "record the selection only; do not modify ~/.kube/config")
+	cmd.Flags().StringVar(&profile, "profile", "", "go in through this credential (an AWS profile name) when several reach the target")
+	cmd.Flags().BoolVar(&refresh, "refresh", false, "re-check operability against the provider instead of using the last sync")
 	return cmd
+}
+
+// describeAccess renders what is known about the credential being used, for
+// stderr.
+//
+// One rule, and the flag does not change it: **say what is known, whatever it
+// is.** Silence means "nothing was established" and nothing else — previously it
+// also meant "admitted", "not checked" and "this provider has no such concept",
+// which made it useless as a signal.
+//
+// What --refresh changes is freshness, and whether an inconclusive answer is
+// explained. Explaining it unconditionally would print a line on every `target
+// use` in a fleet where most clusters are inconclusive, and a message that
+// always appears stops being read.
+func describeAccess(res services.UseTargetResult, refreshed bool) string {
+	switch {
+	case res.AccessWarning != "":
+		return "Warning: " + res.AccessWarning
+
+	case res.AccessReason != "":
+		// Set exactly when a --refresh could not run. The service deliberately
+		// keeps the cached verdict in that case, so report it alongside rather
+		// than replacing knowledge with a failure notice — the reader still has
+		// an answer, just an older one.
+		// The reasons the provider produces do not end in a period, so one is
+		// added here rather than leaving the cached clause running on into them.
+		msg := "Could not check access entries: " + res.AccessReason + "."
+		switch res.AccessVerdict {
+		case domain.AccessOperable:
+			msg += " " + res.Credential.Name + " held one at the last sync."
+		case domain.AccessNotOperable:
+			msg += " " + res.Credential.Name + " held none at the last sync; kubectl may return Forbidden."
+		}
+		return msg
+
+	case res.AccessVerdict == domain.AccessOperable:
+		if refreshed {
+			return res.Credential.Name + " holds an access entry on this cluster."
+		}
+		// Past tense on purpose: this is cache, and a positive read as current
+		// is the one a reader acts on without checking.
+		return res.Credential.Name + " held an access entry on this cluster at the last sync."
+
+	case refreshed && res.AccessVerdict == domain.AccessUnknown:
+		return describeAccessUnknown(res.Credential.Name, res.Target.AccessCheck)
+	}
+	return ""
+}
+
+// describeAccessUnknown says why a live check could not settle the question, or
+// returns "" when there is genuinely nothing to say — a target whose provider
+// has no access-entry concept at all, where explaining the absence of an answer
+// would invent a subject.
+func describeAccessUnknown(name string, mode domain.AccessCheckMode) string {
+	switch mode {
+	case domain.AccessCheckAPIAndConfigMap:
+		return "Could not tell whether " + name + " can operate here: it holds no access entry, " +
+			"and this cluster also honours aws-auth, which kuberoutectl does not read."
+	case domain.AccessCheckConfigMap:
+		return "Could not tell whether " + name + " can operate here: this cluster uses CONFIG_MAP " +
+			"authentication, where access entries do not apply."
+	default:
+		return ""
+	}
+}
+
+// describeAccessCheck explains a mode in the terms that matter to the reader:
+// not what it is called, but whether an absence means anything.
+func describeAccessCheck(m domain.AccessCheckMode) string {
+	switch m {
+	case domain.AccessCheckAPI:
+		return string(m) + " (a profile absent from the list will be refused)"
+	case domain.AccessCheckAPIAndConfigMap:
+		return string(m) + " (aws-auth may also grant access, so only a listed profile is confirmed)"
+	case domain.AccessCheckConfigMap:
+		return string(m) + " (access entries do not apply to this cluster)"
+	case domain.AccessCheckUnavailable:
+		return string(m) + " (the check could not run — likely no eks:ListAccessEntries)"
+	default:
+		return string(m)
+	}
+}
+
+// describeCredentialChoice renders how the access path was picked, or "" when
+// the target has only one and there was nothing to pick.
+//
+// The default case is worded differently on purpose. For a cluster several
+// profiles can reach, the primary is only the healthiest one — kuberoutectl
+// cannot see EKS access entries, so being able to authenticate is not evidence
+// of being able to operate. Presenting that guess in the same words as an
+// explicit choice would hide the one fact the operator needs to act on.
+func describeCredentialChoice(res services.UseTargetResult) string {
+	name := res.Credential.Name
+	if name == "" {
+		return ""
+	}
+	switch res.CredentialSource {
+	case services.CredentialFromFlag:
+		return " via " + name
+	case services.CredentialFromMemory:
+		return " via " + name + " (remembered)"
+	default:
+		// A previous choice that the cache no longer offers must be reported
+		// even though the target now has a single access path and looks like it
+		// never had a choice. Staying silent here would move an operator off a
+		// deliberately-picked profile with no output at all.
+		if res.LostCredentialID != "" {
+			return " via " + name + " (credential " + string(res.LostCredentialID) + " is gone from the cache)"
+		}
+		if len(res.Target.CredentialIDs) < 2 {
+			return "" // only one way in: nothing was chosen, so say nothing
+		}
+		return " via " + name + " (default — pass --profile to pick another)"
+	}
 }

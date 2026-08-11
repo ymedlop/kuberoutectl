@@ -17,6 +17,11 @@ const (
 	LabelHealth   = SystemLabelPrefix + "health"
 	LabelPlatform = SystemLabelPrefix + "platform"
 	LabelRegion   = SystemLabelPrefix + "region"
+	// LabelCredential names the target's primary credential — the identity a
+	// bare `target use` would go in through. For a target reachable several
+	// ways it is the primary only, so a selector on this key means "this is the
+	// default way in", not "this target is reachable this way".
+	LabelCredential = SystemLabelPrefix + "credential"
 )
 
 // Label naming follows Kubernetes-inspired rules: an optional DNS-subdomain

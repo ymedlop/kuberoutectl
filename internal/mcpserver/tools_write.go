@@ -75,21 +75,64 @@ func (h *handler) syncProvider(ctx context.Context, _ *mcp.CallToolRequest, in S
 type UseTargetInput struct {
 	Ref      string `json:"ref" jsonschema:"target reference: full id, alias, or name"`
 	Activate bool   `json:"activate,omitempty" jsonschema:"also merge the target's context into ~/.kube/config and make it current (default false)"`
+	Profile  string `json:"profile,omitempty" jsonschema:"credential to go in through (an AWS profile name) when several reach the target; omit to use the target's default"`
+	Refresh  bool   `json:"refresh,omitempty" jsonschema:"re-check operability against the provider instead of using the last sync (default false)"`
 }
 type UseTargetOutput struct {
 	Target    domain.Target `json:"target"`
 	Activated bool          `json:"activated"`
+	// Profile is the credential the target was activated through, and
+	// ProfileSource says how it was picked — "flag", "remembered", or
+	// "default". A client must be able to tell a choice from a guess: the
+	// default is only the healthiest credential, which is not evidence that it
+	// is the one with access inside the cluster.
+	Profile       string `json:"profile,omitempty"`
+	ProfileSource string `json:"profile_source,omitempty"`
+	// LostCredentialID is the credential this target was previously used
+	// through that the cache no longer offers. Set only when that happened, so a
+	// client can tell "you are back on the default" from "you were always on
+	// it".
+	//
+	// An id, not a name, unlike Profile above — deliberately. The credential is
+	// gone from the snapshot, so there is no name left to resolve; naming the
+	// field for a profile would promise something this value cannot be.
+	LostCredentialID string `json:"lost_credential_id,omitempty"`
+	// AccessWarning is set only when the chosen credential is *confirmed* to
+	// hold no EKS access entry on this target — never when operability is merely
+	// unknown, which is the common case. A field rather than prose so a client
+	// can branch on it; the CLI prints the same string, from the same service, so
+	// the two surfaces cannot drift into disagreeing about when to warn.
+	AccessWarning string `json:"access_warning,omitempty"`
+	// AccessVerdict reports the answer in both directions — operable, not
+	// operable, or unknown — where AccessWarning speaks only on a confirmed
+	// refusal. An agent choosing a cluster needs the positive case too.
+	AccessVerdict string `json:"access_verdict,omitempty"`
+	// AccessReason explains why a refresh could not conclude.
+	AccessReason string `json:"access_reason,omitempty"`
 }
 
 func (h *handler) useTarget(ctx context.Context, _ *mcp.CallToolRequest, in UseTargetInput) (*mcp.CallToolResult, UseTargetOutput, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	t, err := h.d.Selection.UseTarget(ctx, in.Ref, in.Activate)
+	res, err := h.d.Selection.UseTarget(ctx, in.Ref, services.UseTargetOptions{
+		Activate:       in.Activate,
+		CredentialName: in.Profile,
+		Refresh:        in.Refresh,
+	})
 	if err != nil {
 		return nil, UseTargetOutput{}, err
 	}
-	return nil, UseTargetOutput{Target: t, Activated: in.Activate}, nil
+	return nil, UseTargetOutput{
+		Target:           res.Target,
+		Activated:        in.Activate,
+		Profile:          res.Credential.Name,
+		ProfileSource:    res.CredentialSource.String(),
+		LostCredentialID: string(res.LostCredentialID),
+		AccessWarning:    res.AccessWarning,
+		AccessVerdict:    string(res.AccessVerdict),
+		AccessReason:     res.AccessReason,
+	}, nil
 }
 
 // ---- create_or_update_collection ----

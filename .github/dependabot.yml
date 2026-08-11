@@ -1,11 +1,77 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
-
+# Dependabot configuration.
+#
+# Three ecosystems live in this repo and only one was watched: Go modules. The
+# seven workflows under .github/workflows carry ten pinned references to nine
+# third-party actions, and the docs site has its own Gemfile — both went
+# unwatched, which is the half of the supply chain CodeQL does not cover.
+#
+# Updates are grouped. Ungrouped, a quiet week still produces one PR per
+# dependency, each with its own CI run, and a queue nobody reads is the same as
+# no updates at all.
+#
+# On `target-branch`: PRs in this repo go to `development`; `main` is the stable
+# branch Pages builds and tags are cut from (RELEASING.md). A dependency bump
+# merged into `main` would be *discarded* by the next promotion, which resolves
+# conflicts in development's favour — silently reverting it.
+#
+# The cost of setting it: per GitHub's documentation, a configuration that
+# specifies `target-branch` is **not used for Dependabot security updates**,
+# which keep targeting the default branch. That trade is unavoidable while the
+# default branch is `main`; making `development` the default branch removes it.
 version: 2
+
 updates:
-  - package-ecosystem: "gomod" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  # --- Go ---------------------------------------------------------------
+  - package-ecosystem: "gomod"
+    directory: "/"
+    target-branch: "development"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "go"]
+    commit-message:
+      # Matches the conventional-commit style every other commit here uses;
+      # Dependabot's default ("Bump x from a to b") does not.
+      prefix: "chore(deps)"
+      include: "scope"
+    groups:
+      go-minor-and-patch:
+        # One PR for the routine bumps. Majors stay separate on purpose: the
+        # direct dependencies here are Cobra and the MCP SDK, where a major is a
+        # behaviour change to read rather than a version to accept.
+        update-types: ["minor", "patch"]
+
+  # --- GitHub Actions ---------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    target-branch: "development"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "ci"]
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
+    groups:
+      # Actions are versioned by major tag and move together, so one PR is the
+      # point. `actions/setup-go` is currently pinned at v4 in one workflow and
+      # v5 in another — the kind of drift this exists to surface.
+      github-actions:
+        patterns: ["*"]
+
+  # --- Docs site (Jekyll) -----------------------------------------------
+  - package-ecosystem: "bundler"
+    directory: "/docs"
+    target-branch: "development"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels: ["dependencies", "docs"]
+    commit-message:
+      prefix: "chore(docs)"
+      include: "scope"
+    groups:
+      # A broken gem breaks the docs build and nothing else, so these travel
+      # together.
+      jekyll:
+        patterns: ["*"]

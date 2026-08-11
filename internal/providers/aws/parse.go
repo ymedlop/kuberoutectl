@@ -20,6 +20,16 @@ type awsCluster struct {
 	Endpoint string `json:"endpoint"`
 	Version  string `json:"version"`
 	Status   string `json:"status"`
+	// AccessConfig carries the cluster's authentication mode, which decides
+	// whether an access-entry check can conclude anything. Clusters created
+	// before access entries existed have no accessConfig block at all, which
+	// decodes to the zero value — a normal finding, not an error.
+	AccessConfig awsAccessConfig `json:"accessConfig"`
+}
+
+// awsAccessConfig is the subset of an EKS cluster's accessConfig we consume.
+type awsAccessConfig struct {
+	AuthenticationMode string `json:"authenticationMode"`
 }
 
 type awsEKSList struct {

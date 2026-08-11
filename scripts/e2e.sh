@@ -63,8 +63,15 @@ EOF
 cat > "$WORK/bin/aws" <<EOF
 #!/usr/bin/env bash
 SSO="https://my-sso.awsapps.com/start"
+# Both SSO profiles see the same three clusters. madrid is defined inline rather
+# than as a shared fixture because it exists only for this script: it is a
+# CONFIG_MAP cluster, the mode where access entries do not apply at all, so no
+# list-access-entries call may be made for it and every profile must read
+# `unknown` — never "not operable".
+EKS_LIST='{"clusters":["eks-prod-frankfurt","eks-prod-ireland","eks-prod-madrid"]}'
+MADRID='{"cluster":{"name":"eks-prod-madrid","arn":"arn:aws:eks:eu-central-1:111111111111:cluster/eks-prod-madrid","endpoint":"https://GHI789.gr7.eu-central-1.eks.amazonaws.com","version":"1.29","status":"ACTIVE","accessConfig":{"authenticationMode":"CONFIG_MAP"}}}'
 case "\$*" in
-  "configure list-profiles") printf 'default\nprod-sso\nlegacy-static\n' ;;
+  "configure list-profiles") printf 'default\nops\nprod-sso\nlegacy-static\n' ;;
   "sts get-caller-identity --profile default --output json") echo "Error loading SSO Token: Token for default does not exist" >&2; exit 1 ;;
   "configure get sso_start_url --profile default") echo "\$SSO" ;;
   "sts get-caller-identity --profile legacy-static --output json") cat "$AWS_FIX/identity-static.json" ;;
@@ -74,9 +81,33 @@ case "\$*" in
   "sts get-caller-identity --profile prod-sso --output json") cat "$AWS_FIX/identity-prod-sso.json" ;;
   "configure get sso_start_url --profile prod-sso") echo "\$SSO" ;;
   "configure get region --profile prod-sso") echo "eu-central-1" ;;
-  "eks list-clusters --profile prod-sso --region eu-central-1 --output json") cat "$AWS_FIX/eks-list-prod.json" ;;
+  "eks list-clusters --profile prod-sso --region eu-central-1 --output json") echo "\$EKS_LIST" ;;
   "eks describe-cluster --profile prod-sso --region eu-central-1 --name eks-prod-frankfurt --output json") cat "$AWS_FIX/eks-describe-frankfurt.json" ;;
   "eks describe-cluster --profile prod-sso --region eu-central-1 --name eks-prod-ireland --output json") cat "$AWS_FIX/eks-describe-ireland.json" ;;
+  "eks describe-cluster --profile prod-sso --region eu-central-1 --name eks-prod-madrid --output json") echo "\$MADRID" ;;
+  # ops: a second SSO profile into the SAME account. It sees frankfurt (so the
+  # two profiles' targets share an ARN and must fold into one), but IAM denies
+  # it describe on ireland — the no-pattern case this feature exists for.
+  "sts get-caller-identity --profile ops --output json") cat "$AWS_FIX/identity-ops.json" ;;
+  "configure get sso_start_url --profile ops") echo "\$SSO" ;;
+  "configure get region --profile ops") echo "eu-central-1" ;;
+  "eks list-clusters --profile ops --region eu-central-1 --output json") echo "\$EKS_LIST" ;;
+  "eks describe-cluster --profile ops --region eu-central-1 --name eks-prod-frankfurt --output json") cat "$AWS_FIX/eks-describe-frankfurt.json" ;;
+  "eks describe-cluster --profile ops --region eu-central-1 --name eks-prod-ireland --output json") exit 1 ;;
+  "eks describe-cluster --profile ops --region eu-central-1 --name eks-prod-madrid --output json") echo "\$MADRID" ;;
+  # Frankfurt is in API authentication mode, so its access-entry list is
+  # authoritative in both directions. The list is asked for once for the whole
+  # cluster (through the group's first profile, ops) and spans two pages: ops'
+  # own entry is on page 2, so a check that ignored nextToken would report a real
+  # entry as absent — which under API mode reads as a confirmed refusal.
+  # prod-sso appears on neither page.
+  "eks list-access-entries --cluster-name eks-prod-frankfurt --profile ops --region eu-central-1 --output json") cat "$AWS_FIX/access-entries-page1.json" ;;
+  "eks list-access-entries --cluster-name eks-prod-frankfurt --profile ops --region eu-central-1 --output json --starting-token eyJwYWdlIjogMn0=") cat "$AWS_FIX/access-entries-page2.json" ;;
+  # Ireland is reached by prod-sso alone. It is checked anyway now: with one way
+  # in there is nothing to choose, but still something to know — whether that one
+  # way in will be refused. Under the old bound a fleet of single-profile
+  # clusters got no verdict anywhere.
+  "eks list-access-entries --cluster-name eks-prod-ireland --profile prod-sso --region eu-central-1 --output json") cat "$AWS_FIX/access-entries-page2.json" ;;
   *) exit 1 ;;
 esac
 EOF
@@ -109,6 +140,22 @@ run sync azure
 run sync aws
 run sync kubeconfig
 run sync gcp
+
+echo; echo "==> the update check never fires on a non-release build, and no command phones home"
+# The e2e binary is built without release ldflags, so buildinfo.Version is `dev`
+# — uncomparable, and therefore skipped before any client is constructed. This is
+# also what keeps this very script from making a network call.
+doctor_out="$("$BIN" doctor 2>&1)"; echo "$doctor_out"
+echo "$doctor_out" | grep -qE '^version' && fail "a dev build must not produce an update row"
+assert_contains "$doctor_out" "provider:aws"          # the real checks still run
+
+# --check-update on a dev build asks for nothing and claims nothing.
+ver_out="$("$BIN" version --check-update 2>&1)"; echo "$ver_out"
+echo "$ver_out" | grep -qF "is available" && fail "a dev build must not offer an upgrade"
+assert_contains "$("$BIN" version --help)" "check-update"   # the flag is documented
+
+# The opt-out is honoured even where the check would otherwise be possible.
+KUBEROUTECTL_NO_UPDATE_CHECK=1 "$BIN" doctor >/dev/null || fail "the opt-out must not break doctor"
 
 echo; echo "==> aws: an expired-token profile is surfaced on sync (diagnostic), not silently dropped"
 sync_aws_diag="$("$BIN" sync aws 2>&1)"; echo "$sync_aws_diag"
@@ -165,6 +212,105 @@ echo; echo "==> filter by provider"
 aws_only="$("$BIN" target list --provider aws)"; echo "$aws_only"
 assert_contains "$aws_only" "eks-prod-frankfurt"
 echo "$aws_only" | grep -qF "aks-prod-weu" && fail "--provider aws must exclude Azure targets"
+
+echo; echo "==> two AWS profiles into one account fold into a single target"
+# eks-prod-frankfurt is visible to both prod-sso and ops. Before the fold this
+# produced two targets sharing an ARN, indistinguishable in the listing and with
+# the second unreachable by any printed reference.
+aws_rows="$("$BIN" target list --provider aws)"; echo "$aws_rows"
+fra_count="$(echo "$aws_rows" | grep -c "eks-prod-frankfurt")"
+[ "$fra_count" -eq 1 ] || fail "expected exactly 1 frankfurt row, got $fra_count"
+assert_contains "$aws_rows" "PROFILES"
+assert_contains "$aws_rows" "ops"
+
+echo; echo "==> a cluster only one profile can describe records only that profile"
+# ops is denied describe on ireland, so ireland must not offer it as a way in.
+ireland="$("$BIN" target inspect eks-prod-ireland)"; echo "$ireland"
+echo "$ireland" | grep -qE '^profile[[:space:]]+ops' && fail "ireland must not list the denied profile"
+
+echo; echo "==> sync reports which profile was denied on which cluster"
+denials="$("$BIN" sync aws 2>&1)"; echo "$denials" | grep -F "cannot describe" || true
+assert_contains "$denials" "eks-prod-ireland"
+
+echo; echo "==> target use --profile picks the access path, and it is remembered"
+default_use="$("$BIN" target use eks-prod-frankfurt --no-kubeconfig 2>&1)"; echo "$default_use"
+assert_contains "$default_use" "default"          # an unprompted default says so
+chosen="$("$BIN" target use eks-prod-frankfurt --profile prod-sso --no-kubeconfig 2>&1)"; echo "$chosen"
+assert_contains "$chosen" "via prod-sso"
+echo "$chosen" | grep -qF "default" && fail "an explicit choice must not read as a default"
+assert_contains "$("$BIN" current)" "prod-sso"    # persisted, and reported
+again="$("$BIN" target use eks-prod-frankfurt --no-kubeconfig 2>&1)"; echo "$again"
+assert_contains "$again" "remembered"
+
+echo; echo "==> access entries decide who can actually operate, not just authenticate"
+# Both profiles can describe frankfurt — that is IAM. Only ops holds an EKS
+# access entry, which is the Kubernetes-side layer that decides whether kubectl
+# works at all. That verdict lives in `target inspect`, not in the listing: in a
+# fleet where each cluster is reached by one profile the check never runs, so a
+# column would have said `unknown` on nearly every row.
+echo "$aws_rows" | grep -q "OPERABLE" && fail "the listing must not carry an OPERABLE column"
+
+# The listing shows the server version instead — already discovered, costs
+# nothing, and it is the first thing you look at when picking a cluster.
+assert_contains "$aws_rows" "VERSION"
+ver_col="$(echo "$aws_rows" | head -1 | tr -s ' ' '\n' | grep -n '^VERSION$' | cut -d: -f1)"
+[ -n "$ver_col" ] || fail "no VERSION column in the header"
+fra_version="$(echo "$aws_rows" | grep 'eks-prod-frankfurt' | awk -v c="$ver_col" '{print $c}')"
+echo "frankfurt VERSION=$fra_version"
+[ "$fra_version" = "1.29" ] || fail "frankfurt VERSION is '$fra_version', want '1.29' (from discovery)"
+
+# The CONFIG_MAP cluster must cost nothing: the mode is readable from the
+# describe response already in hand, so no access-entry call is warranted. The
+# sync reports how many clusters it actually listed entries for, so that cost is
+# visible rather than mysterious — 2 of 3 here, madrid being the free one.
+madrid_sync="$("$BIN" sync aws 2>&1)"
+assert_contains "$madrid_sync" "eks-prod-madrid"
+assert_contains "$madrid_sync" "CONFIG_MAP"
+assert_contains "$madrid_sync" "listed access entries for 2"
+
+# Ireland is reached by one profile and is checked anyway — the case the original
+# cost bound skipped, and the one a real fleet is mostly made of.
+ire_inspect="$("$BIN" target inspect eks-prod-ireland)"; echo "$ire_inspect"
+assert_contains "$ire_inspect" "Access check"
+
+# The fleet question is a selector, not a column: `which of these can I operate?`
+operable="$("$BIN" target list --provider aws -l operable=true)"; echo "$operable"
+assert_contains "$operable" "eks-prod-frankfurt"
+echo "$operable" | grep -qF "eks-prod-madrid" && fail "a CONFIG_MAP cluster is unknown, never operable=true"
+# And `unknown` is queryable, which is the whole reason the key is always present.
+unknown="$("$BIN" target list --provider aws -l operable=unknown)"; echo "$unknown"
+assert_contains "$unknown" "eks-prod-madrid"
+
+fra_inspect="$("$BIN" target inspect eks-prod-frankfurt)"; echo "$fra_inspect"
+assert_contains "$fra_inspect" "Access check"
+assert_contains "$fra_inspect" "not operable"     # prod-sso, confirmed absent under API mode
+
+echo; echo "==> choosing a profile the cluster refuses warns on stderr and still proceeds"
+warn="$("$BIN" target use eks-prod-frankfurt --profile prod-sso --no-kubeconfig 2>&1 >/dev/null)"; echo "$warn"
+assert_contains "$warn" "no access entry"
+assert_contains "$warn" "ops"                     # names one that would work
+stdout_only="$("$BIN" target use eks-prod-frankfurt --profile prod-sso --no-kubeconfig 2>/dev/null)"
+assert_contains "$stdout_only" "Recorded selection"  # reports, does not block
+echo "$stdout_only" | grep -qF "no access entry" && fail "the warning belongs on stderr, not stdout"
+
+echo; echo "==> --refresh re-checks operability live; without it nothing is called"
+# The fake aws answers list-access-entries for frankfurt through ops. A refresh
+# goes back to it; the default does not, which is the whole reason the flag
+# exists now that the cache covers every cluster.
+refreshed="$("$BIN" target use eks-prod-frankfurt --profile ops --no-kubeconfig --refresh 2>&1 >/dev/null)"; echo "$refreshed"
+assert_contains "$refreshed" "holds an access entry"
+assert_contains "$("$BIN" target inspect eks-prod-frankfurt --refresh)" "Access check"
+# A profile the cluster refuses still warns, and still proceeds.
+warn_live="$("$BIN" target use eks-prod-frankfurt --profile prod-sso --no-kubeconfig --refresh 2>&1 >/dev/null)"; echo "$warn_live"
+assert_contains "$warn_live" "no access entry"
+# And the flags are documented, or the override is unreachable.
+assert_contains "$("$BIN" target use --help)" "refresh"
+assert_contains "$("$BIN" target inspect --help)" "refresh"
+
+echo; echo "==> an unreachable profile is rejected, naming the ones that work"
+bad="$("$BIN" target use eks-prod-frankfurt --profile nope --no-kubeconfig 2>&1)" && fail "expected failure"
+echo "$bad"
+assert_contains "$bad" "ops"
 
 echo; echo "==> --wide shows the full ID"
 assert_contains "$("$BIN" target list --wide)" "$AKS_WEU"

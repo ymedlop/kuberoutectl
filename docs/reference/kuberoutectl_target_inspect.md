@@ -9,6 +9,13 @@ description: "Show a single target in detail, including labels"
 
 Show a single target in detail, including labels
 
+### Synopsis
+
+Show a single target in detail, including labels.
+
+Operability comes from the last `sync`. Pass --refresh to re-establish it
+against the provider instead — one extra API call, for the cluster named.
+
 ```
 kuberoutectl target inspect <alias|id|name> [flags]
 ```
@@ -16,7 +23,8 @@ kuberoutectl target inspect <alias|id|name> [flags]
 ### Options
 
 ```
-  -h, --help   help for inspect
+  -h, --help      help for inspect
+      --refresh   re-check operability against the provider instead of using the last sync
 ```
 
 ### Options inherited from parent commands

@@ -24,8 +24,10 @@ kuberoutectl target use <alias|id|name> [flags]
 ### Options
 
 ```
-  -h, --help            help for use
-      --no-kubeconfig   record the selection only; do not modify ~/.kube/config
+  -h, --help             help for use
+      --no-kubeconfig    record the selection only; do not modify ~/.kube/config
+      --profile string   go in through this credential (an AWS profile name) when several reach the target
+      --refresh          re-check operability against the provider instead of using the last sync
 ```
 
 ### Options inherited from parent commands

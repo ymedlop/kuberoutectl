@@ -81,9 +81,9 @@ Platform Lab   azure     aaaaaaaa-0000-0000-0000-000000000002
 Sandbox        azure     aaaaaaaa-0000-0000-0000-000000000003
 
 $ kuberoutectl target list
-ALIAS         PLATFORM  REGION      HEALTH  PROVIDER
-aks-prod-weu  aks       westeurope  valid   azure
-aks-lab-weu   aks       westeurope  valid   azure
+ALIAS         PLATFORM  VERSION  REGION      HEALTH  PROVIDER
+aks-prod-weu  aks       1.29     westeurope  valid   azure
+aks-lab-weu   aks       1.29     westeurope  valid   azure
 ```
 
 The **ALIAS** is a short, stable handle (derived from the cluster name) that you
