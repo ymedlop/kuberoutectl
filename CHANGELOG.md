@@ -6,7 +6,7 @@ follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 This file is maintained by hand (GoReleaser's changelog generation is disabled).
 
-## [Unreleased]
+## [1.2.0] — 2026-07-31
 
 ### Fixed
 - **A malformed provider response no longer looks like an empty account.** When
@@ -107,6 +107,18 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
   same cluster, and `use_target` returns an `access_verdict` alongside the
   existing `access_warning`.
 
+  **What `target use` says follows one rule: it reports what is known, whether
+  that came from the cache or from a refresh — and stays silent only when
+  nothing was established.** Not checking is not the same as having nothing to
+  say, so a verdict recorded at the last sync is still reported without the
+  flag. **Tense carries the provenance**: "holds an access entry" is a live
+  reading, "held an access entry at the last sync" is cache. A stale *positive*
+  is the dangerous one — it is the sentence a reader acts on without
+  re-checking — so it is never phrased as current. When a `--refresh` cannot
+  run, the cached verdict is reported alongside the failure rather than replaced
+  by it: the reader still has an answer, just an older one. Silence now means
+  exactly one thing, which is what makes it readable.
+
 - **`target list -l operable=true`** — the verdict is queryable as a selector,
   alongside `region`, `platform` and `health`, so "which of these can I actually
   operate?" is one question rather than a column to scan. Three values —
@@ -144,6 +156,32 @@ This file is maintained by hand (GoReleaser's changelog generation is disabled).
   reproducibility with no repo change at all. Until now this was a manual
   checklist item, which is why it was skipped for 1.1.0 and that release's notes
   had to record the guarantee as unproven for that tag.
+
+- **Merges into `main` and `development` now require CI to pass.** `verify`,
+  `goreleaser-check`, `Analyze (go)` and `Analyze (actions)` are required status
+  checks, each pinned to the app that produces it so a check cannot be satisfied
+  by anything else posting the same name. `reproducible-build` is deliberately
+  **not** required: it is path-filtered, so requiring it would leave every
+  docs-only pull request waiting forever on a check that never runs. The gate
+  was verified by observing a deliberately broken commit refused, rather than by
+  assuming a configured rule works.
+
+- **CodeQL runs the `security-extended` suite**, adding lower-severity and
+  lower-precision security queries to the default set. Not
+  `security-and-quality`, whose maintainability and reliability checks duplicate
+  what `make check` already does with `gofmt` and `go vet` — style findings in a
+  security tab are how a security tab stops being read. It reports zero
+  findings on this release, which says as much about the codebase as the suite:
+  this is a CLI that shells out to provider binaries rather than parsing
+  untrusted input, and a test enforces that only `internal/cli` may reach the
+  network at all.
+
+- **Dependabot watches every ecosystem in the repository.** Go modules were
+  covered; the GitHub Actions the workflows pin and the docs site's Gemfile were
+  not — the half of the supply chain code scanning does not see. Updates are
+  grouped so a quiet week produces a readable pull request rather than a queue
+  nobody opens, and they target `development`, since a dependency bump merged
+  into `main` would be discarded by the next promotion.
 
 ### Known limitation
 - An access entry answers "are you admitted", not "may you do X" — a restrictive
@@ -273,6 +311,7 @@ the command surface is not expected to change in breaking ways.
 - Provider guides, an installation guide with a troubleshooting section, and a
   labels & collections guide, published to GitHub Pages.
 
+[1.2.0]: https://github.com/ymedlop/kuberoutectl/releases/tag/v1.2.0
 [1.1.1]: https://github.com/ymedlop/kuberoutectl/releases/tag/v1.1.1
 [1.1.0]: https://github.com/ymedlop/kuberoutectl/releases/tag/v1.1.0
 [1.0.0]: https://github.com/ymedlop/kuberoutectl/releases/tag/v1.0.0
