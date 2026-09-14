@@ -3,7 +3,7 @@ module github.com/ymedlop/kuberoutectl
 go 1.25.0
 
 require (
-	github.com/modelcontextprotocol/go-sdk v1.7.0
+	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/spf13/cobra v1.10.2
 )
 
