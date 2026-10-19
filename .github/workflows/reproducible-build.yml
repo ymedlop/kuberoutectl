@@ -44,14 +44,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # `make snapshot` reads the commit timestamp via `git log -1`, and
           # GoReleaser's snapshot version template embeds the short commit.
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
 
@@ -59,7 +59,7 @@ jobs:
       # this action, so it only needs to put the binary on PATH. Version range
       # matches release.yml and snapshot-release.yml.
       - name: Install GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: "~> v2"
